@@ -1,0 +1,53 @@
+name: Deploy to Cloudflare Pages
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+  deployments: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    name: Build and deploy
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # for git-date-based "last touched" frontmatter
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Setup pandoc
+        run: sudo apt-get update && sudo apt-get install -y pandoc
+
+      - name: Setup LaTeX (for TikZ figure pipeline)
+        run: sudo apt-get install -y texlive-base texlive-latex-extra texlive-pictures pdf2svg poppler-utils
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build figures (TikZ → SVG)
+        run: npm run build:figures --if-present
+
+      - name: Validate book structure
+        run: npm run validate
+
+      - name: Build site
+        run: npm run build
+
+      - name: Publish to Cloudflare Pages
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy dist --project-name=dlai-study-notes --branch=${{ github.ref_name }}

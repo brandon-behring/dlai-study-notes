@@ -1,0 +1,16 @@
+{
+  "name": "@dlai-study-notes/inject-cards",
+  "description": "Inject <AnkiCard> components into chapter MDX from existing course_learning cards/*.yml. Per Q-R4.4 hybrid placement: auto-extract as initial placement, polish-pass refinement via <!-- CARD-PLACEMENT-TODO --> markers.",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "bin": {
+    "inject-cards": "./cli.mjs"
+  },
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "dependencies": {
+    "yaml": "^2.6.0"
+  }
+}

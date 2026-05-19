@@ -1,0 +1,23 @@
+---
+const { title } = Astro.props;
+---
+<section class="decision-tree">
+  <header class="dt-header">
+    <span class="dt-tag">Decision tree</span>
+    {title && <h3 class="dt-title">{title}</h3>}
+  </header>
+  <div class="dt-body"><slot /></div>
+</section>
+
+<style>
+  .decision-tree {
+    border: 1px solid var(--color-border, #e2e8f0);
+    border-top: 3px solid var(--color-decision, #3182ce);
+    padding: 1.25rem; margin: 2rem 0; border-radius: 4px;
+  }
+  .dt-tag {
+    font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em;
+    color: var(--color-decision, #3182ce); font-weight: 700;
+  }
+  .dt-title { margin: 0.25rem 0; font-size: 1.1rem; }
+</style>

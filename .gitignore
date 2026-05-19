@@ -1,0 +1,40 @@
+# Build outputs
+dist/
+dist-pdf/
+
+# Generated artifacts
+src/data/labels.json
+src/data/references.json
+public/figures/**/*.svg
+public/notebooks/**/*.html
+
+# Anki output
+dist/anki/
+
+# TikZ build artifacts (PDFs from .tex compilation in figures/)
+figures/**/*.pdf
+figures/**/*.aux
+figures/**/*.log
+figures/**/*.out
+figures/**/*.synctex.gz
+
+# Node / npm
+node_modules/
+npm-debug.log*
+
+# Astro
+.astro/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# OS / editor
+.DS_Store
+*.swp
+.vscode/
+.idea/
+
+# Pagefind
+pagefind/

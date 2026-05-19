@@ -1,0 +1,23 @@
+---
+const { title } = Astro.props;
+---
+<section class="vignette">
+  <header class="vignette-header">
+    <span class="vignette-tag">Vignette</span>
+    {title && <h3 class="vignette-title">{title}</h3>}
+  </header>
+  <div class="vignette-body"><slot /></div>
+</section>
+
+<style>
+  .vignette {
+    border: 1px solid var(--color-border, #e2e8f0);
+    border-top: 3px solid var(--color-vignette, #319795);
+    padding: 1.25rem; margin: 2rem 0; border-radius: 4px;
+  }
+  .vignette-tag {
+    font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em;
+    color: var(--color-vignette, #319795); font-weight: 700;
+  }
+  .vignette-title { margin: 0.25rem 0; font-size: 1.1rem; }
+</style>

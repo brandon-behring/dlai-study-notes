@@ -1,0 +1,965 @@
+---
+book: knowledge-graphs-rag
+title: Chatting with the Knowledge Graph
+chapter: 7
+description: "Advanced graph querying: the Extract-Enhance-Expand pattern,
+  geospatial indexes with distance queries, LLM-generated Cypher via few-shot
+  learning, and the GraphCypherQAChain for end-to-end natural language graph
+  querying."
+learning_outcomes:
+  - id: KGR-7.1
+    verb: explain
+    text: the Extract-Enhance-Expand pattern as a repeatable framework for
+      incrementally building and growing Knowledge Graphs
+  - id: KGR-7.2
+    verb: apply
+    text: geospatial queries using Neo4j's \texttt{point.distance()} function to
+      find entities within a specified radius
+  - id: KGR-7.3
+    verb: design
+    text: few-shot prompts that teach an LLM to generate valid Cypher queries from
+      natural language questions
+  - id: KGR-7.4
+    verb: design
+    text: a GraphCypherQAChain that combines LLM Cypher generation with Neo4j
+      execution for end-to-end natural language to graph querying
+  - id: KGR-7.5
+    verb: apply
+    text: progressive few-shot examples that unlock new query capabilities (city
+      filtering, geospatial search, document navigation)
+  - id: KGR-7.6
+    verb: evaluate
+    text: LLM-generated Cypher for correctness, identifying hallucinated
+      relationship types and schema violations
+  - id: KGR-7.7
+    verb: compare
+    text: "the four retrieval paradigms available in the final graph: vector search,
+      full-text search, graph traversal, and geospatial search"
+  - id: KGR-7.8
+    verb: explain
+    text: how Address nodes with geospatial points extend the graph schema to enable
+      distance-based entity discovery
+sources: []
+tools_compared:
+  - MLE-Google-L4
+  - SWE-Neo4j
+  - DS-JPMorgan
+  - MLE-Amazon-L5
+  - RSWE-Microsoft
+last_verified: 2026-05-19
+volatility: architectural-pattern
+---
+
+{/* TODO: per-chapter polish pass — see plan decision Q1 round 3 */}
+
+<NarrativeBox title="Where We Are">
+
+The Knowledge Graph is complete—chunks, forms, companies, managers,
+and investment relationships are all connected. This final module
+adds two capabilities: geospatial queries that leverage location data,
+and LLM-generated Cypher<Citation src="pan2024unifying" /> that lets users ask questions in plain English
+and have the system automatically generate and execute graph queries.
+The course concludes with the Extract-Enhance-Expand pattern—a
+repeatable framework for growing Knowledge Graphs incrementally.
+
+</NarrativeBox>
+
+# The Extract-Enhance-Expand Pattern
+
+<KeyConcept title="Extract-Enhance-Expand" los="KGR-7.1">
+
+Throughout the course, the Knowledge Graph was built by repeating a
+three-phase pattern:
+
+1.  **Extract**: Pull information from source data into
+    separate nodes (splitting text into chunks, creating Form /
+    Company / Manager nodes from structured data).
+
+2.  **Enhance**: Supercharge data with indexes or computed
+    properties (vector embeddings, full-text indexes, geospatial
+    points).
+
+3.  **Expand**: Connect new data to the existing graph
+    (NEXT, PART\_OF, FILED, OWNS\_STOCK\_IN relationships).
+
+This pattern was applied at every stage: raw text to chunks, chunks to
+forms, Form 13 CSV to companies and managers. It provides a repeatable
+framework for growing any Knowledge Graph incrementally.
+
+**When It Breaks:** The pattern assumes new data can be cleanly linked
+to existing nodes via shared identifiers. When identifiers are absent or
+ambiguous (e.g., name-only matching across datasets), the Expand phase
+requires an entity resolution step that the pattern does not cover.
+
+</KeyConcept>
+
+
+
+<Term name="Extract-Enhance-Expand" los="KGR-7.1">
+  A three-phase pattern for incrementally building Knowledge Graphs. Extract creates nodes from source data, Enhance adds indexes and computed properties, Expand connects new nodes to existing graph structure. Repeatable for each new data source.
+</Term>
+<AnkiCard type="term" front={"Extract-Enhance-Expand"} back={"A three-phase pattern for incrementally building Knowledge Graphs. Extract creates nodes from source data, Enhance adds indexes and computed properties, Expand connects new nodes to existing graph structure. Repeatable for each new data source."} los="KGR-7.1" />
+
+
+
+| **Stage** | **Extract** | **Enhance** | **Expand** |
+|:---|:---|:---|:---|
+| M4: Documents | Chunk nodes from text | Vector embeddings | (none yet) |
+| M5: Structure | Form nodes | Section index | NEXT, PART\_OF, SECTION |
+| M6: Investments | Company, Manager nodes | Full-text index | FILED, OWNS\_STOCK\_IN |
+| M7: Geography | Address nodes | Geospatial points | LOCATED\_AT |
+
+
+
+<Sidenote category="interview">The Extract-Enhance-Expand pattern demonstrates system-level thinking. Use it to describe how you would grow a Knowledge Graph in a design interview.</Sidenote>
+
+
+
+## Future Expansion Possibilities
+
+- **Entity extraction**: Use NLP to find companies mentioned
+  in filing text and link them as separate nodes.
+
+- **External data sources**: Add more CSV or API data
+  (news articles, earnings calls, patent filings).
+
+- **User feedback**: Add user nodes to track interactions,
+  ratings, and preferences for improving retrieval quality over time.
+
+
+
+<Sidenote category="practice">Each new data source or relationship type added to the graph unlocks new categories of questions that can be answered. The marginal cost of expansion decreases as the schema matures.</Sidenote>
+
+
+
+# Expanded Graph with Addresses
+
+For this module, the graph has been pre-expanded with **Address** nodes
+for both companies and managers. Each address includes a **geospatial
+point** (latitude and longitude) enabling distance-based queries.
+
+
+
+<Term name="Address Node" los="KGR-7.8">
+  A graph node representing a physical location with city, state, and a geospatial `location` property (latitude/longitude point). Connected to Company and Manager nodes via LOCATED\_AT relationships. Enables distance-based queries using `point.distance()`.
+</Term>
+<AnkiCard type="term" front={"Address Node"} back={"A graph node representing a physical location with city, state, and a geospatial `location` property (latitude/longitude point). Connected to Company and Manager nodes via LOCATED\\_AT relationships. Enables distance-based queries using `point.distance()`."} los="KGR-7.8" />
+
+
+
+
+
+<Sidenote category="pattern">Address nodes follow the Extract-Enhance-Expand pattern: extract from CSV, enhance with geospatial points, expand with LOCATED\_AT.</Sidenote>
+
+
+
+
+
+```cypher
+# Updated schema with Address nodes
+# (Manager)-[:LOCATED_AT]->(Address)
+# (Company)-[:LOCATED_AT]->(Address)
+# (Manager)-[:OWNS_STOCK_IN]->(Company)
+# (Company)-[:FILED]->(Form)
+# (Form)-[:SECTION]->(Chunk)
+# (Chunk)-[:NEXT]->(Chunk)
+# (Chunk)-[:PART_OF]->(Form)
+```
+
+
+
+
+
+<Term name="LOCATED\_AT Relationship" los="KGR-7.8">
+  A directed relationship from a Company or Manager node to an Address node. Enables geographic queries by connecting entities to their physical locations.
+</Term>
+<AnkiCard type="term" front={"LOCATED\\_AT Relationship"} back={"A directed relationship from a Company or Manager node to an Address node. Enables geographic queries by connecting entities to their physical locations."} los="KGR-7.8" />
+
+
+
+# Exploring the Graph with Cypher
+
+## Finding Managers and Their Locations
+
+
+
+```cypher
+# Find a manager and their address
+result = kg.query("""
+    MATCH (mgr:Manager)-[:LOCATED_AT]->(addr:Address)
+    RETURN mgr.managerName, addr.city, addr.state
+    LIMIT 1
+""")
+```
+
+
+
+The Address node contains `city`, `state`, and a
+`location` property (a geospatial point with latitude/longitude).
+
+## Full-Text Search with Location
+
+
+
+```cypher
+# Full-text search combined with location lookup
+result = kg.query("""
+    CALL db.index.fulltext.queryNodes(
+        "fullTextManagerNames", "Royal Bank"
+    ) YIELD node AS mgr, score
+    MATCH (mgr)-[:LOCATED_AT]->(addr:Address)
+    RETURN mgr.managerName, addr.city, addr.state
+""")
+# Royal Bank of Canada is located in Canada
+```
+
+
+
+## Aggregation Queries
+
+
+
+```cypher
+# Top states by number of investment firms
+result = kg.query("""
+    MATCH (mgr:Manager)-[:LOCATED_AT]->(addr:Address)
+    RETURN addr.state AS state,
+           count(addr.state) AS numberOfManagers
+    ORDER BY numberOfManagers DESC LIMIT 10
+""")
+# New York leads, followed by California
+
+# Top states by number of public companies
+result = kg.query("""
+    MATCH (com:Company)-[:LOCATED_AT]->(addr:Address)
+    RETURN addr.state AS state,
+           count(addr.state) AS numberOfCompanies
+    ORDER BY numberOfCompanies DESC LIMIT 10
+""")
+# California leads for companies
+```
+
+
+
+<ConceptBox>
+
+**Geographic Insight.**
+Investment firms cluster in **New York** (Wall Street) and
+**San Francisco**, while tech companies cluster in **Santa
+Clara**, **San Jose**, **Sunnyvale**, and **Cupertino**
+(Silicon Valley). Within California, the cities are entirely
+different—a pattern that only graph aggregation can reveal.
+
+</ConceptBox>
+
+# Geospatial Queries
+
+
+
+<Term name="Geospatial Point" los="KGR-7.2">
+  A Neo4j data type representing a location on Earth with latitude and longitude coordinates. Stored as a `point()` value and queried with `point.distance()` for distance calculations in metres.
+</Term>
+<AnkiCard type="term" front={"Geospatial Point"} back={"A Neo4j data type representing a location on Earth with latitude and longitude coordinates. Stored as a `point()` value and queried with `point.distance()` for distance calculations in metres."} los="KGR-7.2" />
+
+
+
+## Distance-Based Search
+
+Neo4j’s `point.distance()` function calculates the distance between
+two geospatial points in metres:
+
+
+
+```cypher
+# Find companies within 10 km of Santa Clara
+result = kg.query("""
+    MATCH (sc:Address {city: "Santa Clara"})
+    MATCH (com:Company)-[:LOCATED_AT]->(comAddr:Address)
+    WHERE point.distance(sc.location, comAddr.location) < 10000
+    RETURN com.companyName, com.companyAddress
+""")
+# Returns: Palo Alto Networks, Seagate, Apple (Cupertino), etc.
+```
+
+
+
+
+
+<Sidenote category="warning">The distance parameter is in **metres**, not kilometres. Use 10000 for 10 km, 50000 for 50 km. This is a common source of bugs in geospatial queries.</Sidenote>
+
+
+
+## Cross-Entity Distance Queries
+
+Find investment firms near a specific company, using full-text search for
+fuzzy name matching:
+
+
+
+```cypher
+# Investment firms near Palo Alto Networks
+# Note: full-text search handles misspellings
+result = kg.query("""
+    CALL db.index.fulltext.queryNodes(
+        "fullTextCompanyNames", "Palo Alato Networks"
+    ) YIELD node AS com, score
+    MATCH (com)-[:LOCATED_AT]->(comAddr:Address)
+    MATCH (mgr:Manager)-[:LOCATED_AT]->(mgrAddr:Address)
+    WHERE point.distance(comAddr.location,
+                         mgrAddr.location) < 10000
+    RETURN mgr.managerName,
+           point.distance(comAddr.location,
+                          mgrAddr.location) / 1000
+               AS distanceKm
+""")
+```
+
+
+
+
+
+<Term name="point.distance()" los="KGR-7.2">
+  Neo4j function that calculates the geodesic distance between two geospatial points in metres. Uses the haversine formula for great-circle distance on the Earth's surface. Divide by 1000 for kilometres.
+</Term>
+<AnkiCard type="term" front={"point.distance()"} back={"Neo4j function that calculates the geodesic distance between two geospatial points in metres. Uses the haversine formula for great-circle distance on the Earth's surface. Divide by 1000 for kilometres."} los="KGR-7.2" />
+
+
+
+
+
+<Sidenote category="formula">Common conversions: 1 mile $$ 1609 m. Use 80467 for 50 miles, 16093 for 10 miles. Always comment units in production code.</Sidenote>
+
+
+
+<KeyConcept title="Geospatial Search as a Retrieval Paradigm" los="KGR-7.2">
+
+Geospatial queries use `point.distance()` to find entities
+within a radius, adding a fourth retrieval paradigm alongside vector,
+full-text, and graph traversal. The distance function returns metres
+and requires a point index for performant range queries.
+
+**Why It Matters:** Location-aware retrieval surfaces
+relationships that semantic similarity cannot detect—two companies
+10 km apart may share suppliers, talent pools, or regulatory
+jurisdictions.
+
+**When It Breaks:** Without a point index, distance queries
+degrade to *O*(*n*) full scans. Always create indexes before queries.
+
+</KeyConcept>
+
+<NarrativeBox title="Debugging Geospatial Queries">
+
+1.  **No results?** Check that Address nodes have
+    `location` properties with valid point values.
+
+2.  **Too many/few results?** Adjust the distance threshold.
+    Remember: the unit is metres.
+
+3.  **Wrong distances?** Verify latitude/longitude order
+    in the point data. Neo4j uses
+    `point({latitude: x, longitude: y})`.
+
+</NarrativeBox>
+
+# LLM-Generated Cypher with Few-Shot Learning
+
+<ConceptBox>
+
+**The Vision.**
+Instead of writing Cypher queries manually, teach the LLM to generate
+valid Cypher from natural language questions. The LLM becomes a
+“Cypher compiler” that translates user intent into graph queries.
+
+</ConceptBox>
+
+## Few-Shot Prompt Design
+
+
+
+```cypher
+CYPHER_GENERATION_TEMPLATE = """
+Task: Generate Cypher statements to query a graph database.
+Instructions:
+- Use only the provided relationship types and properties.
+- Do not hallucinate relationship types or properties.
+Schema: {schema}
+
+Examples:
+# What investment firms are in San Francisco?
+MATCH (mgr:Manager)-[:LOCATED_AT]->(addr:Address)
+WHERE addr.city = "San Francisco"
+RETURN mgr.managerName
+
+# What investment firms are near Santa Clara?
+MATCH (sc:Address {{city: "Santa Clara"}})
+MATCH (mgr:Manager)-[:LOCATED_AT]->(mgrAddr:Address)
+WHERE point.distance(sc.location, mgrAddr.location) < 10000
+RETURN mgr.managerName,
+       point.distance(sc.location, mgrAddr.location)
+           AS distanceMeters
+ORDER BY distanceMeters ASC
+
+# What does Palo Alto Networks do?
+CALL db.index.fulltext.queryNodes(
+    "fullTextCompanyNames", "Palo Alto Networks"
+) YIELD node AS com
+MATCH (com)-[:FILED]->(f:Form)-[s:SECTION]->(c:Chunk)
+WHERE s.f10kItem = "item1"
+RETURN c.text
+
+Question: {question}
+"""
+```
+
+
+
+
+
+<Term name="Few-Shot Prompt" los="KGR-7.3">
+  A prompt containing 2–5 example question-answer pairs that teach the LLM a patternMDXISTART1MDXIEND. For Cypher generation, each example shows a natural language question paired with its correct Cypher query. The LLM generalises from these examples to handle new, unseen questions.
+</Term>
+<AnkiCard type="term" front={"Few-Shot Prompt"} back={"A prompt containing 2–5 example question-answer pairs that teach the LLM a patternMDXISTART1MDXIEND. For Cypher generation, each example shows a natural language question paired with its correct Cypher query. The LLM generalises from these examples to handle new, unseen questions."} los="KGR-7.3" />
+
+
+
+## GraphCypherQAChain
+
+
+
+```cypher
+from langchain.chains import GraphCypherQAChain
+from langchain_openai import ChatOpenAI
+
+cypher_chain = GraphCypherQAChain.from_llm(
+    ChatOpenAI(temperature=0),
+    graph=kg,
+    verbose=True,
+    cypher_prompt=cypher_generation_prompt,
+)
+
+# Natural language to graph query to natural language answer
+result = cypher_chain.invoke(
+    {"query": "What investment firms are in San Francisco?"}
+)
+```
+
+
+
+
+
+<Term name="GraphCypherQAChain" los="KGR-7.4">
+  LangChain's chain that combines LLM Cypher generation with Neo4j execution. Takes a natural language question, uses the LLM to generate Cypher, executes against Neo4j, passes results back to the LLM for a natural language answer. Requires the graph schema and a few-shot prompt for reliable Cypher generation.
+</Term>
+<AnkiCard type="term" front={"GraphCypherQAChain"} back={"LangChain's chain that combines LLM Cypher generation with Neo4j execution. Takes a natural language question, uses the LLM to generate Cypher, executes against Neo4j, passes results back to the LLM for a natural language answer. Requires the graph schema and a few-shot prompt for reliable Cypher generation."} los="KGR-7.4" />
+
+
+
+<PipelineBox title="Pipeline: Natural Language to Graph Answer">
+
+1.  **Question** *(user input)*  
+    User asks a natural language question.
+
+2.  **Cypher Generation** *(LLM + few-shot)*  
+    The LLM generates a Cypher query using the schema and
+    few-shot examples as guidance.
+
+3.  **Execution** *(Neo4j)*  
+    The generated Cypher is executed against the graph database.
+
+4.  **Answer** *(LLM + results)*  
+    The LLM synthesises a natural language answer from the
+    query results.
+
+</PipelineBox>
+
+## Progressive Few-Shot Examples
+
+Each new example teaches the LLM a new query pattern. The LLM
+generalises—after learning about investment firms in San Francisco, it
+can also query companies in Santa Clara without explicit instruction:
+
+| **Example Added** | **New Capability Unlocked** |
+|:---|:---|
+| Firms in San Francisco | City-based filtering for any entity type |
+| Firms near Santa Clara | Geospatial `point.distance()` queries |
+| What does Palo Alto Networks do? | Full-text search + SECTION traversal to document text |
+
+
+
+<Term name="Progressive Few-Shot Learning" los="KGR-7.5">
+  The practice of adding examples incrementally to a few-shot prompt, where each example unlocks a new query capability. The LLM generalises from each example to handle variations of the pattern. Two to three well-chosen examples typically cover a wide range of user questions.
+</Term>
+<AnkiCard type="term" front={"Progressive Few-Shot Learning"} back={"The practice of adding examples incrementally to a few-shot prompt, where each example unlocks a new query capability. The LLM generalises from each example to handle variations of the pattern. Two to three well-chosen examples typically cover a wide range of user questions."} los="KGR-7.5" />
+
+
+
+
+
+<Sidenote category="pattern">Diminishing returns: 2–3 diverse examples outperform 10 similar ones. Focus on pattern diversity (filter, aggregate, traverse), not quantity.</Sidenote>
+
+
+
+
+
+<Sidenote category="interview">"How do you teach an LLM to query a database?" is a senior system design question. The answer: few-shot prompts with schema injection and progressive example expansion.</Sidenote>
+
+
+
+# LLM-Generated Cypher for Document Queries
+
+
+
+<Sidenote category="warning">LLM-generated Cypher requires schema validation. Without it, the LLM invents plausible but non-existent relationship types.</Sidenote>
+
+
+
+The most powerful capability: navigating from a company name to its
+filing text via graph traversal, all generated by the LLM:
+
+
+
+```cypher
+# LLM generates this Cypher from the question
+# "What does Palo Alto Networks do?"
+generated_cypher = """
+    CALL db.index.fulltext.queryNodes(
+        "fullTextCompanyNames", "Palo Alto Networks"
+    ) YIELD node AS com
+    MATCH (com)-[:FILED]->(f:Form)
+          -[s:SECTION]->(c:Chunk)
+    WHERE s.f10kItem = "item1"
+    RETURN c.text
+"""
+# The LLM then summarises the retrieved text:
+# "Palo Alto Networks is a global cybersecurity provider..."
+```
+
+
+
+<RedFlag title="Schema Hallucination">
+
+Without explicit schema injection and the instruction “do not hallucinate
+relationship types,” the LLM may invent non-existent relationship types
+or properties. Always inject the actual graph schema into the prompt and
+validate generated Cypher before execution in production systems.
+
+</RedFlag>
+
+<NarrativeBox title="Debugging LLM-Generated Cypher">
+
+1.  **Invalid relationship type?** The LLM hallucinated a
+    relationship not in the schema. Add more examples using the
+    correct relationships, or strengthen the schema instruction.
+
+2.  **Empty results?** The generated Cypher may be
+    syntactically valid but semantically wrong. Set
+    `verbose=True` to inspect the generated query.
+
+3.  **Wrong answer?** Check if the Cypher returns the right
+    data. The issue may be in the LLM’s summarisation, not the
+    query.
+
+</NarrativeBox>
+
+# The Four Retrieval Paradigms
+
+
+
+<Sidenote category="crossref">vol6 Ch 4: RAG — unifying vector, full-text, graph, and geospatial retrieval in a single KG-powered query engine.</Sidenote>
+
+
+
+<KeyConcept title="Four Retrieval Paradigms" los="KGR-7.7">
+
+The final Knowledge Graph supports four complementary retrieval
+approaches, each suited to different question types:
+
+1.  **Vector search**: Semantic similarity for conceptual
+    questions (“What is NetApp’s business?”).
+
+2.  **Full-text search**: Keyword matching for entity lookup
+    (“Find Royal Bank of Canada”).
+
+3.  **Graph traversal**: Relationship following for
+    structural questions (“Who are NetApp’s investors?”).
+
+4.  **Geospatial search**: Distance-based queries for
+    location questions (“What companies are near Santa Clara?”).
+
+No single retrieval approach can answer all question types. The
+Knowledge Graph’s power lies in combining all four in a single
+query engine.
+
+**When It Breaks:** Combining paradigms in a single query increases
+latency and complexity. If 90% of questions are simple semantic lookups,
+the overhead of maintaining full-text, geospatial, and graph indexes is
+unjustified. Match infrastructure complexity to actual query diversity.
+
+</KeyConcept>
+
+
+
+<Sidenote category="crossref">For GraphRAG with community detection and Microsoft's implementation, see GraphRAG Ch 6–7</Sidenote>
+
+
+
+
+
+<Sidenote category="interview">Name all four retrieval paradigms from memory: vector, full-text, graph traversal, geospatial. Then give one question type for each.</Sidenote>
+
+
+
+<InterviewContext title="KG-RAG Chatbot and LLM-Generated Cypher" los="KGR-7.3, KGR-7.4, KGR-7.6, KGR-7.7">
+
+Natural language interfaces over Knowledge Graphs are increasingly asked about
+in senior system design rounds at companies building conversational search
+(Google, Neo4j, JPMorgan, Microsoft).
+
+**What they’re really testing:** Whether you can design a system that
+translates natural language into graph queries, validate LLM-generated Cypher,
+and combine multiple retrieval paradigms for complex questions.
+
+**Expected depth by level:**
+
+- **IC3/IC4:** Describe the GraphCypherQAChain pipeline
+  (question → Cypher → execute → answer); explain few-shot
+  prompting for Cypher generation; name the four retrieval paradigms.
+
+- **IC5+/Staff:** Design schema-injection strategies that prevent
+  LLM Cypher hallucination; explain progressive few-shot example
+  selection for maximal query coverage; decompose complex questions
+  into multi-paradigm retrieval plans (vector + traversal + geospatial).
+
+</InterviewContext>
+
+| **Paradigm** | **Index/Method** | **Example Question** |
+|:---|:---|:---|
+| Vector | `db.index.vector.queryNodes` | “Tell me about cloud storage” |
+| Full-text | `db.index.fulltext.queryNodes` | “Find Palo Alto Networks” |
+| Traversal | `MATCH` path patterns | “Who invests in NetApp?” |
+| Geospatial | `point.distance()` | “Companies within 10 km of San Jose” |
+
+# Course Summary
+
+The course covered building a complete Knowledge Graph–powered RAG system
+in seven progressive stages:
+
+1.  **Fundamentals** (M1) — nodes, relationships, properties,
+    labels.
+
+2.  **Querying** (M2) — Cypher pattern matching, filtering,
+    multi-hop traversal, MERGE.
+
+3.  **Vector search** (M3) — embeddings, vector indexes,
+    similarity search in the graph.
+
+4.  **Graph construction** (M4) — chunking SEC filings,
+    creating nodes, building a RAG chain.
+
+5.  **Relationships** (M5) — linked lists, document structure,
+    chunk window retrieval.
+
+6.  **Expansion** (M6) — Form 13 investment data, full-text
+    indexes, multi-hop traversal.
+
+7.  **Advanced querying** (M7) — geospatial search,
+    LLM-generated Cypher, few-shot learning.
+
+# Chapter Summary
+
+The Extract-Enhance-Expand pattern provides a repeatable framework for
+growing Knowledge Graphs incrementally. Geospatial indexes enable
+distance-based queries using latitude/longitude stored as point properties.
+Full-text search handles misspellings and fuzzy matching, complementing
+exact Cypher pattern matches. Few-shot learning teaches an LLM to generate
+valid Cypher queries from just two to three examples, and the
+GraphCypherQAChain combines LLM Cypher generation with Neo4j execution for
+end-to-end natural language graph querying. The combination of vector
+search, graph traversal, full-text search, and geospatial queries<Citation src="edge2024local" /> provides
+a retrieval toolkit far richer than similarity search alone.
+
+# Practice Problems
+
+<Problem title="Few-Shot Prompt Design for Cypher Generation" los="KGR-7.3">
+
+You are building a GraphCypherQAChain for a university course graph with:
+
+- Nodes: `Student`, `Professor`, `Course`,
+  `Department`
+
+- Relationships: `ENROLLED_IN`, `TEACHES`,
+  `BELONGS_TO`, `ADVISES`
+
+Design a few-shot prompt with 3 examples that enables the LLM to answer:
+
+1.  “Who teaches Machine Learning?” (single-hop)
+
+2.  “What courses do students of Dr. Smith take?” (multi-hop)
+
+3.  “Which departments have the most courses?” (aggregation)
+
+</Problem>
+
+<Solution>
+
+**Approach:** **Few-Shot Prompt:**
+
+
+```cypher
+Task: Generate Cypher to query a university graph.
+Use ONLY the provided schema. Do NOT hallucinate
+relationship types or properties.
+Schema: {schema}
+
+Examples:
+
+# Who teaches Machine Learning?
+MATCH (p:Professor)-[:TEACHES]->(c:Course
+      {title: "Machine Learning"})
+RETURN p.name
+
+# What courses do students of Dr. Smith take?
+MATCH (p:Professor {name: "Dr. Smith"})
+      -[:ADVISES]->(s:Student)
+      -[:ENROLLED_IN]->(c:Course)
+RETURN s.name, c.title
+
+# Which departments have the most courses?
+MATCH (c:Course)-[:BELONGS_TO]->(d:Department)
+RETURN d.name, count(c) AS courseCount
+ORDER BY courseCount DESC
+
+Question: {question}
+```
+
+
+
+**Design Rationale:**
+
+- Example 1 teaches single-hop traversal with property filtering.
+
+- Example 2 teaches multi-hop traversal (Professor → Student →
+  Course) through the ADVISES relationship.
+
+- Example 3 teaches aggregation with ORDER BY.
+
+**Key Insight:** Each few-shot example should unlock a *different*
+query capability. Three well-chosen examples cover single-hop, multi-hop,
+and aggregation—which compose to handle most natural language questions.
+Adding more examples yields diminishing returns; focus on pattern diversity,
+not quantity.
+
+**Answer:** 3 examples covering single-hop, multi-hop, and aggregation.
+Each example teaches a different Cypher pattern the LLM can generalise from.
+
+</Solution>
+
+<Problem title="Geospatial Query Design" los="KGR-7.2">
+
+A real estate Knowledge Graph has Property nodes with geospatial locations
+and School nodes with geospatial locations.
+
+1.  Write a Cypher query to find all schools within 2 km of a property
+    at coordinates (37.3861, -122.0839).
+
+2.  Modify the query to return results sorted by distance, closest first.
+
+3.  What index should exist on School nodes to make this query
+    performant?
+
+</Problem>
+
+<Solution>
+
+**Approach:** **Step 1: Geospatial Proximity Query**
+
+
+```sql
+WITH point({latitude: 37.3861,
+            longitude: -122.0839}) AS propLocation
+MATCH (s:School)
+WHERE point.distance(propLocation, s.location) < 2000
+RETURN s.name,
+       point.distance(propLocation, s.location)
+           AS distanceMeters
+```
+
+
+
+**Step 2: Sorted by Distance**
+
+
+```sql
+WITH point({latitude: 37.3861,
+            longitude: -122.0839}) AS propLocation
+MATCH (s:School)
+WHERE point.distance(propLocation, s.location) < 2000
+RETURN s.name,
+       point.distance(propLocation, s.location) / 1000
+           AS distanceKm
+ORDER BY distanceKm ASC
+```
+
+
+
+**Step 3: Required Index**  
+A **point index** on School.location enables spatial range queries:
+
+
+```cypher
+CREATE POINT INDEX school_locations IF NOT EXISTS
+FOR (s:School) ON (s.location)
+```
+
+
+Without this index, Neo4j must scan all School nodes and compute distances
+for each—*O*(*n*) instead of *O*(log *n*).
+
+**Key Insight:** Geospatial queries use `point.distance()` with
+distances in **metres**. The most common bug is using kilometres
+(2 instead of 2000). Always include a unit conversion comment in production
+code.
+
+**Answer:** Use point.distance() with 2000 metres threshold. Sort by
+ASC for closest first. Create a point index for performance.
+
+</Solution>
+
+<Problem title="Retrieval Paradigm Selection" los="KGR-7.7">
+
+For each of the following questions, identify which retrieval paradigm(s)
+from the four available (vector, full-text, graph traversal, geospatial)
+should be used, and explain why.
+
+1.  “What are the risk factors for cloud computing companies?”
+
+2.  “Find Goldman Sachs in the database”
+
+3.  “Which investors are headquartered within 50 miles of NetApp?”
+
+4.  “Show me the supply chain relationships for Apple’s components”
+
+</Problem>
+
+<Solution>
+
+**Approach:** **1. “Risk factors for cloud computing companies”**  
+**Paradigm: Vector search + Graph traversal.**  
+Vector search finds chunks semantically similar to “risk factors for cloud
+computing.” Graph traversal then expands context via PART\_OF → Form →
+Company to confirm the chunks belong to cloud computing companies
+(not unrelated firms).
+
+**2. “Find Goldman Sachs”**  
+**Paradigm: Full-text search.**  
+This is an entity lookup by name. Full-text search handles partial matches
+and variations (“Goldman Sachs Group Inc.” vs. “Goldman Sachs”).
+Vector search would find semantically similar names (e.g., “Morgan
+Stanley”), which is wrong.
+
+**3. “Investors within 50 miles of NetApp”**  
+**Paradigm: Full-text search + Geospatial + Graph traversal.**  
+Full-text to find NetApp → LOCATED\_AT to get NetApp’s address → geospatial
+distance to find nearby Manager addresses → OWNS\_STOCK\_IN to confirm
+they are investors. Distance: 50 miles ≈ 80,467 metres.
+
+**4. “Supply chain relationships for Apple’s components”**  
+**Paradigm: Full-text + Graph traversal.**  
+Full-text to find Apple → traverse SUPPLIES, MANUFACTURES, or similar
+relationship types to component suppliers. This is purely structural—no
+vector or geospatial search needed.
+
+**Key Insight:** Complex questions often require **combining**
+paradigms. The skill is decomposing a natural language question into a
+sequence of retrieval steps, each using the most appropriate paradigm.
+This is the core of KG-powered RAG system design.
+
+**Answer:** (1) Vector + traversal, (2) Full-text, (3) Full-text +
+geospatial + traversal, (4) Full-text + traversal. Most real questions
+combine 2+ paradigms.
+
+</Solution>
+
+<NarrativeBox title="Self-Check: M7 — Chatting with the Knowledge Graph">
+
+**Answer from memory before checking the chapter.**
+
+1.  Describe the three phases of Extract-Enhance-Expand. Give one
+    example of each from the course. *(KGR-7.1)*
+
+2.  Write a Cypher query to find all companies within 20 km of
+    San Jose. What unit does `point.distance()` return?
+    *(KGR-7.2)*
+
+3.  Design a few-shot prompt with two examples that teaches the
+    LLM to query by city and by distance. *(KGR-7.3)*
+
+4.  Describe the four steps of the GraphCypherQAChain pipeline.
+    *(KGR-7.4)*
+
+5.  Why does adding a “What does X do?” example to the few-shot
+    prompt unlock document navigation capability?
+    *(KGR-7.5)*
+
+6.  What is schema hallucination in LLM-generated Cypher? How do
+    you prevent it? *(KGR-7.6)*
+
+7.  Name the four retrieval paradigms available in the final graph.
+    Give a question type suited to each. *(KGR-7.7)*
+
+8.  What properties does an Address node have? How is geospatial
+    data stored in Neo4j? *(KGR-7.8)*
+
+</NarrativeBox>
+
+{/* CARD-PLACEMENT-AUTOSTART */}
+
+## Review
+
+{/* CARD-PLACEMENT-TODO: polish pass should move these cards inline */}
+{/* near the concepts they test, per Q-R4.4 hybrid placement.       */}
+
+### Checkpoint cards (8)
+
+<AnkiCard type="checkpoint" id="chapters-vol0-ch07-CHECKPOINT-SELFCHECK_M7_CHATTING_WITH_THE_KNOWLEDGE_GRAPH_Q1" los="KGR-7.1" front={"Describe the three phases of Extract-Enhance-Expand. Give one\n example of each from the course. (KGR-7.1)"} back={"Self-check from: Self-Check: M7 --- Chatting with the Knowledge Graph\n\n(Answer from memory, then verify against the chapter text.)"} />
+
+<AnkiCard type="checkpoint" id="chapters-vol0-ch07-CHECKPOINT-SELFCHECK_M7_CHATTING_WITH_THE_KNOWLEDGE_GRAPH_Q2" los="KGR-7.2" front={"Write a Cypher query to find all companies within 20 km of\n San Jose. What unit does point.distance() return?\n (KGR-7.2)"} back={"Self-check from: Self-Check: M7 --- Chatting with the Knowledge Graph\n\n(Answer from memory, then verify against the chapter text.)"} />
+
+<AnkiCard type="checkpoint" id="chapters-vol0-ch07-CHECKPOINT-SELFCHECK_M7_CHATTING_WITH_THE_KNOWLEDGE_GRAPH_Q3" los="KGR-7.3" front={"Design a few-shot prompt with two examples that teaches the\n LLM to query by city and by distance. (KGR-7.3)"} back={"Self-check from: Self-Check: M7 --- Chatting with the Knowledge Graph\n\n(Answer from memory, then verify against the chapter text.)"} />
+
+<AnkiCard type="checkpoint" id="chapters-vol0-ch07-CHECKPOINT-SELFCHECK_M7_CHATTING_WITH_THE_KNOWLEDGE_GRAPH_Q4" los="KGR-7.4" front={"Describe the four steps of the GraphCypherQAChain pipeline.\n (KGR-7.4)"} back={"Self-check from: Self-Check: M7 --- Chatting with the Knowledge Graph\n\n(Answer from memory, then verify against the chapter text.)"} />
+
+<AnkiCard type="checkpoint" id="chapters-vol0-ch07-CHECKPOINT-SELFCHECK_M7_CHATTING_WITH_THE_KNOWLEDGE_GRAPH_Q5" los="KGR-7.5" front={"Why does adding a \"What does X do?\" example to the few-shot\n prompt unlock document navigation capability?\n (KGR-7.5)"} back={"Self-check from: Self-Check: M7 --- Chatting with the Knowledge Graph\n\n(Answer from memory, then verify against the chapter text.)"} />
+
+<AnkiCard type="checkpoint" id="chapters-vol0-ch07-CHECKPOINT-SELFCHECK_M7_CHATTING_WITH_THE_KNOWLEDGE_GRAPH_Q6" los="KGR-7.6" front={"What is schema hallucination in LLM-generated Cypher? How do\n you prevent it? (KGR-7.6)"} back={"Self-check from: Self-Check: M7 --- Chatting with the Knowledge Graph\n\n(Answer from memory, then verify against the chapter text.)"} />
+
+<AnkiCard type="checkpoint" id="chapters-vol0-ch07-CHECKPOINT-SELFCHECK_M7_CHATTING_WITH_THE_KNOWLEDGE_GRAPH_Q7" los="KGR-7.7" front={"Name the four retrieval paradigms available in the final graph.\n Give a question type suited to each. (KGR-7.7)"} back={"Self-check from: Self-Check: M7 --- Chatting with the Knowledge Graph\n\n(Answer from memory, then verify against the chapter text.)"} />
+
+<AnkiCard type="checkpoint" id="chapters-vol0-ch07-CHECKPOINT-SELFCHECK_M7_CHATTING_WITH_THE_KNOWLEDGE_GRAPH_Q8" los="KGR-7.8" front={"What properties does an Address node have? How is geospatial\n data stored in Neo4j? (KGR-7.8)"} back={"Self-check from: Self-Check: M7 --- Chatting with the Knowledge Graph\n\n(Answer from memory, then verify against the chapter text.)"} />
+
+### Keyconcept cards (3)
+
+<AnkiCard type="keyconcept" id="chapters-vol0-ch07-CONCEPT-EXTRACTENHANCEEXPAND" los="KGR-7.1" front={"Key Concept: Extract-Enhance-Expand"} back={"Throughout the course, the Knowledge Graph was built by repeating a\n three-phase pattern:\n\n- Extract: Pull information from source data into\n separate nodes (splitting text into chunks, creating Form /\n Company / Manager nodes from structured data).\n\n- Enhance: Supercharge data with indexes or computed\n properties (vector embeddings, full-text indexes, geospatial\n points).\n\n- Expand: Connect new data to the existing graph\n (NEXT, PART_OF, FILED, OWNS_STOCK_IN relationships).\n\n This pattern was applied at every stage: raw text to chunks, chunks to\n forms, Form 13 CSV to companies and managers. It provides a repeatable\n framework for growing any Knowledge Graph incrementally.\n\nWhen It Breaks: The pattern assumes new data can be cleanly linked\nto existing nodes via shared identifiers. When identifiers are absent or\nambiguous (e.g., name-only matching across datasets), the Expand phase\nrequires an entity resolution step that the pattern does not cover."} />
+
+<AnkiCard type="keyconcept" id="chapters-vol0-ch07-CONCEPT-GEOSPATIAL_SEARCH_AS_A_RETRIEVAL_PARADIGM" los="KGR-7.2" front={"Key Concept: Geospatial Search as a Retrieval Paradigm"} back={"Geospatial queries use point.distance() to find entities\n within a radius, adding a fourth retrieval paradigm alongside vector,\n full-text, and graph traversal. The distance function returns metres\n and requires a point index for performant range queries.\n\n Why It Matters: Location-aware retrieval surfaces\n relationships that semantic similarity cannot detect—two companies\n 10 km apart may share suppliers, talent pools, or regulatory\n jurisdictions.\n\n When It Breaks: Without a point index, distance queries\n degrade to $O(n)$ full scans. Always create indexes before queries."} />
+
+<AnkiCard type="keyconcept" id="chapters-vol0-ch07-CONCEPT-FOUR_RETRIEVAL_PARADIGMS" los="KGR-7.7" front={"Key Concept: Four Retrieval Paradigms"} back={"The final Knowledge Graph supports four complementary retrieval\n approaches, each suited to different question types:\n\n- Vector search: Semantic similarity for conceptual\n questions (\"What is NetApp's business?\").\n\n- Full-text search: Keyword matching for entity lookup\n (\"Find Royal Bank of Canada\").\n\n- Graph traversal: Relationship following for\n structural questions (\"Who are NetApp's investors?\").\n\n- Geospatial search: Distance-based queries for\n location questions (\"What companies are near Santa Clara?\").\n\n No single retrieval approach can answer all question types. The\n Knowledge Graph's power lies in combining all four in a single\n query engine.\n\nWhen It Breaks: Combining paradigms in a single query increases\nlatency and complexity. If 90\nthe overhead of maintaining full-text, geospatial, and graph indexes is\nunjustified. Match infrastructure complexity to actual query diversity."} />
+
+### Problem cards (3)
+
+<AnkiCard type="problem" id="chapters-vol0-ch07-PROB-YOU_ARE_BUILDING_A_GRAPHCYPHERQACHAIN_FOR_A_UNIVER" los="KGR-7.3" front={"You are building a GraphCypherQAChain for a university course graph with:\n\n- Nodes: Student, Professor, Course,\n Department\n\n- Relationships: ENROLLED_IN, TEACHES,\n BELONGS_TO, ADVISES\n\nDesign a few-shot prompt with 3 examples that enables the LLM to answer:\n\n- \"Who teaches Machine Learning?\" (single-hop)\n\n- \"What courses do students of Dr. Smith take?\" (multi-hop)\n\n- \"Which departments have the most courses?\" (aggregation)"} back={"Approach: Few-Shot Prompt:\n\n```cypher\n\nTask: Generate Cypher to query a university graph.\nUse ONLY the provided schema. Do NOT hallucinate\nrelationship types or properties.\nSchema: {schema}\n\nExamples:\n\n# Who teaches Machine Learning?\nMATCH (p:Professor)-[:TEACHES]->(c:Course\n      {title: \"Machine Learning\"})\nRETURN p.name\n\n# What courses do students of Dr. Smith take?\nMATCH (p:Professor {name: \"Dr. Smith\"})\n      -[:ADVISES]->(s:Student)\n      -[:ENROLLED_IN]->(c:Course)\nRETURN s.name, c.title\n\n# Which departments have the most courses?\nMATCH (c:Course)-[:BELONGS_TO]->(d:Department)\nRETURN d.name, count(c) AS courseCount\nORDER BY courseCount DESC\n\nQuestion: {question}\n\n```\n\nDesign Rationale:\n\n- Example 1 teaches single-hop traversal with property filtering.\n\n- Example 2 teaches multi-hop traversal (Professor → Student →\n Course) through the ADVISES relationship.\n\n- Example 3 teaches aggregation with ORDER BY.\n\nKey Insight: Each few-shot example should unlock a different\nquery capability. Three well-chosen examples cover single-hop, multi-hop,\nand aggregation—which compose to handle most natural language questions.\nAdding more examples yields diminishing returns; focus on pattern diversity,\nnot quantity.\n\nAnswer: 3 examples covering single-hop, multi-hop, and aggregation.\nEach example teaches a different Cypher pattern the LLM can generalise from."} />
+
+<AnkiCard type="problem" id="chapters-vol0-ch07-PROB-A_REAL_ESTATE_KNOWLEDGE_GRAPH_HAS_PROPERTY_NODES_W" los="KGR-7.2" front={"A real estate Knowledge Graph has Property nodes with geospatial locations\nand School nodes with geospatial locations.\n\n- Write a Cypher query to find all schools within 2 km of a property\n at coordinates (37.3861, -122.0839).\n\n- Modify the query to return results sorted by distance, closest first.\n\n- What index should exist on School nodes to make this query\n performant?"} back={"Approach: Step 1: Geospatial Proximity Query\n\n```sql\n\nWITH point({latitude: 37.3861,\n            longitude: -122.0839}) AS propLocation\nMATCH (s:School)\nWHERE point.distance(propLocation, s.location) < 2000\nRETURN s.name,\n       point.distance(propLocation, s.location)\n           AS distanceMeters\n\n```\n\nStep 2: Sorted by Distance\n\n```sql\n\nWITH point({latitude: 37.3861,\n            longitude: -122.0839}) AS propLocation\nMATCH (s:School)\nWHERE point.distance(propLocation, s.location) < 2000\nRETURN s.name,\n       point.distance(propLocation, s.location) / 1000\n           AS distanceKm\nORDER BY distanceKm ASC\n\n```\n\nStep 3: Required Index \nA point index on School.location enables spatial range queries:\n\n```cypher\n\nCREATE POINT INDEX school_locations IF NOT EXISTS\nFOR (s:School) ON (s.location)\n\n```\n\nWithout this index, Neo4j must scan all School nodes and compute distances\nfor each—$O(n)$ instead of $O(\\log n)$.\n\nKey Insight: Geospatial queries use point.distance() with\ndistances in metres. The most common bug is using kilometres\n(2 instead of 2000). Always include a unit conversion comment in production\ncode.\n\nAnswer: Use point.distance() with 2000 metres threshold. Sort by\nASC for closest first. Create a point index for performance."} />
+
+<AnkiCard type="problem" id="chapters-vol0-ch07-PROB-FOR_EACH_OF_THE_FOLLOWING_QUESTIONS_IDENTIFY_WHICH" los="KGR-7.7" front={"For each of the following questions, identify which retrieval paradigm(s)\nfrom the four available (vector, full-text, graph traversal, geospatial)\nshould be used, and explain why.\n\n- \"What are the risk factors for cloud computing companies?\"\n\n- \"Find Goldman Sachs in the database\"\n\n- \"Which investors are headquartered within 50 miles of NetApp?\"\n\n- \"Show me the supply chain relationships for Apple's components\""} back={"Approach: 1. \"Risk factors for cloud computing companies\" \nParadigm: Vector search + Graph traversal. \nVector search finds chunks semantically similar to \"risk factors for cloud\ncomputing.\" Graph traversal then expands context via PART_OF → Form →\nCompany to confirm the chunks belong to cloud computing companies\n(not unrelated firms).\n\n2. \"Find Goldman Sachs\" \nParadigm: Full-text search. \nThis is an entity lookup by name. Full-text search handles partial matches\nand variations (\"Goldman Sachs Group Inc.\" vs. \"Goldman Sachs\").\nVector search would find semantically similar names (e.g., \"Morgan\nStanley\"), which is wrong.\n\n3. \"Investors within 50 miles of NetApp\" \nParadigm: Full-text search + Geospatial + Graph traversal. \nFull-text to find NetApp → LOCATED_AT to get NetApp's address → geospatial\ndistance to find nearby Manager addresses → OWNS_STOCK_IN to confirm\nthey are investors. Distance: 50 miles $\\approx$ 80,467 metres.\n\n4. \"Supply chain relationships for Apple's components\" \nParadigm: Full-text + Graph traversal. \nFull-text to find Apple → traverse SUPPLIES, MANUFACTURES, or similar\nrelationship types to component suppliers. This is purely structural—no\nvector or geospatial search needed.\n\nKey Insight: Complex questions often require combining\nparadigms. The skill is decomposing a natural language question into a\nsequence of retrieval steps, each using the most appropriate paradigm.\nThis is the core of KG-powered RAG system design.\n\nAnswer: (1) Vector + traversal, (2) Full-text, (3) Full-text +\ngeospatial + traversal, (4) Full-text + traversal. Most real questions\ncombine 2+ paradigms."} />
+
+### Redflag cards (1)
+
+<AnkiCard type="redflag" id="chapters-vol0-ch07-RF-SCHEMA_HALLUCINATION" los="" front={"Warning: Schema Hallucination"} back={"Without explicit schema injection and the instruction \"do not hallucinate\n relationship types,\" the LLM may invent non-existent relationship types\n or properties. Always inject the actual graph schema into the prompt and\n validate generated Cypher before execution in production systems."} />
+
+### Interview cards (1)
+
+<AnkiCard type="interview" id="chapters-vol0-ch07-INT-KGRAG_CHATBOT_AND_LLMGENERATED_CYPHER" los="KGR-7.3, KGR-7.4, KGR-7.6, KGR-7.7" front={"Interview Q: few-shot\n prompting for Cypher generation; name the four retrieval paradigms"} back={"Natural language interfaces over Knowledge Graphs are increasingly asked about\nin senior system design rounds at companies building conversational search\n(Google, Neo4j, JPMorgan, Microsoft).\n\nWhat they're really testing: Whether you can design a system that\ntranslates natural language into graph queries, validate LLM-generated Cypher,\nand combine multiple retrieval paradigms for complex questions."} />
+
+{/* CARD-PLACEMENT-AUTOEND */}

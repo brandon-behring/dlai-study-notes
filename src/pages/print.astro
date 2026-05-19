@@ -1,0 +1,28 @@
+---
+/**
+ * Consumer-shadowed /print page.
+ *
+ * The scaffold's print integration assumes single-book consumers AND
+ * uses the default MDX component context (without our custom AnkiCard,
+ * NarrativeBox, etc). For the multi-book corpus we redirect readers to
+ * per-book Paged.js export pages (one PDF per book), which will be
+ * implemented post-Phase-1.
+ *
+ * TODO(scaffold-v3.2): allow scaffold print route to accept a
+ * `components` prop. Issue filed upstream.
+ */
+import Base from '../layouts/Base.astro';
+---
+<Base title="Print exports" description="Print-friendly book exports">
+  <h1>Print Exports</h1>
+  <p>
+    Print-friendly PDF exports are generated per book via Paged.js. Multi-book
+    print mode is pending Phase 1 acceptance.
+  </p>
+  <p>
+    For now, visit individual books and use your browser's <code>Print &rarr; Save as PDF</code>:
+  </p>
+  <ul>
+    <li><a href="/knowledge-graphs-rag/">Knowledge Graphs for RAG</a></li>
+  </ul>
+</Base>

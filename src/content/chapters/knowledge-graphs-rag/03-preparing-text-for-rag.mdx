@@ -1,0 +1,686 @@
+---
+book: knowledge-graphs-rag
+title: Preparing Text for RAG
+chapter: 3
+description: "Vector search inside a Knowledge Graph: creating vector indexes,
+  generating embeddings with OpenAI, storing them as node properties, and
+  performing similarity search with Cypher."
+learning_outcomes:
+  - id: KGR-3.1
+    verb: apply
+    text: a vector index on Neo4j node properties, specifying dimensionality and
+      similarity function parameters
+  - id: KGR-3.2
+    verb: apply
+    text: Neo4j's \texttt{genai.vector.encode} function to generate OpenAI
+      embeddings and store them directly on graph nodes
+  - id: KGR-3.3
+    verb: design
+    text: vector similarity search queries using \texttt{db.index.vector.queryNodes}
+      with parameterised inputs
+  - id: KGR-3.4
+    verb: explain
+    text: how embedding dimensionality (1536 for OpenAI) and similarity functions
+      (cosine) affect search quality and index performance
+  - id: KGR-3.5
+    verb: design
+    text: parameterised Cypher queries that pass API keys and dynamic values through
+      query parameters rather than string interpolation
+  - id: KGR-3.6
+    verb: compare
+    text: Neo4j as a vector store with dedicated vector databases, identifying the
+      advantage of co-located graph and vector data
+  - id: KGR-3.7
+    verb: evaluate
+    text: vector search results by interpreting similarity scores and assessing
+      retrieval quality for different query types
+sources: []
+tools_compared:
+  - MLE-Google-L4
+  - DS-Netflix
+  - SWE-Neo4j
+  - MLE-Amazon-L5
+  - RSWE-Microsoft
+last_verified: 2026-05-19
+volatility: architectural-pattern
+---
+
+{/* TODO: per-chapter polish pass — see plan decision Q1 round 3 */}
+
+<NarrativeBox title="Where We Are">
+
+You can now query a Knowledge Graph with Cypher. But RAG systems need
+*semantic* search—finding text chunks that are conceptually
+similar to a user’s question, even when the exact words differ. This
+module adds vector search to the graph by creating embeddings, indexing
+them, and querying by similarity. At this stage, Neo4j is used as a
+vector store; the real power of combining vector search with graph
+traversal comes in Modules 5–7.
+
+</NarrativeBox>
+
+# Creating a Vector Index
+
+
+
+<Sidenote category="interview">"How do vector indexes work in a graph database?" tests whether you understand the intersection of graph and vector paradigms.</Sidenote>
+
+
+
+The first step is to create a **vector index** that tells Neo4j which
+node property holds embeddings, how many dimensions they have, and which
+similarity function to use for comparisons.
+
+
+
+```cypher
+# Create a vector index on Movie tagline embeddings
+kg.query("""
+    CREATE VECTOR INDEX movie_tagline_embeddings IF NOT EXISTS
+    FOR (m:Movie) ON (m.taglineEmbedding)
+    OPTIONS {
+      indexConfig: {
+        `vector.dimensions`: 1536,
+        `vector.similarity_function`: 'cosine'
+      }
+    }
+""")
+```
+
+
+
+| **Parameter** | **Value** | **Reason** |
+|:---|:---|:---|
+| Dimensions | 1536 | Default size for OpenAI’s embedding model |
+| Similarity | Cosine | Recommended by OpenAI; normalises for vector magnitude |
+| IF NOT EXISTS | — | Idempotent creation; safe to re-run |
+
+
+
+<Term name="Vector Index" los="KGR-3.1">
+  A database index structure optimised for approximate nearest-neighbour search on high-dimensional vectorsMDXISTART0MDXIEND. In Neo4j, created on a specific node property with configured dimensionality and similarity function. Enables sub-linear search time over embedding vectors.
+</Term>
+<AnkiCard type="term" front={"Vector Index"} back={"A database index structure optimised for approximate nearest-neighbour search on high-dimensional vectorsMDXISTART0MDXIEND. In Neo4j, created on a specific node property with configured dimensionality and similarity function. Enables sub-linear search time over embedding vectors."} los="KGR-3.1" />
+
+
+
+
+
+<Term name="Cosine Similarity" los="KGR-3.4">
+  A similarity metric that measures the angle between two vectors, ignoring their magnitudes. Ranges from $-1$ (opposite) to $1$ (identical direction). Computed as $() = A  B {\|A\| \|B\|}$. Standard choice for OpenAI embeddings.
+</Term>
+<AnkiCard type="term" front={"Cosine Similarity"} back={"A similarity metric that measures the angle between two vectors, ignoring their magnitudes. Ranges from $-1$ (opposite) to $1$ (identical direction). Computed as $() = A  B {\\|A\\| \\|B\\|}$. Standard choice for OpenAI embeddings."} los="KGR-3.4" />
+
+
+
+Verify the index exists and is ready:
+
+
+
+```cypher
+# Check index status
+result = kg.query("SHOW INDEXES")
+# Look for status: "ONLINE" and type: "VECTOR"
+```
+
+
+
+
+
+<Sidenote category="warning">An index in `POPULATING` status is still being built. Wait for `ONLINE` before running similarity queries, otherwise results will be incomplete or empty.</Sidenote>
+
+
+
+# Generating and Storing Embeddings
+
+<ConceptBox>
+
+**The Key Architectural Decision.**
+Embeddings are stored as **node properties**, co-locating vector
+data with graph data. This means a single query can combine vector
+similarity search with graph traversal—you do not need a separate
+vector database.
+
+</ConceptBox>
+
+Use Neo4j’s built-in `genai.vector.encode` function to calculate
+embeddings via OpenAI and store them directly on nodes:
+
+
+
+```cypher
+# Generate and store embeddings for all Movie taglines
+kg.query("""
+    MATCH (m:Movie)
+    WHERE m.tagline IS NOT NULL
+    WITH m, genai.vector.encode(
+      m.tagline, "OpenAI",
+      { token: $openAiApiKey }
+    ) AS vector
+    CALL db.create.setNodeVectorProperty(
+        m, "taglineEmbedding", vector
+    )
+""", params={"openAiApiKey": OPENAI_API_KEY})
+```
+
+
+
+
+
+<Term name="genai.vector.encode" los="KGR-3.2">
+  Neo4j's built-in function that calls external embedding APIs (e.g., OpenAI) directly from Cypher. Takes text, a provider name, and configuration (including API key) as arguments. Returns a float array representing the embedding vector.
+</Term>
+<AnkiCard type="term" front={"genai.vector.encode"} back={"Neo4j's built-in function that calls external embedding APIs (e.g., OpenAI) directly from Cypher. Takes text, a provider name, and configuration (including API key) as arguments. Returns a float array representing the embedding vector."} los="KGR-3.2" />
+
+
+
+
+
+<Term name="Embedding" los="KGR-3.2">
+  A dense vector representation of text in high-dimensional space. Semantically similar texts have embeddings with high cosine similarity. OpenAI's default embedding model produces 1536-dimensional vectors.
+</Term>
+<AnkiCard type="term" front={"Embedding"} back={"A dense vector representation of text in high-dimensional space. Semantically similar texts have embeddings with high cosine similarity. OpenAI's default embedding model produces 1536-dimensional vectors."} los="KGR-3.2" />
+
+
+
+
+
+<Sidenote category="pattern">Embedding generation pattern: MATCH nodes → encode text → store as property → verify dimensions. Same pattern for any node type.</Sidenote>
+
+
+
+The `$openAiApiKey` is passed as a **query parameter**—never
+hardcoded in the query string. This call goes out to the OpenAI API for each
+movie node, so execution time depends on dataset size and network conditions.
+
+## Verification
+
+After generating embeddings, verify they are stored correctly:
+
+
+
+```cypher
+# Verify embedding storage
+result = kg.query("""
+    MATCH (m:Movie {title: "The Matrix"})
+    RETURN m.tagline,
+           m.taglineEmbedding[0..5] AS firstFiveValues,
+           size(m.taglineEmbedding) AS vectorSize
+""")
+# tagline: "Welcome to the Real World"
+# vectorSize: 1536
+```
+
+
+
+
+
+<Sidenote category="practice">Always verify: (1) the tagline text is correct, (2) the embedding vector has the expected dimensionality (1536), and (3) the values are float numbers, not nulls.</Sidenote>
+
+
+
+# Performing Vector Similarity Search
+
+With embeddings stored and indexed, you can query for semantically similar
+content by encoding the question and finding nearest neighbours:
+
+
+
+```cypher
+# Vector similarity search for movies
+result = kg.query("""
+    WITH genai.vector.encode(
+      $question, "OpenAI",
+      { token: $openAiApiKey }
+    ) AS questionEmbedding
+    CALL db.index.vector.queryNodes(
+      'movie_tagline_embeddings',
+      $topK,
+      questionEmbedding
+    ) YIELD node AS movie, score
+    RETURN movie.title, movie.tagline, score
+""", params={
+    "question": "movies about love",
+    "openAiApiKey": OPENAI_API_KEY,
+    "topK": 5
+})
+```
+
+
+
+
+
+<Term name="db.index.vector.queryNodes" los="KGR-3.3">
+  Neo4j procedure that performs approximate nearest-neighbour search on a vector index. Takes the index name, number of results (top-K), and query vector as arguments. Yields matched nodes with similarity scores.
+</Term>
+<AnkiCard type="term" front={"db.index.vector.queryNodes"} back={"Neo4j procedure that performs approximate nearest-neighbour search on a vector index. Takes the index name, number of results (top-K), and query vector as arguments. Yields matched nodes with similarity scores."} los="KGR-3.3" />
+
+
+
+<PipelineBox title="Pipeline: Vector Similarity Search in Neo4j">
+
+1.  **Encode** *(question → vector)*  
+    The user’s natural language question is converted to an
+    embedding vector using the same model (OpenAI) that generated
+    the stored embeddings.
+
+2.  **Search** *(nearest neighbours)*  
+    `db.index.vector.queryNodes` finds the top-K nodes
+    whose embedding vectors are closest to the query vector.
+
+3.  **Score** *(similarity ranking)*  
+    Each result includes a similarity score (0 to 1 for cosine).
+    Higher scores indicate more semantically similar content.
+
+4.  **Return** *(text + metadata)*  
+    The matched nodes’ text properties and metadata are returned
+    for use as LLM context.
+
+</PipelineBox>
+
+## Example Results
+
+For the question “movies about love”:
+
+| **Movie**            | **Tagline**                               | **Score** |
+|:---------------------|:------------------------------------------|:---------:|
+| Joe vs. the Volcano  | A story of love, lava, and burning desire |   0.89    |
+| When Harry Met Sally | Can two friends sleep together…           |   0.87    |
+
+Changing the question to “adventure” returns different matches like
+*Cast Away* and *Ninja Assassin*—demonstrating that the
+search is truly semantic, not keyword-based.
+
+
+
+<Term name="Query Parameter" los="KGR-3.5">
+  A variable passed to a Cypher query via the `params` argument of `kg.query()`. Referenced in Cypher with `$` prefix. Prevents injection attacks, keeps API keys out of query strings, and enables query plan caching.
+</Term>
+<AnkiCard type="term" front={"Query Parameter"} back={"A variable passed to a Cypher query via the `params` argument of `kg.query()`. Referenced in Cypher with `$` prefix. Prevents injection attacks, keeps API keys out of query strings, and enables query plan caching."} los="KGR-3.5" />
+
+
+
+<KeyConcept title="Parameterised Queries for Security and Performance" los="KGR-3.5">
+
+Query parameters serve two purposes: **security** (API keys and
+user inputs never appear in query strings, preventing injection and
+leakage in logs) and **performance** (Neo4j caches execution plans
+for parameterised queries, reusing them across calls with different
+values). Always use `$variable` syntax with the `params`
+argument—never f-strings or string concatenation.
+
+**When It Breaks:** DDL statements (CREATE INDEX, CREATE
+CONSTRAINT) cannot use query parameters in Neo4j. For these, sanitise
+inputs manually.
+
+</KeyConcept>
+
+# Neo4j as a Vector Store
+
+
+
+<Sidenote category="crossref">vol6 Ch 4: RAG — co-locating vector indexes with graph structure eliminates the separate vector DB in KG-augmented retrieval.</Sidenote>
+
+
+
+<KeyConcept title="Co-Located Graph and Vector Data" los="KGR-3.6">
+
+Most RAG architectures use a *separate* vector database alongside
+their primary data store. Neo4j’s vector indexes<Citation src="neo4j2024vector" /> eliminate this
+separation: embeddings live as node properties in the same database
+as the graph structure. This means a single Cypher query can:
+
+1.  Find the most similar chunk via vector search.
+
+2.  Traverse relationships to find connected chunks.
+
+3.  Return both the matched text and its graph context.
+
+At this stage (Module 3), only step 1 is used. Modules 5–7 add
+steps 2 and 3, unlocking the full power of graph-augmented RAG.
+
+**When It Breaks:** Co-location ties you to Neo4j’s embedding support.
+If you need to swap embedding models frequently or require advanced ANN
+algorithms (e.g., ScaNN, IVF-PQ) not yet available in Neo4j, a dedicated
+vector database alongside the graph may outperform the single-engine approach.
+
+</KeyConcept>
+
+| **Capability**           | **Dedicated Vector DB** | **Neo4j**  |
+|:-------------------------|:-----------------------:|:----------:|
+| Vector similarity search |           Yes           |    Yes     |
+| Graph traversal          |           No            |    Yes     |
+| Full-text search         |        Sometimes        |    Yes     |
+| Geospatial queries       |         Rarely          |    Yes     |
+| Combined queries         |           No            |    Yes     |
+| Operational simplicity   |       One system        | One system |
+
+
+
+<Sidenote category="interview">"Why not use a separate vector database?" is a design-level interview question. The answer: co-location enables combined graph+vector queries in a single round trip.</Sidenote>
+
+
+
+
+
+<Term name="Embedding Dimensionality" los="KGR-3.4">
+  The number of dimensions in an embedding vector. OpenAI's default model produces 1536 dimensions. Higher dimensionality captures more semantic nuance but increases storage and search cost. The vector index dimension must match the embedding model output exactly.
+</Term>
+<AnkiCard type="term" front={"Embedding Dimensionality"} back={"The number of dimensions in an embedding vector. OpenAI's default model produces 1536 dimensions. Higher dimensionality captures more semantic nuance but increases storage and search cost. The vector index dimension must match the embedding model output exactly."} los="KGR-3.4" />
+
+
+
+# Interpreting Similarity Scores
+
+<ConceptBox>
+
+**What Scores Mean.**
+Cosine similarity scores range from 0 to 1 for normalised vectors.
+A score of 0.89 indicates strong semantic similarity; 0.75 is moderate;
+below 0.5 is weak. There is no universal “good” threshold—it
+depends on the embedding model, the data distribution, and the
+application requirements.
+
+</ConceptBox>
+
+When evaluating vector search results, consider these factors:
+
+- **Score distribution**: If all results have similar scores
+  (e.g., 0.78–0.82), the query may be ambiguous or the data may
+  lack a strong match. A clear winner (0.92 vs. 0.75 for the rest)
+  indicates high confidence.
+
+- **Score threshold**: Setting a minimum score (e.g., 0.7)
+  filters out irrelevant results. This prevents the LLM from
+  receiving low-quality context that could lead to hallucination.
+
+- **Domain sensitivity**: Scores are relative to the embedding
+  model and training data. An 0.85 score on movie taglines may
+  represent a different quality level than 0.85 on SEC filings.
+
+
+
+<Term name="Similarity Score" los="KGR-3.7">
+  A numerical value returned by vector search indicating how closely an embedding matches the query vector. For cosine similarity, ranges from 0 (unrelated) to 1 (identical direction). Used to rank results and filter low-quality matches.
+</Term>
+<AnkiCard type="term" front={"Similarity Score"} back={"A numerical value returned by vector search indicating how closely an embedding matches the query vector. For cosine similarity, ranges from 0 (unrelated) to 1 (identical direction). Used to rank results and filter low-quality matches."} los="KGR-3.7" />
+
+
+
+
+
+<Sidenote category="practice">Log similarity scores during development. Understanding your data's score distribution helps you set appropriate thresholds for production retrieval quality.</Sidenote>
+
+
+
+# Security: Parameterised Queries
+
+<RedFlag title="API Key Exposure">
+
+Never embed API keys directly in Cypher query strings. String
+interpolation (f-strings, format) risks leaking keys in logs,
+error messages, and query caches. Always use Cypher query parameters
+(`$variable`) passed through the `params` argument.
+
+</RedFlag>
+
+
+
+```cypher
+# WRONG: API key in query string (security risk)
+kg.query(f"""
+    ... {{ token: "{api_key}" }} ...
+""")
+
+# RIGHT: API key as query parameter
+kg.query("""
+    ... {{ token: $openAiApiKey }} ...
+""", params={"openAiApiKey": api_key})
+```
+
+
+
+Query parameters also enable **query plan caching**: Neo4j can
+reuse the execution plan for parameterised queries, improving performance
+for repeated queries with different parameter values.
+
+
+
+<Sidenote category="formula">Cosine similarity: $() = A  B{\|A\|\|B\|}$. Range: $[-1, 1]$. For normalised embeddings: $[0, 1]$.</Sidenote>
+
+
+
+# Chapter Summary
+
+Vector indexes in Neo4j<Citation src="neo4j2024vector" /> define which node property holds embeddings, the
+dimensionality, and the similarity function. Neo4j’s
+`genai.vector.encode` function calls external embedding APIs like
+OpenAI directly from Cypher, and embeddings are stored as node properties,
+keeping vector data co-located with graph data.
+`db.index.vector.queryNodes` performs top-K nearest-neighbour search
+to find semantically similar content. Query parameters keep API keys and
+dynamic values out of the query string, preventing security risks and
+enabling plan caching. At this stage, Neo4j functions as a vector store;
+the transformative power of combining vector search with graph traversal
+is introduced in Module 5 and fully realised in Modules 6–7.
+
+# Practice Problems
+
+<KeyConcept title="Embedding Quality Determines Retrieval Quality" los="KGR-3.4">
+
+**Core Insight:** The embedding model is the bottleneck of vector search.
+If the model encodes “cloud computing” and “data storage” as distant vectors,
+no amount of index tuning will make them match. Conversely, a high-quality
+embedding model compensates for simple retrieval strategies.
+
+**Why It Matters:** Interview candidates often focus on retrieval
+algorithm details (HNSW parameters, re-ranking) while ignoring the
+fundamental constraint: the embedding model defines the ceiling of
+search quality.
+
+**When It Breaks:** Domain-specific corpora (legal documents, medical
+records) may not be well-represented by general-purpose embedding models
+like OpenAI’s. Fine-tuning or domain-specific models may be necessary.
+
+</KeyConcept>
+
+<Problem title="Vector Index Configuration" los="KGR-3.1">
+
+You are setting up a Neo4j vector index for a product catalogue with 50,000
+items. Each product has a description embedded using a model that outputs
+768-dimensional vectors.
+
+1.  Write the Cypher to create the vector index.
+
+2.  Your colleague suggests using Euclidean distance instead of cosine
+    similarity. Under what conditions would this be appropriate?
+
+3.  After creating the index, you run a similarity search and get zero
+    results. List three possible causes.
+
+</Problem>
+
+<Solution>
+
+**Approach:** **Step 1: Vector Index Creation**
+
+
+```cypher
+CREATE VECTOR INDEX product_embeddings IF NOT EXISTS
+FOR (p:Product) ON (p.descriptionEmbedding)
+OPTIONS {
+  indexConfig: {
+    `vector.dimensions`: 768,
+    `vector.similarity_function`: 'cosine'
+  }
+}
+```
+
+
+
+**Step 2: Euclidean vs. Cosine**  
+Euclidean distance is appropriate when vector magnitudes carry meaning (e.g.,
+TF-IDF vectors where magnitude reflects term frequency). For normalised
+embeddings (most modern models including OpenAI), cosine and Euclidean produce
+the same ranking. Use cosine as the default unless you have specific reasons
+to prefer Euclidean.
+
+**Step 3: Zero Results — Three Causes**
+
+1.  Index is still in `POPULATING` status (not `ONLINE`).
+
+2.  Dimension mismatch: index expects 768 but embeddings are 1536.
+
+3.  No embeddings stored: the `descriptionEmbedding` property is
+    null on all Product nodes.
+
+**Key Insight:** Vector index debugging follows a checklist: (1) index
+status, (2) dimension match, (3) embedding population, (4) query vector
+format. Always verify each step before concluding the search is broken.
+
+**Answer:** Create with 768 dimensions and cosine similarity. Prefer
+cosine for normalised embeddings. Debug zero results by checking index
+status, dimensions, and embedding population.
+
+</Solution>
+
+<Problem title="Similarity Score Interpretation" los="KGR-3.7">
+
+You run a similarity search for “renewable energy initiatives” against a
+corporate filing knowledge graph. The top-5 results are:
+
+| **Rank** | **Chunk Topic**                    | **Score** |
+|:--------:|:-----------------------------------|:---------:|
+|    1     | Solar panel manufacturing capacity |   0.91    |
+|    2     | Wind farm investment portfolio     |   0.88    |
+|    3     | Carbon credit trading programme    |   0.84    |
+|    4     | Employee volunteer programmes      |   0.82    |
+|    5     | Office recycling policy            |   0.79    |
+
+1.  Which results are likely relevant? Which are false positives?
+
+2.  What similarity score threshold would you set for this use case?
+
+3.  How would you improve retrieval precision without changing the
+    embedding model?
+
+</Problem>
+
+<Solution>
+
+**Approach:** **Step 1: Relevance Assessment**  
+Results 1–3 are likely relevant (directly about energy/environmental
+initiatives). Results 4–5 are borderline—they relate to corporate
+responsibility but not specifically to *energy* initiatives. They
+are semantic neighbours but not precise matches.
+
+**Step 2: Threshold Selection**  
+A threshold of **0.85** would retain the top-3 results (genuine
+energy-related content) and filter out results 4–5. However, the
+optimal threshold depends on the application:
+
+- High recall needed (research): 0.75–0.80
+
+- Balanced: 0.82–0.85
+
+- High precision needed (customer-facing): 0.88+
+
+**Step 3: Improving Precision**
+
+- Add a re-ranking step using a cross-encoder model.
+
+- Chunk more granularly (smaller chunks = more specific embeddings).
+
+- Use metadata filtering (section type, keywords) before vector search.
+
+- Combine vector search with keyword filtering (hybrid search).
+
+**Key Insight:** Similarity scores are *relative*, not absolute.
+A score of 0.82 might be excellent for one corpus and mediocre for another.
+Always calibrate thresholds against your specific data distribution.
+
+**Answer:** Top 3 relevant, 4–5 are false positives. Threshold
+≈0.85. Improve precision with re-ranking, smaller chunks, or
+hybrid search.
+
+</Solution>
+
+<NarrativeBox title="Self-Check: M3 — Preparing Text for RAG">
+
+**Answer from memory before checking the chapter.**
+
+1.  Write the Cypher statement to create a vector index on a
+    `Chunk` node’s `textEmbedding` property with
+    1536 dimensions and cosine similarity. *(KGR-3.1)*
+
+2.  Explain what `genai.vector.encode` does. What three
+    arguments does it take? *(KGR-3.2)*
+
+3.  Write a complete similarity search query that encodes a
+    question, searches the index, and returns titles with scores.
+    *(KGR-3.3)*
+
+4.  Why is cosine similarity recommended for OpenAI embeddings?
+    What does a score of 0.89 mean? *(KGR-3.4)*
+
+5.  Why should API keys be passed as query parameters rather than
+    embedded in the query string? Name two benefits.
+    *(KGR-3.5)*
+
+6.  What advantage does co-locating embeddings in Neo4j provide
+    over using a separate vector database? *(KGR-3.6)*
+
+7.  If you search for “movies about adventure” and get low
+    similarity scores, what might be wrong? List two possible
+    causes. *(KGR-3.7)*
+
+8.  What is the status you should see when running
+    `SHOW INDEXES` for a ready vector index?
+    *(KGR-3.1)*
+
+</NarrativeBox>
+
+{/* CARD-PLACEMENT-AUTOSTART */}
+
+## Review
+
+{/* CARD-PLACEMENT-TODO: polish pass should move these cards inline */}
+{/* near the concepts they test, per Q-R4.4 hybrid placement.       */}
+
+### Checkpoint cards (8)
+
+<AnkiCard type="checkpoint" id="chapters-vol0-ch03-CHECKPOINT-SELFCHECK_M3_PREPARING_TEXT_FOR_RAG_Q1" los="KGR-3.1" front={"Write the Cypher statement to create a vector index on a\n Chunk node's textEmbedding property with\n 1536 dimensions and cosine similarity. (KGR-3.1)"} back={"Self-check from: Self-Check: M3 --- Preparing Text for RAG\n\n(Answer from memory, then verify against the chapter text.)"} />
+
+<AnkiCard type="checkpoint" id="chapters-vol0-ch03-CHECKPOINT-SELFCHECK_M3_PREPARING_TEXT_FOR_RAG_Q2" los="KGR-3.2" front={"Explain what genai.vector.encode does. What three\n arguments does it take? (KGR-3.2)"} back={"Self-check from: Self-Check: M3 --- Preparing Text for RAG\n\n(Answer from memory, then verify against the chapter text.)"} />
+
+<AnkiCard type="checkpoint" id="chapters-vol0-ch03-CHECKPOINT-SELFCHECK_M3_PREPARING_TEXT_FOR_RAG_Q3" los="KGR-3.3" front={"Write a complete similarity search query that encodes a\n question, searches the index, and returns titles with scores.\n (KGR-3.3)"} back={"Self-check from: Self-Check: M3 --- Preparing Text for RAG\n\n(Answer from memory, then verify against the chapter text.)"} />
+
+<AnkiCard type="checkpoint" id="chapters-vol0-ch03-CHECKPOINT-SELFCHECK_M3_PREPARING_TEXT_FOR_RAG_Q4" los="KGR-3.4" front={"Why is cosine similarity recommended for OpenAI embeddings?\n What does a score of 0.89 mean? (KGR-3.4)"} back={"Self-check from: Self-Check: M3 --- Preparing Text for RAG\n\n(Answer from memory, then verify against the chapter text.)"} />
+
+<AnkiCard type="checkpoint" id="chapters-vol0-ch03-CHECKPOINT-SELFCHECK_M3_PREPARING_TEXT_FOR_RAG_Q5" los="KGR-3.5" front={"Why should API keys be passed as query parameters rather than\n embedded in the query string? Name two benefits.\n (KGR-3.5)"} back={"Self-check from: Self-Check: M3 --- Preparing Text for RAG\n\n(Answer from memory, then verify against the chapter text.)"} />
+
+<AnkiCard type="checkpoint" id="chapters-vol0-ch03-CHECKPOINT-SELFCHECK_M3_PREPARING_TEXT_FOR_RAG_Q6" los="KGR-3.6" front={"What advantage does co-locating embeddings in Neo4j provide\n over using a separate vector database? (KGR-3.6)"} back={"Self-check from: Self-Check: M3 --- Preparing Text for RAG\n\n(Answer from memory, then verify against the chapter text.)"} />
+
+<AnkiCard type="checkpoint" id="chapters-vol0-ch03-CHECKPOINT-SELFCHECK_M3_PREPARING_TEXT_FOR_RAG_Q7" los="KGR-3.7" front={"If you search for \"movies about adventure\" and get low\n similarity scores, what might be wrong? List two possible\n causes. (KGR-3.7)"} back={"Self-check from: Self-Check: M3 --- Preparing Text for RAG\n\n(Answer from memory, then verify against the chapter text.)"} />
+
+<AnkiCard type="checkpoint" id="chapters-vol0-ch03-CHECKPOINT-SELFCHECK_M3_PREPARING_TEXT_FOR_RAG_Q8" los="KGR-3.1" front={"What is the status you should see when running\n SHOW INDEXES for a ready vector index?\n (KGR-3.1)"} back={"Self-check from: Self-Check: M3 --- Preparing Text for RAG\n\n(Answer from memory, then verify against the chapter text.)"} />
+
+### Keyconcept cards (3)
+
+<AnkiCard type="keyconcept" id="chapters-vol0-ch03-CONCEPT-PARAMETERISED_QUERIES_FOR_SECURITY_AND_PERFORMANCE" los="KGR-3.5" front={"Key Concept: Parameterised Queries for Security and Performance"} back={"Query parameters serve two purposes: security (API keys and\n user inputs never appear in query strings, preventing injection and\n leakage in logs) and performance (Neo4j caches execution plans\n for parameterised queries, reusing them across calls with different\n values). Always use $variable syntax with the params\n argument—never f-strings or string concatenation.\n\n When It Breaks: DDL statements (CREATE INDEX, CREATE\n CONSTRAINT) cannot use query parameters in Neo4j. For these, sanitise\n inputs manually."} />
+
+<AnkiCard type="keyconcept" id="chapters-vol0-ch03-CONCEPT-COLOCATED_GRAPH_AND_VECTOR_DATA" los="KGR-3.6" front={"Key Concept: Co-Located Graph and Vector Data"} back={"Most RAG architectures use a separate vector database alongside\n their primary data store. Neo4j's vector indexes eliminate this\n separation: embeddings live as node properties in the same database\n as the graph structure. This means a single Cypher query can:\n\n- Find the most similar chunk via vector search.\n\n- Traverse relationships to find connected chunks.\n\n- Return both the matched text and its graph context.\n\n At this stage (Module 3), only step 1 is used. Modules 5–7 add\n steps 2 and 3, unlocking the full power of graph-augmented RAG.\n\nWhen It Breaks: Co-location ties you to Neo4j's embedding support.\nIf you need to swap embedding models frequently or require advanced ANN\nalgorithms (e.g., ScaNN, IVF-PQ) not yet available in Neo4j, a dedicated\nvector database alongside the graph may outperform the single-engine approach."} />
+
+<AnkiCard type="keyconcept" id="chapters-vol0-ch03-CONCEPT-EMBEDDING_QUALITY_DETERMINES_RETRIEVAL_QUALITY" los="KGR-3.4" front={"Key Concept: Embedding Quality Determines Retrieval Quality"} back={"Core Insight: The embedding model is the bottleneck of vector search.\nIf the model encodes \"cloud computing\" and \"data storage\" as distant vectors,\nno amount of index tuning will make them match. Conversely, a high-quality\nembedding model compensates for simple retrieval strategies.\n\nWhy It Matters: Interview candidates often focus on retrieval\nalgorithm details (HNSW parameters, re-ranking) while ignoring the\nfundamental constraint: the embedding model defines the ceiling of\nsearch quality.\n\nWhen It Breaks: Domain-specific corpora (legal documents, medical\nrecords) may not be well-represented by general-purpose embedding models\nlike OpenAI's. Fine-tuning or domain-specific models may be necessary."} />
+
+### Problem cards (2)
+
+<AnkiCard type="problem" id="chapters-vol0-ch03-PROB-YOU_ARE_SETTING_UP_A_NEO4J_VECTOR_INDEX_FOR_A_PROD" los="KGR-3.1" front={"You are setting up a Neo4j vector index for a product catalogue with 50,000\nitems. Each product has a description embedded using a model that outputs\n768-dimensional vectors.\n\n- Write the Cypher to create the vector index.\n\n- Your colleague suggests using Euclidean distance instead of cosine\n similarity. Under what conditions would this be appropriate?\n\n- After creating the index, you run a similarity search and get zero\n results. List three possible causes."} back={"Approach: Step 1: Vector Index Creation\n\n```cypher\n\nCREATE VECTOR INDEX product_embeddings IF NOT EXISTS\nFOR (p:Product) ON (p.descriptionEmbedding)\nOPTIONS {\n  indexConfig: {\n    `vector.dimensions`: 768,\n    `vector.similarity_function`: 'cosine'\n  }\n}\n\n```\n\nStep 2: Euclidean vs. Cosine \nEuclidean distance is appropriate when vector magnitudes carry meaning (e.g.,\nTF-IDF vectors where magnitude reflects term frequency). For normalised\nembeddings (most modern models including OpenAI), cosine and Euclidean produce\nthe same ranking. Use cosine as the default unless you have specific reasons\nto prefer Euclidean.\n\nStep 3: Zero Results — Three Causes\n\n- Index is still in POPULATING status (not ONLINE).\n\n- Dimension mismatch: index expects 768 but embeddings are 1536.\n\n- No embeddings stored: the descriptionEmbedding property is\n null on all Product nodes.\n\nKey Insight: Vector index debugging follows a checklist: (1) index\nstatus, (2) dimension match, (3) embedding population, (4) query vector\nformat. Always verify each step before concluding the search is broken.\n\nAnswer: Create with 768 dimensions and cosine similarity. Prefer\ncosine for normalised embeddings. Debug zero results by checking index\nstatus, dimensions, and embedding population."} />
+
+<AnkiCard type="problem" id="chapters-vol0-ch03-PROB-YOU_RUN_A_SIMILARITY_SEARCH_FOR_RENEWABLE_ENERGY_I" los="KGR-3.7" front={"You run a similarity search for \"renewable energy initiatives\" against a\ncorporate filing knowledge graph. The top-5 results are:\n\n Rank | Chunk Topic | Score \n\n 1 | Solar panel manufacturing capacity | 0.91 \n 2 | Wind farm investment portfolio | 0.88 \n 3 | Carbon credit trading programme | 0.84 \n 4 | Employee volunteer programmes | 0.82 \n 5 | Office recycling policy | 0.79 \n\n- Which results are likely relevant? Which are false positives?\n\n- What similarity score threshold would you set for this use case?\n\n- How would you improve retrieval precision without changing the\n embedding model?"} back={"Approach: Step 1: Relevance Assessment \nResults 1–3 are likely relevant (directly about energy/environmental\ninitiatives). Results 4–5 are borderline—they relate to corporate\nresponsibility but not specifically to energy initiatives. They\nare semantic neighbours but not precise matches.\n\nStep 2: Threshold Selection \nA threshold of 0.85 would retain the top-3 results (genuine\nenergy-related content) and filter out results 4–5. However, the\noptimal threshold depends on the application:\n\n- High recall needed (research): 0.75–0.80\n\n- Balanced: 0.82–0.85\n\n- High precision needed (customer-facing): 0.88+\n\nStep 3: Improving Precision\n\n- Add a re-ranking step using a cross-encoder model.\n\n- Chunk more granularly (smaller chunks = more specific embeddings).\n\n- Use metadata filtering (section type, keywords) before vector search.\n\n- Combine vector search with keyword filtering (hybrid search).\n\nKey Insight: Similarity scores are relative, not absolute.\nA score of 0.82 might be excellent for one corpus and mediocre for another.\nAlways calibrate thresholds against your specific data distribution.\n\nAnswer: Top 3 relevant, 4–5 are false positives. Threshold\n$\\approx$0.85. Improve precision with re-ranking, smaller chunks, or\nhybrid search."} />
+
+### Redflag cards (1)
+
+<AnkiCard type="redflag" id="chapters-vol0-ch03-RF-API_KEY_EXPOSURE" los="" front={"Warning: API Key Exposure"} back={"Never embed API keys directly in Cypher query strings. String\n interpolation (f-strings, format) risks leaking keys in logs,\n error messages, and query caches. Always use Cypher query parameters\n ($variable) passed through the params argument."} />
+
+{/* CARD-PLACEMENT-AUTOEND */}

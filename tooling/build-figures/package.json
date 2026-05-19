@@ -1,0 +1,13 @@
+{
+  "name": "@dlai-study-notes/build-figures",
+  "description": "Compile per-book TikZ standalone figures to SVG. Walks figures/<book>/*.tex, runs pdflatex + pdftocairo -svg, deposits result in public/figures/<book>/<name>.svg. Cache-aware (skips unchanged inputs); parallel-safe. Upstream target: book-scaffold-astro v3.2.",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "bin": {
+    "build-figures": "./cli.mjs"
+  },
+  "engines": {
+    "node": ">=22.12.0"
+  }
+}

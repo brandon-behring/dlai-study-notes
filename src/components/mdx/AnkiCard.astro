@@ -1,0 +1,51 @@
+---
+/**
+ * AnkiCard — dual-purpose: visible study widget AND .apkg source.
+ *
+ * The mdx-card-extractor walks MDX AST and emits one .apkg per book
+ * grouped by parent chapter's `book` frontmatter. This component is also
+ * rendered in the book itself.
+ *
+ * Per Q-R4.4 hybrid placement: inline at point-of-use for term cards;
+ * chapter-end ## Review section for problem/vignette cards. Visibility
+ * is reader-toggleable (Reading Mode hides; Study Mode expands).
+ *
+ * v1: simple flip-card UI; v2 will wire localStorage Mode toggle.
+ */
+const { type, front, back, los } = Astro.props;
+---
+<details class="ankicard" data-type={type} data-los={los}>
+  <summary class="ankicard-front">
+    <span class="ankicard-type">{type}</span>
+    <span class="ankicard-question">{front}</span>
+  </summary>
+  <div class="ankicard-back"><slot>{back}</slot></div>
+</details>
+
+<style>
+  .ankicard {
+    border: 1px dashed var(--color-border, #cbd5e0);
+    padding: 0.5rem 0.75rem;
+    margin: 0.75rem 0;
+    border-radius: 4px;
+    font-size: 0.92em;
+    background: var(--color-bg-subtle, #fafafa);
+  }
+  .ankicard-front {
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-weight: 500;
+  }
+  .ankicard-type {
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--color-meta, #718096);
+    background: var(--color-tag-bg, #edf2f7);
+    padding: 0.1rem 0.4rem;
+    border-radius: 2px;
+  }
+  .ankicard-back { margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px solid var(--color-border, #e2e8f0); }
+</style>

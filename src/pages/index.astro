@@ -1,0 +1,113 @@
+---
+/**
+ * Corpus landing page — lists all books in the DLAI Study Notes corpus.
+ *
+ * One card per book, ordered by chapter_count desc (most-substantial first).
+ * Each card links to the per-book TOC at /<book-slug>/.
+ *
+ * Renders book-level metadata: title, instructor, course existence
+ * verification date (with yellow warning badge if >365 days stale),
+ * volatility, tools_compared.
+ */
+import Base from '@brandon_m_behring/book-scaffold-astro/layouts/Base.astro';
+import { getCollection } from 'astro:content';
+
+const allBooks = (await getCollection('books'))
+  .filter((b) => !b.data.draft)
+  .sort((a, b) => b.data.chapter_count - a.data.chapter_count);
+
+const ONE_YEAR_MS = 365 * 24 * 60 * 60 * 1000;
+function isStale(verifiedDate: Date): boolean {
+  return Date.now() - verifiedDate.getTime() > ONE_YEAR_MS;
+}
+---
+
+<Base
+  title="DLAI Study Notes — Brandon Behring"
+  description="A corpus of personal study notes synthesized from deeplearning.ai courses. One book per Gold-tier course. Paraphrased, attributed, non-commercial."
+>
+  <article class="prose">
+    <h1>DLAI Study Notes</h1>
+
+    <p>
+      A corpus of personal study notes synthesized from deeplearning.ai
+      short courses. DLAI courses are video + handouts; these are the
+      readable, searchable, math-rendered companion form that didn't
+      otherwise exist.
+    </p>
+
+    <p>
+      Compliance with{' '}
+      <a href="https://community.deeplearning.ai/t/respecting-intellectual-property-how-to-share-deeplearning-ai-course-materials-responsibly/681787">
+        DLAI Community Code of Conduct
+      </a>:
+      non-commercial (CC-BY-NC-4.0), DLAI cited and instructor named, no
+      quizzes / graded assignments / lab solutions / verbatim transcripts.
+      Takedown requests:{' '}
+      <a href="mailto:brandon.m.behring@gmail.com">brandon.m.behring@gmail.com</a>{' '}
+      (48-hour response).
+    </p>
+
+    <h2>Books in this corpus</h2>
+
+    {allBooks.length === 0 ? (
+      <p><em>No books published yet — first book lands at Phase 1 pilot.</em></p>
+    ) : (
+      <ul class="book-list">
+        {allBooks.map((book) => (
+          <li class="book-card">
+            <h3>
+              <a href={`/${book.data.book}/`}>{book.data.title}</a>
+            </h3>
+            <p class="book-meta">
+              <strong>Instructor:</strong> {book.data.instructor}
+              {book.data.partner && <> · <strong>Partner:</strong> {book.data.partner}</>}
+              <br />
+              <strong>Chapters:</strong> {book.data.chapter_count}
+              {' · '}
+              <strong>Source course verified:</strong>{' '}
+              <time datetime={book.data.course_existence_verified.toISOString()}>
+                {book.data.course_existence_verified.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
+              </time>
+              {isStale(book.data.course_existence_verified) && (
+                <span class="stale-warning" title="Source course not verified in over a year">
+                  {' '}⚠ stale
+                </span>
+              )}
+            </p>
+            <p class="book-description">{book.data.description}</p>
+            {book.data.anki_deck_url && (
+              <p class="anki-link">
+                <a href={book.data.anki_deck_url}>Anki flashcards (AnkiWeb)</a>
+              </p>
+            )}
+          </li>
+        ))}
+      </ul>
+    )}
+
+    <h2>About this corpus</h2>
+
+    <p>
+      Author: <a href="https://brandon-behring.dev">Brandon Behring</a> —
+      applied mathematician who builds and learns. Source code:{' '}
+      <a href="https://github.com/brandon-behring/dlai-study-notes">github.com/brandon-behring/dlai-study-notes</a>.
+    </p>
+
+    <p>
+      Each book is paraphrased synthesis written by hand, not transcripts;
+      includes original margin notes, interview prompts, worked problems,
+      and Anki flashcards. Math via KaTeX, search via Pagefind, offline PDF
+      via Paged.js. No tracking, no ads.
+    </p>
+  </article>
+</Base>
+
+<style>
+  .book-list { list-style: none; padding: 0; }
+  .book-card { margin-bottom: 2rem; padding: 1.25rem 0; border-bottom: 1px solid var(--color-border, #ddd); }
+  .book-meta { color: var(--color-meta, #555); font-size: 0.92em; margin: 0.5rem 0; }
+  .book-description { margin-top: 0.5rem; }
+  .stale-warning { color: var(--color-warning, #b85c00); font-weight: 600; }
+  .anki-link { font-size: 0.92em; margin-top: 0.5rem; }
+</style>

@@ -1,0 +1,21 @@
+Some preamble text.
+
+\begin{pycode}
+# Cypher text notation (not executable Python)
+# Person named Andreas KNOWS Person named Andrew since 2024
+(Person name: "Andreas")-[:KNOWS since: 2024]->(Person name: "Andrew")
+\end{pycode}
+
+Interstitial prose.
+
+\begin{minted}{python}
+def hello(name):
+    return f"Hello, {name}!"
+\end{minted}
+
+Another minted block, no options:
+
+\begin{minted}{cypher}
+MATCH (p:Person)-[:ACTED_IN]->(m:Movie)
+RETURN p.name, m.title
+\end{minted}

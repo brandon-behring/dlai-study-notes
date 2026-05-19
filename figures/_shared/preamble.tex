@@ -1,0 +1,44 @@
+% Shared TikZ preamble for DLAI Study Notes corpus.
+%
+% Every figure at figures/<book>/<name>.tex should \input this for
+% consistent color palette, fonts, and arrow styles across all books.
+%
+% Compile mode:
+%   \documentclass[tikz, border=8pt]{standalone}
+%   \input{../_shared/preamble.tex}
+%   \begin{document}
+%   \begin{tikzpicture}
+%     ...
+%   \end{tikzpicture}
+%   \end{document}
+%
+% Build pipeline (Phase 0.C.0 — to be added to book-scaffold v3.2):
+%   pdflatex figures/<book>/<name>.tex  → figures/<book>/<name>.pdf
+%   pdf2svg figures/<book>/<name>.pdf public/figures/<book>/<name>.svg
+%
+% Future-Brandon: this preamble starts minimal. Add corpus-consistent
+% \tikzset definitions, custom node styles, and Warm Tol-5 hue palette
+% references here once the first few figures define their needs.
+
+\usepackage{tikz}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usetikzlibrary{arrows.meta, positioning, shapes, fit, calc, decorations.pathreplacing, backgrounds}
+
+% Warm Tol 5-hue colorblind-safe palette (matches scaffold's Tol palette)
+% reference: book-scaffold-astro/package/styles/tokens.css
+\definecolor{tolblue}{HTML}{4477AA}
+\definecolor{tolcyan}{HTML}{66CCEE}
+\definecolor{tolgreen}{HTML}{228833}
+\definecolor{tolyellow}{HTML}{CCBB44}
+\definecolor{tolred}{HTML}{EE6677}
+\definecolor{tolpurple}{HTML}{AA3377}
+\definecolor{tolgrey}{HTML}{BBBBBB}
+
+% Standard node + edge styles
+\tikzset{
+  >={Stealth[round]},
+  every node/.style={font=\sffamily},
+  node distance=1.2cm and 1.6cm,
+  every edge/.style={draw, ->, semithick},
+}

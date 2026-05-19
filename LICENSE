@@ -1,0 +1,79 @@
+DLAI Study Notes — License
+
+This repository contains three categories of material under different licenses:
+
+===============================================================================
+1. ORIGINAL PROSE / MDX CONTENT BY BRANDON BEHRING
+   (margin notes, original problems, Anki cards, chapter prose, frontmatter)
+===============================================================================
+
+Licensed under Creative Commons Attribution-NonCommercial 4.0 International
+(CC-BY-NC-4.0).
+
+Full license text: https://creativecommons.org/licenses/by-nc/4.0/legalcode
+
+You are free to:
+  - Share — copy and redistribute the material in any medium or format
+  - Adapt — remix, transform, and build upon the material
+
+Under the following terms:
+  - Attribution — You must give appropriate credit, provide a link to the
+    license, and indicate if changes were made.
+  - NonCommercial — You may not use the material for commercial purposes.
+
+===============================================================================
+2. CODE BY BRANDON BEHRING
+   (scripts in tooling/, custom components in src/components/,
+    build configuration)
+===============================================================================
+
+The MIT License (MIT)
+
+Copyright (c) 2026 Brandon Behring
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+===============================================================================
+3. DEEPLEARNING.AI-DERIVED CONTENT
+   (paraphrased lecture concepts, course-structure derivations, topic ordering)
+===============================================================================
+
+NOT relicensed by Brandon Behring. Such material remains under
+DeepLearning.AI's copyright and is included here under DeepLearning.AI's
+Community Code of Conduct policy on sharing course materials, which permits
+non-commercial sharing of personal notes with attribution and without
+quiz/assignment answers.
+
+Policy source:
+https://community.deeplearning.ai/t/respecting-intellectual-property-how-to-share-deeplearning-ai-course-materials-responsibly/681787
+
+Confirming moderator guidance:
+https://community.deeplearning.ai/t/can-i-share-my-notes-with-the-public/196052
+
+This repository explicitly does NOT contain:
+  - Quizzes or quiz answers
+  - Graded-assignment statements or solutions
+  - Lab notebooks or lab solutions
+  - Lecture-slide reproductions
+  - Verbatim transcripts
+
+===============================================================================
+
+For commercial-use inquiries, takedown requests, or corrections:
+brandon.m.behring@gmail.com

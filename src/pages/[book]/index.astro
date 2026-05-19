@@ -1,0 +1,106 @@
+---
+/**
+ * Per-book TOC page — at /<book-slug>/.
+ *
+ * Lists all chapters of one book in order. Shows book-level metadata
+ * (instructor, course existence verification, anki link, etc.) and a
+ * compliance disclaimer specific to this book.
+ */
+import Base from '@brandon_m_behring/book-scaffold-astro/layouts/Base.astro';
+import { getCollection } from 'astro:content';
+
+export async function getStaticPaths() {
+  const allBooks = (await getCollection('books')).filter((b) => !b.data.draft);
+  return allBooks.map((book) => ({
+    params: { book: book.data.book },
+    props: { book },
+  }));
+}
+
+const { book } = Astro.props;
+const allChapters = (await getCollection('chapters'))
+  .filter((c) => c.data.book === book.data.book && !c.data.draft)
+  .sort((a, b) => a.data.chapter - b.data.chapter);
+
+const ONE_YEAR_MS = 365 * 24 * 60 * 60 * 1000;
+const isStale = Date.now() - book.data.course_existence_verified.getTime() > ONE_YEAR_MS;
+---
+
+<Base
+  title={`${book.data.title} — Study Notes`}
+  description={book.data.description}
+>
+  <article class="prose">
+    <p class="breadcrumb">
+      <a href="/">DLAI Study Notes</a> / <strong>{book.data.title}</strong>
+    </p>
+
+    <h1>{book.data.title}</h1>
+
+    <p class="book-meta">
+      <strong>Instructor:</strong> {book.data.instructor}
+      {book.data.partner && <> · <strong>Partner:</strong> {book.data.partner}</>}
+      <br />
+      <strong>Source course:</strong>{' '}
+      <a href={book.data.source_url}>{book.data.source_url}</a>
+      <br />
+      <strong>Course existence verified:</strong>{' '}
+      <time datetime={book.data.course_existence_verified.toISOString()}>
+        {book.data.course_existence_verified.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
+      </time>
+      {isStale && (
+        <span class="stale-warning" title="Source course not verified in over a year">
+          {' '}⚠ stale (>1 year)
+        </span>
+      )}
+    </p>
+
+    <p>{book.data.description}</p>
+
+    {book.data.anki_deck_url && (
+      <p class="anki-link">
+        <strong>Anki flashcards:</strong>{' '}
+        <a href={book.data.anki_deck_url}>{book.data.anki_deck_url}</a>
+      </p>
+    )}
+
+    <h2>Chapters</h2>
+
+    <ol class="chapter-list">
+      {allChapters.map((chapter) => (
+        <li>
+          <a href={`/${book.data.book}/${chapter.id.replace(/^.*\//, '').replace(/\.mdx?$/, '')}/`}>
+            {chapter.data.title}
+          </a>
+          {chapter.data.description && (
+            <p class="chapter-desc">{chapter.data.description}</p>
+          )}
+        </li>
+      ))}
+    </ol>
+
+    <h2>Compliance</h2>
+
+    <p>
+      This book complies with <a href="https://community.deeplearning.ai/t/respecting-intellectual-property-how-to-share-deeplearning-ai-course-materials-responsibly/681787">DLAI's Community Code of Conduct</a>:
+    </p>
+    <ul>
+      <li>Non-commercial (CC-BY-NC-4.0 on prose, MIT on code)</li>
+      <li>DLAI cited; instructor {book.data.instructor} named</li>
+      <li>No quizzes / graded assignments / lab solutions / verbatim transcripts</li>
+    </ul>
+    <p>
+      Takedown requests: <a href="mailto:brandon.m.behring@gmail.com">brandon.m.behring@gmail.com</a> (48-hour response).
+    </p>
+  </article>
+</Base>
+
+<style>
+  .breadcrumb { color: var(--color-meta, #555); font-size: 0.92em; }
+  .book-meta { color: var(--color-meta, #555); font-size: 0.92em; }
+  .stale-warning { color: var(--color-warning, #b85c00); font-weight: 600; }
+  .anki-link { background: var(--color-soft-bg, #f5f5f5); padding: 0.5rem 0.75rem; border-radius: 4px; }
+  .chapter-list { padding-left: 1.5rem; }
+  .chapter-list li { margin-bottom: 1rem; }
+  .chapter-desc { color: var(--color-meta, #555); font-size: 0.92em; margin: 0.25rem 0; }
+</style>

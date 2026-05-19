@@ -1,0 +1,28 @@
+---
+const { title, los } = Astro.props;
+---
+<section class="interview-context">
+  <header class="ic-header">
+    <span class="ic-tag">Interview context</span>
+    {title && <h3 class="ic-title">{title}</h3>}
+    {los && <span class="ic-los">{los}</span>}
+  </header>
+  <div class="ic-body"><slot /></div>
+</section>
+
+<style>
+  .interview-context {
+    border: 1px solid var(--color-border, #e2e8f0);
+    border-top: 3px solid var(--color-interview, #805ad5);
+    padding: 1.25rem; margin: 2rem 0; border-radius: 4px;
+    background: var(--color-bg-subtle, #faf5ff);
+  }
+  .ic-header { margin-bottom: 0.75rem; }
+  .ic-tag {
+    font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em;
+    color: var(--color-interview, #805ad5); font-weight: 700;
+  }
+  .ic-title { margin: 0.25rem 0; font-size: 1.1rem; }
+  .ic-los { font-size: 0.8rem; color: var(--color-meta, #718096); font-family: var(--font-mono, monospace); }
+  .ic-body :global(p:last-child) { margin-bottom: 0; }
+</style>

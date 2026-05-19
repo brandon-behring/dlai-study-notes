@@ -1,0 +1,52 @@
+---
+/**
+ * Per-chapter renderer — at /<book-slug>/<chapter-slug>/.
+ *
+ * Renders one chapter's MDX. Uses the scaffold's Chapter layout for
+ * the prose pane + sidenote columns; injects the book + chapter
+ * frontmatter into the layout context.
+ */
+import Chapter from '@brandon_m_behring/book-scaffold-astro/layouts/Chapter.astro';
+import { getCollection, render } from 'astro:content';
+import { mdxComponents } from '../../components/mdx';
+
+export async function getStaticPaths() {
+  const allChapters = (await getCollection('chapters')).filter((c) => !c.data.draft);
+  return allChapters.map((chapter) => {
+    // chapter.id is the slug relative to src/content/chapters/, e.g.
+    // "knowledge-graphs-rag/01_m1_fundamentals"
+    const [bookSlug, ...chapterParts] = chapter.id.split('/');
+    const chapterSlug = chapterParts.join('/').replace(/\.mdx?$/, '');
+    return {
+      params: { book: bookSlug, chapter: chapterSlug },
+      props: { chapter },
+    };
+  });
+}
+
+const { chapter } = Astro.props;
+const { Content, headings } = await render(chapter);
+
+// Look up the parent book for breadcrumb + back-to-TOC link
+const allBooks = await getCollection('books');
+const parentBook = allBooks.find((b) => b.data.book === chapter.data.book);
+---
+
+<Chapter entry={chapter} headings={headings}>
+  <p class="breadcrumb">
+    <a href="/">DLAI Study Notes</a> /{' '}
+    {parentBook ? (
+      <a href={`/${parentBook.data.book}/`}>{parentBook.data.title}</a>
+    ) : (
+      chapter.data.book
+    )}
+    {' / '}
+    <strong>{chapter.data.title}</strong>
+  </p>
+
+  <Content components={mdxComponents} />
+</Chapter>
+
+<style>
+  .breadcrumb { color: var(--color-meta, #555); font-size: 0.92em; }
+</style>

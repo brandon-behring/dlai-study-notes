@@ -1,0 +1,21 @@
+---
+/**
+ * Citation — inline reference to a bibkey. v1 renders as a small
+ * superscript [src] tag; later wire to citations.bib via build-bib
+ * scaffold step to produce numbered references with backlinks.
+ */
+const { src } = Astro.props;
+---
+<a class="citation" href={`/references/#${src}`} data-src={src}>[{src}]</a>
+
+<style>
+  .citation {
+    font-size: 0.75em;
+    vertical-align: super;
+    text-decoration: none;
+    color: var(--color-citation, #2b6cb0);
+    padding: 0 0.15em;
+    font-family: var(--font-mono, monospace);
+  }
+  .citation:hover { text-decoration: underline; }
+</style>

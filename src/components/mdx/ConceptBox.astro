@@ -1,0 +1,24 @@
+---
+const { title } = Astro.props;
+---
+<aside class="callout callout--concept">
+  {title && <h4 class="callout-title">{title}</h4>}
+  <div class="callout-body"><slot /></div>
+</aside>
+
+<style>
+  .callout--concept {
+    border-left: 3px solid var(--color-concept, #38a169);
+    background: var(--color-callout-concept, #f0fff4);
+    padding: 1rem 1.25rem;
+    margin: 1.5rem 0;
+    border-radius: 0 4px 4px 0;
+  }
+  .callout-title {
+    margin: 0 0 0.5rem 0;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--color-concept, #38a169);
+  }
+  .callout-body :global(p:last-child) { margin-bottom: 0; }
+</style>

@@ -1,0 +1,45 @@
+{
+  "name": "dlai-study-notes",
+  "description": "DLAI Study Notes — multi-book corpus of personal study notes synthesized from deeplearning.ai courses. Consumer of @brandon_m_behring/book-scaffold-astro v3.x with consumer-level multi-book extension.",
+  "type": "module",
+  "version": "0.1.0",
+  "private": true,
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "workspaces": [
+    "tooling/tex-to-mdx",
+    "tooling/mdx-card-extractor",
+    "tooling/build-figures",
+    "tooling/inject-cards"
+  ],
+  "scripts": {
+    "predev": "npm run build:bib --if-present && npm run build:labels --if-present && npm run build:figures",
+    "prebuild": "npm run build:bib --if-present && npm run build:labels --if-present && npm run build:figures && npm run validate --if-present",
+    "build:bib": "book-scaffold build-bib",
+    "build:labels": "book-scaffold build-labels",
+    "build:figures": "node tooling/build-figures/cli.mjs",
+    "build:notebooks": "book-scaffold render-notebooks",
+    "validate": "book-scaffold validate",
+    "dev": "astro dev",
+    "build": "astro build && pagefind --site dist",
+    "preview": "astro preview",
+    "convert:tex": "node tooling/tex-to-mdx/cli.mjs",
+    "inject:cards": "node tooling/inject-cards/cli.mjs",
+    "extract:cards": "node tooling/mdx-card-extractor/cli.mjs"
+  },
+  "dependencies": {
+    "@brandon_m_behring/book-scaffold-astro": "^3.1.0",
+    "@astrojs/mdx": "^5.0.3",
+    "@astrojs/preact": "^5.1.1",
+    "astro": "^6.1.7",
+    "preact": "^10.29.1",
+    "katex": "^0.16.11",
+    "rehype-katex": "^7.0.1",
+    "remark-math": "^6.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "typescript": "^5.7.0"
+  }
+}

@@ -1,0 +1,25 @@
+---
+const { title, los } = Astro.props;
+---
+<section class="problem">
+  <header class="problem-header">
+    <span class="problem-tag">Problem</span>
+    {title && <h3 class="problem-title">{title}</h3>}
+    {los && <span class="problem-los">{los}</span>}
+  </header>
+  <div class="problem-body"><slot /></div>
+</section>
+
+<style>
+  .problem {
+    border: 1px solid var(--color-border, #e2e8f0);
+    border-top: 3px solid var(--color-problem, #c53030);
+    padding: 1.25rem; margin: 2rem 0; border-radius: 4px;
+  }
+  .problem-tag {
+    font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em;
+    color: var(--color-problem, #c53030); font-weight: 700;
+  }
+  .problem-title { margin: 0.25rem 0; font-size: 1.1rem; }
+  .problem-los { font-size: 0.8rem; color: var(--color-meta, #718096); font-family: var(--font-mono, monospace); }
+</style>

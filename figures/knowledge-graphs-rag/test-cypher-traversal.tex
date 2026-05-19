@@ -1,0 +1,21 @@
+% Test figure — minimal Cypher traversal pattern.
+% Used to verify the figure build pipeline end-to-end. Replace or expand
+% as polish pass identifies real diagrams the chapters would benefit from.
+\documentclass[tikz, border=8pt]{standalone}
+\input{../_shared/preamble.tex}
+
+\begin{document}
+\begin{tikzpicture}[node distance=2.2cm]
+  \node[draw, circle, fill=tolblue!20, font=\sffamily\small]
+       (person) {Person};
+  \node[draw, circle, fill=tolgreen!20, font=\sffamily\small, right=of person]
+       (movie) {Movie};
+  \node[draw, circle, fill=tolyellow!20, font=\sffamily\small, right=of movie]
+       (genre) {Genre};
+
+  \draw[->, semithick] (person.east) -- node[above, font=\sffamily\small]
+       {\texttt{ACTED\_IN}} (movie.west);
+  \draw[->, semithick] (movie.east) -- node[above, font=\sffamily\small]
+       {\texttt{IN\_GENRE}} (genre.west);
+\end{tikzpicture}
+\end{document}

@@ -1,0 +1,19 @@
+---
+const { name, los } = Astro.props;
+---
+<dl class="term" data-los={los}>
+  <dt class="term-name">{name}</dt>
+  <dd class="term-def"><slot /></dd>
+</dl>
+
+<style>
+  .term {
+    margin: 1rem 0;
+    padding: 0.5rem 0.75rem;
+    border-left: 2px solid var(--color-term, #4299e1);
+    background: var(--color-bg-subtle, #ebf8ff);
+    border-radius: 0 4px 4px 0;
+  }
+  .term-name { font-weight: 700; font-size: 1.02rem; }
+  .term-def { margin: 0.25rem 0 0 0; }
+</style>

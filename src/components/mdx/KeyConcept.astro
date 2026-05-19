@@ -1,0 +1,30 @@
+---
+const { title, los } = Astro.props;
+---
+<section class="keyconcept">
+  <header class="keyconcept-header">
+    <span class="keyconcept-tag">Key concept</span>
+    {title && <h3 class="keyconcept-title">{title}</h3>}
+    {los && <span class="keyconcept-los">{los}</span>}
+  </header>
+  <div class="keyconcept-body"><slot /></div>
+</section>
+
+<style>
+  .keyconcept {
+    border: 1px solid var(--color-border, #e2e8f0);
+    border-top: 3px solid var(--color-accent, #2b6cb0);
+    padding: 1.25rem;
+    margin: 2rem 0;
+    border-radius: 4px;
+    background: var(--color-bg-subtle, #f7fafc);
+  }
+  .keyconcept-header { margin-bottom: 0.75rem; }
+  .keyconcept-tag {
+    font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em;
+    color: var(--color-accent, #2b6cb0); font-weight: 700;
+  }
+  .keyconcept-title { margin: 0.25rem 0; font-size: 1.1rem; }
+  .keyconcept-los { font-size: 0.8rem; color: var(--color-meta, #718096); font-family: var(--font-mono, monospace); }
+  .keyconcept-body :global(p:last-child) { margin-bottom: 0; }
+</style>

@@ -1,0 +1,24 @@
+---
+const { title } = Astro.props;
+---
+<aside class="redflag">
+  <header class="redflag-header">
+    <span class="redflag-tag">Red flag</span>
+    {title && <h4 class="redflag-title">{title}</h4>}
+  </header>
+  <div class="redflag-body"><slot /></div>
+</aside>
+
+<style>
+  .redflag {
+    border-left: 3px solid var(--color-redflag, #c53030);
+    background: var(--color-bg-redflag, #fff5f5);
+    padding: 1rem 1.25rem; margin: 1.5rem 0; border-radius: 0 4px 4px 0;
+  }
+  .redflag-tag {
+    font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em;
+    color: var(--color-redflag, #c53030); font-weight: 700;
+  }
+  .redflag-title { margin: 0.25rem 0; font-size: 1rem; }
+  .redflag-body :global(p:last-child) { margin-bottom: 0; }
+</style>

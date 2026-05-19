@@ -1,0 +1,676 @@
+---
+book: knowledge-graphs-rag
+title: Knowledge Graph Fundamentals
+chapter: 1
+description: "Foundations of graph-based data modeling: nodes, relationships,
+  properties, and labels as the building blocks for Knowledge Graph--powered RAG
+  systems."
+learning_outcomes:
+  - id: KGR-1.1
+    verb: define
+    text: the core components of a Knowledge Graph---nodes, relationships,
+      properties, and labels---and their formal equivalences to graph theory
+      terms (vertex, edge)
+  - id: KGR-1.2
+    verb: explain
+    text: why Knowledge Graphs enhance RAG systems by enabling traversal-based
+      retrieval that complements vector similarity search
+  - id: KGR-1.3
+    verb: explain
+    text: the role of relationship directionality and typing in encoding semantic
+      meaning within graph data models
+  - id: KGR-1.4
+    verb: compare
+    text: Knowledge Graph storage with tabular storage along the axes of schema
+      flexibility, relationship representation, and query expressiveness
+  - id: KGR-1.5
+    verb: define
+    text: real-world applications of Knowledge Graphs in web search engines,
+      e-commerce recommendation, and enterprise RAG pipelines
+  - id: KGR-1.6
+    verb: apply
+    text: Cypher text notation to express nodes with labels and properties, directed
+      relationships with types, and multi-hop patterns
+sources: []
+tools_compared:
+  - MLE-Google-L4
+  - SWE-Neo4j
+  - DS-Netflix
+  - MLE-Amazon-L5
+  - RSWE-Microsoft
+last_verified: 2026-05-19
+volatility: architectural-pattern
+---
+
+{/* TODO: per-chapter polish pass — see plan decision Q1 round 3 */}
+
+<NarrativeBox title="Where We Are">
+
+You have built basic RAG systems that split documents into chunks, embed
+them as vectors, and retrieve by cosine similarity. This works—but it
+misses connections. When a user asks “who invested in NetApp?”, vector
+search cannot traverse from a text chunk to a company to its investors.
+Knowledge Graphs store data as interconnected entities<Citation src="hogan2021knowledge" />, enabling retrieval
+strategies that follow relationships rather than relying solely on
+embedding distance. This chapter establishes the vocabulary and mental
+model you will use throughout the course.
+
+</NarrativeBox>
+
+# Why Knowledge Graphs Matter for RAG
+
+
+
+<Sidenote category="interview">"How do Knowledge Graphs improve RAG beyond vector search?" is a common system design question for MLE and DS roles.</Sidenote>
+
+
+
+Andreas Kollegger opens the course with a key observation: in a basic RAG
+system, documents are split into chunks, transformed into vectors using an
+embedding model, and searched via cosine similarity. This works well for
+finding *semantically similar* text, but it cannot discover
+*structural connections* between entities. Storing chunks in a Knowledge
+Graph opens new retrieval strategies: you can retrieve one chunk, then
+**traverse relationships** to find connected chunks, revealing
+connections that similarity-based RAG would miss entirely.
+
+
+
+<Term name="Retrieval Augmented Generation (RAG)" los="KGR-1.2">
+  A system architecture that retrieves relevant context from an external data store and injects it into the LLM prompt before generation. Reduces hallucination by grounding responses in retrieved evidence.
+</Term>
+<AnkiCard type="term" front={"Retrieval Augmented Generation (RAG)"} back={"A system architecture that retrieves relevant context from an external data store and injects it into the LLM prompt before generation. Reduces hallucination by grounding responses in retrieved evidence."} los="KGR-1.2" />
+
+
+
+
+
+<Term name="Vector Similarity Search" los="KGR-1.2">
+  Retrieval method that encodes text as high-dimensional vectors (embeddings) and finds nearest neighbours using distance metrics such as cosine similarity. Fast and effective for semantic matching but unable to follow structural relationships between entities.
+</Term>
+<AnkiCard type="term" front={"Vector Similarity Search"} back={"Retrieval method that encodes text as high-dimensional vectors (embeddings) and finds nearest neighbours using distance metrics such as cosine similarity. Fast and effective for semantic matching but unable to follow structural relationships between entities."} los="KGR-1.2" />
+
+
+
+
+
+<Sidenote category="warning">Vector search finds *similar* text; KG traversal finds *connected* entities. Confusing these retrieval modes is a common design interview mistake.</Sidenote>
+
+
+
+Knowledge Graphs are already used by **web search engines** (Google, Bing)
+and **e-commerce platforms** for delivering relevant results<Citation src="noy2019industry" />. The knowledge
+cards you see when searching for a celebrity—showing birth date, filmography,
+and related people—are powered by a Knowledge Graph that connects entities
+through typed relationships.
+
+
+
+<Sidenote category="crossref">vol6 Ch 4: RAG — KG traversal as a retrieval strategy that complements embedding-based similarity search.</Sidenote>
+
+
+
+<ConceptBox>
+
+**The Key Insight.**
+Vector search answers “what text is *similar* to my question?”
+Knowledge Graph traversal answers “what entities are *connected*
+to this result?” Combining both gives RAG systems access to information
+that neither approach can surface alone.
+
+**Example:** A vector search finds a chunk mentioning NetApp’s
+business description. Graph traversal from that chunk follows
+`PART_OF` → `Form` → `FILED` →
+`Company` → `OWNS_STOCK_IN` to discover the
+investment firms holding NetApp stock—information that no embedding
+similarity could retrieve.
+
+</ConceptBox>
+
+
+
+<Sidenote category="pattern">The course builds on this insight progressively: M3 adds vector search, M5 adds graph traversal, M7 combines both with LLM-generated Cypher queries.</Sidenote>
+
+
+
+# Graph Data Model Fundamentals
+
+<ConceptBox>
+
+**The Mental Model.**
+Think of a Knowledge Graph as a whiteboard diagram that is also a
+database. Each circle is a **node** (an entity), each arrow is
+a **relationship** (a connection), and both can carry key-value
+**properties**. The diagram *is* the data.
+
+</ConceptBox>
+
+## Nodes as Data Records
+
+**Nodes** are data records that represent entities. In Cypher text
+notation, nodes are written with **parentheses**: `(Person)`.
+Each node can have one or more **labels** that group it with similar
+entities, and zero or more **properties** stored as key-value pairs.
+
+
+
+<Term name="Node" los="KGR-1.1">
+  A data record representing an entity in a Knowledge Graph. Contains properties (key-value pairs) and one or more labels for grouping. Equivalent to a "vertex" in graph theory.
+</Term>
+<AnkiCard type="term" front={"Node"} back={"A data record representing an entity in a Knowledge Graph. Contains properties (key-value pairs) and one or more labels for grouping. Equivalent to a \"vertex\" in graph theory."} los="KGR-1.1" />
+
+
+
+
+
+<Term name="Label" los="KGR-1.1">
+  A tag applied to a node that groups it with similar entities. Examples: `Person`, `Movie`, `Company`. A node can have multiple labels. Labels enable efficient filtering in queries.
+</Term>
+<AnkiCard type="term" front={"Label"} back={"A tag applied to a node that groups it with similar entities. Examples: `Person`, `Movie`, `Company`. A node can have multiple labels. Labels enable efficient filtering in queries."} los="KGR-1.1" />
+
+
+
+
+
+<Term name="Property" los="KGR-1.1">
+  A key-value pair stored on a node or relationship. Keys are strings; values can be strings, numbers, booleans, or lists. Example: `\{name: "Andreas", born: 1975\`}.
+</Term>
+<AnkiCard type="term" front={"Property"} back={"A key-value pair stored on a node or relationship. Keys are strings; values can be strings, numbers, booleans, or lists. Example: `\\{name: \"Andreas\", born: 1975\\`}."} los="KGR-1.1" />
+
+
+
+For example:
+
+- A **Person** node stores `name`, `email`, and
+  other personal details.
+
+- A **Company** node stores `numberOfEmployees` and
+  `annualRevenue`.
+
+- A **Movie** node stores `title`, `tagline`,
+  and `released` year.
+
+## Relationships as Data Records
+
+**Relationships** connect two nodes and are themselves rich data records.
+Each relationship contains:
+
+- The **pair of nodes** it connects (start and end node).
+
+- A **type** that describes the nature of the connection
+  (e.g., `ACTED_IN`, `KNOWS`, `TEACHES`).
+
+- Optional **properties** (key-value pairs) about the
+  relationship itself.
+
+
+
+<Term name="Relationship" los="KGR-1.1">
+  A directed connection between two nodes with a type and optional properties. Contains the pair of connected nodes plus metadata. Preferred over the graph theory term "edge" because it conveys richness beyond a simple connection.
+</Term>
+<AnkiCard type="term" front={"Relationship"} back={"A directed connection between two nodes with a type and optional properties. Contains the pair of connected nodes plus metadata. Preferred over the graph theory term \"edge\" because it conveys richness beyond a simple connection."} los="KGR-1.1" />
+
+
+
+Text notation uses **square brackets** and arrows:
+
+
+
+```cypher
+# Cypher text notation (not executable Python)
+# Person named Andreas KNOWS Person named Andrew since 2024
+(Person {name: "Andreas"})-[:KNOWS {since: 2024}]->(Person {name: "Andrew"})
+```
+
+
+
+
+
+<Sidenote category="warning">The term "relationship" is preferred over "edge" because it conveys that the connection is a rich data record, not just a simple link.</Sidenote>
+
+
+
+## Directionality and Rich Patterns
+
+Relationships have **direction**, and patterns can chain together to
+express complex scenarios:
+
+
+
+```cypher
+# Multi-relationship pattern in Cypher notation
+(Person {name: "Andreas"})-[:TEACHES]->(Course {title: "KG for RAG"})
+    <-[:INTRODUCES]-(Person {name: "Andrew"})
+```
+
+
+
+
+
+<Sidenote category="formula">Graph traversal cost: $O(k^d)$ where $k$ = avg connections/node, $d$ = hops. SQL equivalent: $O(n^d)$ self-JOINs.</Sidenote>
+
+
+
+An important modelling insight: rather than labelling a person as a “teacher”
+or “introducer,” the **relationship itself** defines their role.
+Andreas is a teacher because he `TEACHES`; Andrew is an introducer
+because he `INTRODUCES`. This pattern—*identity through
+relationships rather than explicit type labels*—is central to Knowledge
+Graph design.
+
+<KeyConcept title="Identity Through Relationships" los="KGR-1.3">
+
+In a Knowledge Graph, a node’s role is determined by its relationships,
+not by explicit labels or type fields. A `Person` node is an
+actor because it has an `ACTED_IN` relationship, a director
+because it has a `DIRECTED` relationship, and a writer because
+it has a `WROTE` relationship—all without separate
+`Actor`, `Director`, or `Writer` labels.
+
+**When It Breaks:** When a node’s role requires properties specific to
+that role (e.g., an actor’s `salary` per film vs. a director’s
+`budget`), relationship-only identity forces these onto the
+relationship itself, which can become unwieldy at scale.
+
+</KeyConcept>
+
+<InterviewContext title="Knowledge Graph Fundamentals and Cypher Querying" los="KGR-1.1, KGR-1.3, KGR-2.1, KGR-2.2">
+
+Knowledge Graph design and Cypher querying appear frequently in system design
+rounds at companies with graph infrastructure (Neo4j, Amazon Neptune, Google).
+
+**What they’re really testing:** Whether you can model a domain as nodes
+and relationships, write multi-hop Cypher queries, and explain why graph
+traversal outperforms SQL self-JOINs for relationship-heavy data.
+
+**Expected depth by level:**
+
+- **IC3/IC4:** Define nodes, relationships, labels, properties;
+  write single-hop MATCH queries; explain MERGE vs. CREATE.
+
+- **IC5+/Staff:** Design graph schemas using “identity through
+  relationships”; write multi-hop traversal queries; articulate *O*(*k*<sup>*d*</sup>)
+  traversal cost vs. *O*(*n*<sup>*d*</sup>) SQL JOINs; choose between graph and
+  relational storage for a given workload.
+
+</InterviewContext>
+
+# Graph Terminology Equivalences
+
+The Knowledge Graph vocabulary maps directly to classic graph theory<Citation src="robinson2015graph" />:
+
+| **Graph Theory Term** | **KG Term** | **Why the KG Term Is Preferred** |
+|:---|:---|:---|
+| Vertex | Node | More intuitive for data modelling |
+| Edge | Relationship | Conveys richness (properties, direction, type) |
+| Graph | Knowledge Graph | Emphasises semantic meaning and structure |
+| Adjacency | Traversal | Describes following relationships through data |
+
+
+
+<Sidenote category="interview">Interviewers may use graph theory terms interchangeably with KG terms. Know both vocabularies fluently.</Sidenote>
+
+
+
+# Knowledge Graphs vs. Tabular Storage
+
+<DecisionTree title="Decision: Graph vs. Relational Database">
+
+- **Yes—entities relate to each other in complex, variable ways**  
+
+- **No—data fits neatly into rows and columns with few JOINs**  
+
+- **Yes—new entity types and relationship types appear frequently**  
+
+- **No—schema is stable and well-defined**  
+
+- **Yes**  
+
+- **No—vector search is sufficient**  
+
+</DecisionTree>
+
+| **Dimension**     |    **Relational DB**     |    **Knowledge Graph**     |
+|:------------------|:------------------------:|:--------------------------:|
+| Schema            |   Fixed (DDL required)   | Flexible (schema-optional) |
+| Relationships     |   Foreign keys + JOINs   |    First-class citizens    |
+| Multi-hop queries | Expensive (nested JOINs) |    Natural (traversal)     |
+| Vector search     |    Bolt-on (pgvector)    |  Native (vector indexes)   |
+| Query language    |           SQL            |           Cypher           |
+| Best for          |  Transactional, tabular  |  Connected, semantic data  |
+
+# Introduction to Cypher
+
+Knowledge Graphs in Neo4j are queried using **Cypher**<Citation src="francis2018cypher" />, a pattern-matching
+query language. Cypher uses the same visual notation as the text representations
+introduced above, making it intuitive to read and write.
+
+
+
+<Term name="Cypher" los="KGR-1.6">
+  Neo4j's declarative, pattern-matching query language. Uses ASCII art notation: parentheses `()` for nodes, square brackets `[]` for relationships, and arrows `->` for direction. Designed to be visually similar to whiteboard diagrams of graph patterns.
+</Term>
+<AnkiCard type="term" front={"Cypher"} back={"Neo4j's declarative, pattern-matching query language. Uses ASCII art notation: parentheses `()` for nodes, square brackets `[]` for relationships, and arrows `->` for direction. Designed to be visually similar to whiteboard diagrams of graph patterns."} los="KGR-1.6" />
+
+
+
+The core idea: you **draw** the pattern you want to find, and Cypher
+finds all matching subgraphs. A simple example:
+
+
+
+```cypher
+# Find all people who acted in a movie
+MATCH (p:Person)-[:ACTED_IN]->(m:Movie)
+RETURN p.name, m.title
+```
+
+
+
+This reads as: “find a `Person` node connected to a `Movie`
+node via an `ACTED_IN` relationship, and return their names and
+titles.” The pattern syntax mirrors the graph structure, making Cypher
+queries self-documenting.
+
+
+
+<Sidenote category="crossref">Module 2 provides a comprehensive Cypher tutorial with the movie dataset. Module 7 teaches LLMs to generate Cypher automatically.</Sidenote>
+
+
+
+# Real-World Applications
+
+<PipelineBox title="Pipeline: Knowledge Graph Applications">
+
+1.  **Web Search** *(Google, Bing)*  
+    Knowledge cards (celebrity info, company facts) are powered by
+    graph lookups that aggregate properties and relationships into
+    structured summaries.
+
+2.  **E-Commerce Recommendations** *(Amazon, Netflix)*  
+    “Customers who bought X also bought Y” traverses purchase
+    relationships. Collaborative filtering on a graph captures
+    multi-hop preferences.
+
+3.  **Financial Analysis** *(SEC, Bloomberg)*  
+    Investment relationships, corporate structures, and filing
+    data form a natural graph. This course uses SEC Form 10-K and
+    Form 13 filings as the primary dataset.
+
+4.  **Enterprise RAG** *(Internal Knowledge)*  
+    Document chunks linked to teams, projects, and concepts enable
+    context-aware retrieval that respects organisational structure.
+
+</PipelineBox>
+
+
+
+<Sidenote category="practice">The SEC filing dataset used in this course (Modules 4–7) demonstrates a realistic enterprise KG pipeline: document ingestion, chunking, embedding, relationship creation, and multi-hop querying.</Sidenote>
+
+
+
+# The Course Roadmap
+
+The course follows a progressive build pattern, layering capabilities onto
+the Knowledge Graph:
+
+| **Module** | **Topic** | **What Gets Added** |
+|:--:|:---|:---|
+| M1 | Fundamentals | Vocabulary: nodes, relationships, properties, labels |
+| M2 | Querying | Cypher: MATCH, WHERE, CREATE, MERGE, DELETE |
+| M3 | Preparing for RAG | Vector indexes, embeddings, similarity search |
+| M4 | Graph Construction | SEC 10-K chunks as nodes, vector search on graph |
+| M5 | Adding Relationships | NEXT, PART\_OF, SECTION; chunk window retrieval |
+| M6 | Expanding the Graph | Form 13 data, Company/Manager nodes, full-text index |
+| M7 | Chatting with the KG | Geospatial queries, LLM-generated Cypher, few-shot |
+
+
+
+<Sidenote category="interview">Being able to describe the full KG-RAG pipeline from document ingestion to LLM-generated Cypher demonstrates system-level thinking that interviewers value at senior levels.</Sidenote>
+
+
+
+# Chapter Summary
+
+Knowledge Graphs store data as nodes and relationships, both carrying
+properties. Nodes have labels for grouping; relationships have types and
+direction that encode semantic meaning. The graph structure enables
+traversal-based retrieval that complements vector similarity search,
+revealing connections that embedding distance alone cannot surface.
+Cypher provides an intuitive, pattern-matching query language that
+mirrors the visual structure of the graph. The combination of Knowledge
+Graphs with embedding models opens new RAG strategies: retrieve a relevant
+chunk via vector search, then traverse the graph to expand context with
+connected entities and documents.
+
+# Practice Problems
+
+<KeyConcept title="Schema-Optional Data Modelling" los="KGR-1.4">
+
+**Core Insight:** Knowledge Graphs are schema-optional: you can add new
+node labels and relationship types without schema migrations. This flexibility
+makes KGs ideal for domains where entity types evolve over time (new data
+sources, changing business requirements).
+
+**Why It Matters:** In design interviews, explaining when schema
+flexibility outweighs the data integrity guarantees of relational databases
+demonstrates architectural judgment.
+
+**When It Breaks:** Schema-optional is not schema-free. Without
+conventions (naming standards, uniqueness constraints), the graph becomes a
+tangled mess. Production KGs need governance even without DDL enforcement.
+
+</KeyConcept>
+
+<Problem title="Graph Data Model Design" los="KGR-1.1">
+
+You are designing a Knowledge Graph for a university course catalogue.
+The domain has the following entities and relationships:
+
+- Professors teach Courses
+
+- Students enrol in Courses
+
+- Courses belong to Departments
+
+- Some professors advise students
+
+**Tasks:**
+
+1.  Identify the node labels and their key properties.
+
+2.  Identify the relationship types and their directions.
+
+3.  Write the Cypher text notation for: Professor “Dr. Smith” who
+    teaches “Machine Learning 101” in the “CS” department.
+
+4.  Can a student’s role (TA vs. regular student) be modelled through
+    relationships alone? Explain.
+
+</Problem>
+
+<Solution>
+
+**Approach:** Apply the “identity through relationships” pattern from
+this chapter.
+
+**Step 1: Node Labels and Properties**
+
+- `Professor`: `name`, `email`, `hireYear`
+
+- `Student`: `name`, `studentId`, `year`
+
+- `Course`: `title`, `courseCode`, `credits`
+
+- `Department`: `name`, `building`
+
+**Step 2: Relationship Types**
+
+- `Professor -[:TEACHES]-> Course`
+
+- `Student -[:ENROLLED_IN]-> Course`
+
+- `Course -[:BELONGS_TO]-> Department`
+
+- `Professor -[:ADVISES]-> Student`
+
+**Step 3: Cypher Text Notation**
+
+
+```cypher
+(smith:Professor {name: "Dr. Smith"})
+  -[:TEACHES]->
+(ml101:Course {title: "Machine Learning 101"})
+  -[:BELONGS_TO]->
+(cs:Department {name: "CS"})
+```
+
+
+
+**Step 4:** Yes. A TA is a student who has both an `ENROLLED_IN`
+relationship and a `ASSISTS` relationship to the same course. No
+separate `TA` label is needed—their role is defined by the
+relationship pattern, exactly like actors/directors in the movie dataset.
+
+**Key Insight:** The “identity through relationships” pattern extends
+naturally to new domains. When you can model a role through relationship
+presence, prefer that over adding labels—it keeps the schema cleaner
+and avoids the “label explosion” anti-pattern.
+
+**Answer:** Apply the “identity through relationships” pattern from
+this chapter.
+
+</Solution>
+
+<Problem title="KG vs. Relational Database Selection" los="KGR-1.4">
+
+Your team is building a customer support system. The data includes:
+
+- 10 million support tickets with text descriptions
+
+- Each ticket is assigned to exactly one agent and one customer
+
+- Tickets have a status (open, in-progress, resolved, closed)
+
+- You need to find similar past tickets for a new incoming ticket
+
+Should you use a Knowledge Graph or a relational database? Justify your answer
+along three dimensions: schema flexibility, relationship complexity, and
+query patterns.
+
+</Problem>
+
+<Solution>
+
+**Approach:** Apply the KG vs. relational decision framework from
+this chapter.
+
+**Analysis by Dimension:**
+
+**Schema flexibility:** The ticket schema is stable (ticket, agent,
+customer, status). New fields can be added with `ALTER TABLE`. No
+advantage to KG here.
+
+**Relationship complexity:** Each ticket has exactly one agent and one
+customer—simple foreign keys. No many-to-many or multi-hop relationships
+needed for core operations. Relational DB is sufficient.
+
+**Query patterns:** “Find similar past tickets” is a semantic similarity
+task best served by vector search, not graph traversal. The relationships
+(ticket→agent, ticket→customer) are simple lookups.
+
+**Answer:** Use a relational database (e.g., PostgreSQL with pgvector).
+The data is tabular with simple relationships. Add a vector index on ticket
+embeddings for similarity search. A Knowledge Graph would add complexity
+without benefit for this use case.
+
+**Key Insight:** Not every system needs a Knowledge Graph. KGs shine when
+data has complex, multi-hop relationships and flexible schemas. For tabular
+data with simple foreign keys, relational databases are simpler and more
+battle-tested. The decision should be driven by relationship complexity,
+not technology novelty.
+
+</Solution>
+
+<NarrativeBox title="Self-Check: M1 — Knowledge Graph Fundamentals">
+
+**Answer from memory before checking the chapter.**
+
+1.  Define the four core components of a Knowledge Graph (node,
+    relationship, property, label). Give one example of each from
+    the movie dataset. *(KGR-1.1)*
+
+2.  What is the difference between a graph theory “edge” and a
+    Knowledge Graph “relationship”? Why is the KG term preferred?
+    *(KGR-1.1)*
+
+3.  Explain the “identity through relationships” pattern. Why
+    does a Person node not need separate Actor/Director labels?
+    *(KGR-1.3)*
+
+4.  Name two retrieval strategies that Knowledge Graphs enable
+    beyond vector similarity search. *(KGR-1.2)*
+
+5.  Compare Knowledge Graph storage with relational databases
+    on three dimensions. When would you choose each?
+    *(KGR-1.4)*
+
+6.  Give two real-world applications of Knowledge Graphs outside
+    of RAG. *(KGR-1.5)*
+
+7.  Write the Cypher text notation for a Person named “Alice” who
+    `WORKS_AT` a Company named “Acme” since 2020.
+    *(KGR-1.6)*
+
+8.  In the course roadmap, which module adds vector search to the
+    graph? Which module adds graph traversal for chunk windows?
+    *(KGR-1.2)*
+
+</NarrativeBox>
+
+{/* CARD-PLACEMENT-AUTOSTART */}
+
+## Review
+
+{/* CARD-PLACEMENT-TODO: polish pass should move these cards inline */}
+{/* near the concepts they test, per Q-R4.4 hybrid placement.       */}
+
+### Checkpoint cards (8)
+
+<AnkiCard type="checkpoint" id="chapters-vol0-ch01-CHECKPOINT-SELFCHECK_M1_KNOWLEDGE_GRAPH_FUNDAMENTALS_Q1" los="KGR-1.1" front={"Define the four core components of a Knowledge Graph (node,\n relationship, property, label). Give one example of each from\n the movie dataset. (KGR-1.1)"} back={"Self-check from: Self-Check: M1 --- Knowledge Graph Fundamentals\n\n(Answer from memory, then verify against the chapter text.)"} />
+
+<AnkiCard type="checkpoint" id="chapters-vol0-ch01-CHECKPOINT-SELFCHECK_M1_KNOWLEDGE_GRAPH_FUNDAMENTALS_Q2" los="KGR-1.1" front={"What is the difference between a graph theory \"edge\" and a\n Knowledge Graph \"relationship\"? Why is the KG term preferred?\n (KGR-1.1)"} back={"Self-check from: Self-Check: M1 --- Knowledge Graph Fundamentals\n\n(Answer from memory, then verify against the chapter text.)"} />
+
+<AnkiCard type="checkpoint" id="chapters-vol0-ch01-CHECKPOINT-SELFCHECK_M1_KNOWLEDGE_GRAPH_FUNDAMENTALS_Q3" los="KGR-1.3" front={"Explain the \"identity through relationships\" pattern. Why\n does a Person node not need separate Actor/Director labels?\n (KGR-1.3)"} back={"Self-check from: Self-Check: M1 --- Knowledge Graph Fundamentals\n\n(Answer from memory, then verify against the chapter text.)"} />
+
+<AnkiCard type="checkpoint" id="chapters-vol0-ch01-CHECKPOINT-SELFCHECK_M1_KNOWLEDGE_GRAPH_FUNDAMENTALS_Q4" los="KGR-1.2" front={"Name two retrieval strategies that Knowledge Graphs enable\n beyond vector similarity search. (KGR-1.2)"} back={"Self-check from: Self-Check: M1 --- Knowledge Graph Fundamentals\n\n(Answer from memory, then verify against the chapter text.)"} />
+
+<AnkiCard type="checkpoint" id="chapters-vol0-ch01-CHECKPOINT-SELFCHECK_M1_KNOWLEDGE_GRAPH_FUNDAMENTALS_Q5" los="KGR-1.4" front={"Compare Knowledge Graph storage with relational databases\n on three dimensions. When would you choose each?\n (KGR-1.4)"} back={"Self-check from: Self-Check: M1 --- Knowledge Graph Fundamentals\n\n(Answer from memory, then verify against the chapter text.)"} />
+
+<AnkiCard type="checkpoint" id="chapters-vol0-ch01-CHECKPOINT-SELFCHECK_M1_KNOWLEDGE_GRAPH_FUNDAMENTALS_Q6" los="KGR-1.5" front={"Give two real-world applications of Knowledge Graphs outside\n of RAG. (KGR-1.5)"} back={"Self-check from: Self-Check: M1 --- Knowledge Graph Fundamentals\n\n(Answer from memory, then verify against the chapter text.)"} />
+
+<AnkiCard type="checkpoint" id="chapters-vol0-ch01-CHECKPOINT-SELFCHECK_M1_KNOWLEDGE_GRAPH_FUNDAMENTALS_Q7" los="KGR-1.6" front={"Write the Cypher text notation for a Person named \"Alice\" who\n WORKS_AT a Company named \"Acme\" since 2020.\n (KGR-1.6)"} back={"Self-check from: Self-Check: M1 --- Knowledge Graph Fundamentals\n\n(Answer from memory, then verify against the chapter text.)"} />
+
+<AnkiCard type="checkpoint" id="chapters-vol0-ch01-CHECKPOINT-SELFCHECK_M1_KNOWLEDGE_GRAPH_FUNDAMENTALS_Q8" los="KGR-1.2" front={"In the course roadmap, which module adds vector search to the\n graph? Which module adds graph traversal for chunk windows?\n (KGR-1.2)"} back={"Self-check from: Self-Check: M1 --- Knowledge Graph Fundamentals\n\n(Answer from memory, then verify against the chapter text.)"} />
+
+### Keyconcept cards (2)
+
+<AnkiCard type="keyconcept" id="chapters-vol0-ch01-CONCEPT-IDENTITY_THROUGH_RELATIONSHIPS" los="KGR-1.3" front={"Key Concept: Identity Through Relationships"} back={"In a Knowledge Graph, a node's role is determined by its relationships,\n not by explicit labels or type fields. A Person node is an\n actor because it has an ACTED_IN relationship, a director\n because it has a DIRECTED relationship, and a writer because\n it has a WROTE relationship—all without separate\n Actor, Director, or Writer labels.\n\nWhen It Breaks: When a node's role requires properties specific to\nthat role (e.g., an actor's salary per film vs. a director's\nbudget), relationship-only identity forces these onto the\nrelationship itself, which can become unwieldy at scale."} />
+
+<AnkiCard type="keyconcept" id="chapters-vol0-ch01-CONCEPT-SCHEMAOPTIONAL_DATA_MODELLING" los="KGR-1.4" front={"Key Concept: Schema-Optional Data Modelling"} back={"Core Insight: Knowledge Graphs are schema-optional: you can add new\nnode labels and relationship types without schema migrations. This flexibility\nmakes KGs ideal for domains where entity types evolve over time (new data\nsources, changing business requirements).\n\nWhy It Matters: In design interviews, explaining when schema\nflexibility outweighs the data integrity guarantees of relational databases\ndemonstrates architectural judgment.\n\nWhen It Breaks: Schema-optional is not schema-free. Without\nconventions (naming standards, uniqueness constraints), the graph becomes a\ntangled mess. Production KGs need governance even without DDL enforcement."} />
+
+### Problem cards (2)
+
+<AnkiCard type="problem" id="chapters-vol0-ch01-PROB-YOU_ARE_DESIGNING_A_KNOWLEDGE_GRAPH_FOR_A_UNIVERSI" los="KGR-1.1" front={"You are designing a Knowledge Graph for a university course catalogue.\nThe domain has the following entities and relationships:\n\n- Professors teach Courses\n\n- Students enrol in Courses\n\n- Courses belong to Departments\n\n- Some professors advise students\n\nTasks:\n\n- Identify the node labels and their key properties.\n\n- Identify the relationship types and their directions.\n\n- Write the Cypher text notation for: Professor \"Dr. Smith\" who\n teaches \"Machine Learning 101\" in the \"CS\" department.\n\n- Can a student's role (TA vs. regular student) be modelled through\n relationships alone? Explain."} back={"Approach: Apply the \"identity through relationships\" pattern from\nthis chapter.\n\nStep 1: Node Labels and Properties\n\n- Professor: name, email, hireYear\n\n- Student: name, studentId, year\n\n- Course: title, courseCode, credits\n\n- Department: name, building\n\nStep 2: Relationship Types\n\n- `Professor -[:TEACHES]-> Course`\n\n- Student -[:ENROLLED_IN]- Course\n\n- Course -[:BELONGS_TO]- Department\n\n- `Professor -[:ADVISES]-> Student`\n\nStep 3: Cypher Text Notation\n\n```cypher\n\n(smith:Professor {name: \"Dr. Smith\"})\n  -[:TEACHES]->\n(ml101:Course {title: \"Machine Learning 101\"})\n  -[:BELONGS_TO]->\n(cs:Department {name: \"CS\"})\n\n```\n\nStep 4: Yes. A TA is a student who has both an ENROLLED_IN\nrelationship and a ASSISTS relationship to the same course. No\nseparate TA label is needed—their role is defined by the\nrelationship pattern, exactly like actors/directors in the movie dataset.\n\nKey Insight: The \"identity through relationships\" pattern extends\nnaturally to new domains. When you can model a role through relationship\npresence, prefer that over adding labels—it keeps the schema cleaner\nand avoids the \"label explosion\" anti-pattern.\n\nAnswer: Apply the \"identity through relationships\" pattern from\nthis chapter."} />
+
+<AnkiCard type="problem" id="chapters-vol0-ch01-PROB-YOUR_TEAM_IS_BUILDING_A_CUSTOMER_SUPPORT_SYSTEM_TH" los="KGR-1.4" front={"Your team is building a customer support system. The data includes:\n\n- 10 million support tickets with text descriptions\n\n- Each ticket is assigned to exactly one agent and one customer\n\n- Tickets have a status (open, in-progress, resolved, closed)\n\n- You need to find similar past tickets for a new incoming ticket\n\nShould you use a Knowledge Graph or a relational database? Justify your answer\nalong three dimensions: schema flexibility, relationship complexity, and\nquery patterns."} back={"Approach: Apply the KG vs. relational decision framework from\nthis chapter.\n\nAnalysis by Dimension:\n\nSchema flexibility: The ticket schema is stable (ticket, agent,\ncustomer, status). New fields can be added with ALTER TABLE. No\nadvantage to KG here.\n\nRelationship complexity: Each ticket has exactly one agent and one\ncustomer—simple foreign keys. No many-to-many or multi-hop relationships\nneeded for core operations. Relational DB is sufficient.\n\nQuery patterns: \"Find similar past tickets\" is a semantic similarity\ntask best served by vector search, not graph traversal. The relationships\n(ticket→agent, ticket→customer) are simple lookups.\n\nAnswer: Use a relational database (e.g., PostgreSQL with pgvector).\nThe data is tabular with simple relationships. Add a vector index on ticket\nembeddings for similarity search. A Knowledge Graph would add complexity\nwithout benefit for this use case.\n\nKey Insight: Not every system needs a Knowledge Graph. KGs shine when\ndata has complex, multi-hop relationships and flexible schemas. For tabular\ndata with simple foreign keys, relational databases are simpler and more\nbattle-tested. The decision should be driven by relationship complexity,\nnot technology novelty."} />
+
+### Interview cards (1)
+
+<AnkiCard type="interview" id="chapters-vol0-ch01-INT-KNOWLEDGE_GRAPH_FUNDAMENTALS_AND_CYPHER_QUERYING" los="KGR-1.1, KGR-1.3, KGR-2.1, KGR-2.2" front={"Interview Q: graph\ntraversal outperforms SQL self-JOINs for relationship-heavy data"} back={"Knowledge Graph design and Cypher querying appear frequently in system design\nrounds at companies with graph infrastructure (Neo4j, Amazon Neptune, Google).\n\nWhat they're really testing: Whether you can model a domain as nodes\nand relationships, write multi-hop Cypher queries, and explain why graph\ntraversal outperforms SQL self-JOINs for relationship-heavy data.\n\nExpected depth by level:\n\n- IC3/IC4: Define nodes, relationships, labels, properties;\n write single-hop MATCH queries; explain MERGE vs."} />
+
+### Decisiontree cards (1)
+
+<AnkiCard type="decisiontree" id="chapters-vol0-ch01-DECISION-DECISION_GRAPH_VS_RELATIONAL_DATABASE" los="" front={"Decision: Decision: Graph vs.\\ Relational Database"} back={"Is your data highly interconnected with many-to-many relationships?\n\n- Yes—entities relate to each other in complex, variable ways \n Knowledge Graph. JOINs become expensive in relational DBs\n as relationship depth increases; graph traversal stays constant-time\n per hop.\n\n- No—data fits neatly into rows and columns with few JOINs \n Relational database. Well-understood, battle-tested, and\n sufficient for tabular data with simple relationships.\n\n Do you need flexible schema evolution?\n\n- Yes—new entity types and relationship types appear frequently \n Knowledge Graph."} />
+
+{/* CARD-PLACEMENT-AUTOEND */}
