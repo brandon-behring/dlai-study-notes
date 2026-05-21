@@ -13,10 +13,8 @@
  *
  * Output: dist/anki/<book-slug>.apkg
  *
- * Status: SKELETON. AST walk + grouping works; .apkg emission is stubbed
- * (requires the `genanki` Node package which doesn't exist yet — needs
- * either a JS port, a Python subprocess wrapper around python's `genanki`,
- * or a sqlite-based direct implementation).
+ * Status: Pilot-ready. AST walk + grouping works; .apkg emission uses
+ * anki-apkg-export and also writes a JSON debug artifact next to the deck.
  */
 import { resolve, join } from 'node:path';
 import { readdir, readFile, mkdir, writeFile } from 'node:fs/promises';
@@ -147,9 +145,8 @@ async function findMdxFiles(rootDir) {
  * Emit a .apkg file for a single book.
  *
  * Uses `anki-apkg-export` (JSZip + sql.js based) to write the standard
- * Anki package format. Card IDs from the source YAML are preserved via
- * the Anki note `guid`, so the user's existing Anki study progress
- * carries forward when the deck is re-imported.
+ * Anki package format. Card IDs from the source YAML are used as stable
+ * Anki note GUIDs where present, and also preserved as tags/debug JSON.
  *
  * Card types map to a single shared Note type ("DLAIStudyNotesCard")
  * with front/back fields + tags identifying the card category. v2 can
@@ -176,7 +173,7 @@ async function emitApkg(book, cards, outDir, dryRun) {
   const AnkiExport = ankiModule.default?.default || ankiModule.Exporter || ankiModule.default;
   const deckName = `DLAI Study Notes :: ${book}`;
   const apkg = new AnkiExport(deckName, {
-    questionFormat: '{{Front}}<br><span class="ankicard-type">{{Type}}</span>',
+    questionFormat: '{{Front}}',
     answerFormat: '{{FrontSide}}<hr id="answer">{{Back}}',
     css: `
       .card { font-family: Georgia, serif; font-size: 18px; line-height: 1.5; color: #1a202c; }
@@ -198,6 +195,13 @@ async function emitApkg(book, cards, outDir, dryRun) {
       c.id ? `cardid:${c.id}` : null,
     ].filter(Boolean);
     apkg.addCard(front, back, { tags });
+    if (c.id) {
+      const generatedGuid = apkg._getNoteGuid(apkg.topDeckId, front, back);
+      apkg._update(
+        'update notes set guid=:stableGuid where guid=:generatedGuid',
+        { ':stableGuid': c.id, ':generatedGuid': generatedGuid },
+      );
+    }
   }
 
   const buf = await apkg.save();
