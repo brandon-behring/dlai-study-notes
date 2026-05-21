@@ -7,6 +7,9 @@
   "bin": {
     "inject-cards": "./cli.mjs"
   },
+  "scripts": {
+    "test": "node --test __tests__/"
+  },
   "engines": {
     "node": ">=22.12.0"
   },

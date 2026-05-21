@@ -23,6 +23,7 @@
 import { resolve, join } from 'node:path';
 import { readdir, readFile, writeFile, stat } from 'node:fs/promises';
 import * as yaml from 'yaml';
+import { lightCardMarkdown } from './lib.mjs';
 
 const HELP = `Usage: inject-cards --book=<slug> --cards-dir=<path> [--content-dir=<path>]
 
@@ -96,81 +97,6 @@ function renderCard(card) {
   const backExpr = `{${JSON.stringify(back)}}`;
 
   return `<AnkiCard type="${type}" id="${id}" los="${los}" front=${frontExpr} back=${backExpr} />`;
-}
-
-function lightCardMarkdown(text) {
-  let out = text;
-  out = out.replace(/\\begin\{minted\}\{([^}]+)\}/g, '```$1');
-  out = out.replace(/\\end\{minted\}/g, '```');
-  out = replaceBalancedLatexMacro(out, 'textbf', (body) => `**${body}**`);
-  out = replaceBalancedLatexMacro(out, 'textit', (body) => `*${body}*`);
-  out = replaceBalancedLatexMacro(out, 'emph', (body) => `*${body}*`);
-  out = replaceBalancedLatexMacro(out, 'texttt', (body) => `\`${unescapeLatexCode(body)}\``);
-  out = out.replace(/\\begin\{(?:itemize|enumerate)\}(?:\[[^\]]*\])?/g, '');
-  out = out.replace(/\\end\{(?:itemize|enumerate)\}/g, '');
-  out = out.replace(/^\s*\\item\s+/gm, '- ');
-  out = out.replace(/\\textgreater\{\}/g, '>');
-  out = out.replace(/\\textless\{\}/g, '<');
-  out = out.replace(/\\leftrightarrow/g, '<->');
-  out = out.replace(/\\approx/g, 'approx');
-  out = out.replace(/\\_/g, '_').replace(/\\\{/g, '{').replace(/\\\}/g, '}');
-  out = out.replace(/\\\$/g, '$').replace(/\\&/g, '&').replace(/\\%/g, '%');
-  return out;
-}
-
-function replaceBalancedLatexMacro(text, macroName, replace) {
-  let out = text;
-  const needle = `\\${macroName}`;
-  let searchFrom = 0;
-  while (searchFrom < out.length) {
-    const macroIdx = out.indexOf(needle, searchFrom);
-    if (macroIdx === -1) break;
-    let braceIdx = macroIdx + needle.length;
-    while (braceIdx < out.length && /\s/.test(out[braceIdx])) braceIdx++;
-    if (out[braceIdx] !== '{') {
-      searchFrom = macroIdx + needle.length;
-      continue;
-    }
-    const closeIdx = findMatchingBrace(out, braceIdx);
-    if (closeIdx === -1) break;
-    const body = out.slice(braceIdx + 1, closeIdx);
-    const replacement = replace(body);
-    out = out.slice(0, macroIdx) + replacement + out.slice(closeIdx + 1);
-    searchFrom = macroIdx + replacement.length;
-  }
-  return out;
-}
-
-function findMatchingBrace(text, openIdx) {
-  if (text[openIdx] !== '{') return -1;
-  let depth = 1;
-  let pos = openIdx + 1;
-  while (pos < text.length) {
-    const ch = text[pos];
-    if (ch === '\\' && pos + 1 < text.length) {
-      pos += 2;
-      continue;
-    }
-    if (ch === '{') depth++;
-    else if (ch === '}') {
-      depth--;
-      if (depth === 0) return pos;
-    }
-    pos++;
-  }
-  return -1;
-}
-
-function unescapeLatexCode(s) {
-  return s
-    .replace(/\\_/g, '_')
-    .replace(/\\\{/g, '{')
-    .replace(/\\\}/g, '}')
-    .replace(/\\\$/g, '$')
-    .replace(/\\&/g, '&')
-    .replace(/\\%/g, '%')
-    .replace(/\\textgreater\{\}/g, '>')
-    .replace(/\\textless\{\}/g, '<');
 }
 
 /**
