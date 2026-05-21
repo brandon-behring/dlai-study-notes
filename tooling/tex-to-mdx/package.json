@@ -8,7 +8,7 @@
     "tex-to-mdx": "./cli.mjs"
   },
   "scripts": {
-    "test": "node --test __tests__/"
+    "test": "node --test \"__tests__/*.test.mjs\""
   },
   "engines": {
     "node": ">=22.12.0"

@@ -4,22 +4,24 @@ Convert course-learning LaTeX (`.tex`) chapter sources to MDX for the DLAI study
 
 **Mechanical-only conversion.** Output is *correctable* MDX, not publication-ready. The per-book audit/polish pass happens by hand in MDX.
 
-## Status: SKELETON
+## Status: Pilot-ready mechanical converter
 
-The Pandoc-mechanical layer works end-to-end (sections, lists, tables, emphasis, citations, code via Pandoc). The 8 priority-construct transformations are stubbed with `TODO` markers in `pipeline.mjs#transformToMdx`. Expand them during the pilot polish pass as concrete chapter content surfaces the exact shape needed.
+The Pandoc-mechanical layer works end-to-end (sections, lists, tables, emphasis, citations, code via Pandoc). The 8 priority constructs are implemented in `pipeline.mjs` using a marker-token strategy: verbatim environments are extracted before Pandoc, block environments keep their bodies in place for Pandoc conversion, and inline macros become MDX components after Pandoc cleanup.
+
+Converted MDX still includes a chapter-level polish marker because the converter intentionally produces correctable MDX, not publication-ready prose.
 
 ## Priority constructs (per Task 2 macro audit on pilot)
 
 | Priority | Construct | Pilot count | Status |
 |---|---|---|---|
-| 1 | `\begin{pycode}` | 57 | stubbed |
-| 2 | `\term[ID]{name}{def}` | 52 | stubbed |
-| 3 | `\begin{tcolorbox}[narrative/concept]` | 36 | stubbed |
-| 4 | `\begin{solution}` | 19 | stubbed |
-| 5 | `\interviewmargin` etc. (6 macros) | ~60 | stubbed |
-| 6 | `\begin{minted}` | 16 | stubbed |
-| 7 | `\begin{keyconcept}` | 16 | stubbed |
-| 8 | `\begin{problem}` | 16 | stubbed |
+| 1 | `\begin{pycode}` | 57 | implemented |
+| 2 | `\term[ID]{name}{def}` | 52 | implemented |
+| 3 | `\begin{tcolorbox}[narrative/concept]` | 36 | implemented |
+| 4 | `\begin{solution}` | 19 | implemented |
+| 5 | `\interviewmargin` etc. (6 macros) | ~60 | implemented |
+| 6 | `\begin{minted}` | 16 | implemented |
+| 7 | `\begin{keyconcept}` | 16 | implemented |
+| 8 | `\begin{problem}` | 16 | implemented |
 
 Frontmatter extraction is working: `\moduleheader{}`, `\learningoutcomes{}/\los{}`, `\companytags{}`, `\chaptersourcenote{}` are pulled into YAML frontmatter before Pandoc runs.
 
@@ -83,9 +85,9 @@ sources: [hogan2021knowledge, noy2019industry]
 tools_compared: [MLE-Google-L4, SWE-Neo4j, ...]
 ---
 
-{/* TODO: per-chapter polish pass in MDX — see plan decision Q1 round 3 */}
+{/* TODO: per-chapter polish pass — see plan decision Q1 round 3 */}
 
-[Pandoc-emitted markdown body, with priority constructs still in raw form for the polish pass to convert to MDX components]
+[Pandoc-emitted markdown body with priority constructs converted to MDX components]
 ```
 
 ## Next steps after pilot validates the pattern

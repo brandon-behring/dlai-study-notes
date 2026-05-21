@@ -53,8 +53,8 @@ export function extractFrontmatter(tex, { book, source }) {
   const moduleHeader = matchBalancedBraces(stripped, /\\moduleheader/, 3);
   if (moduleHeader) {
     const [, title, desc] = moduleHeader.groups;
-    fm.title = collapseLatexWhitespace(title);
-    fm.description = collapseLatexWhitespace(desc);
+    fm.title = lightLatexToMd(collapseLatexWhitespace(title));
+    fm.description = lightLatexToMd(collapseLatexWhitespace(desc));
     const fileMatch = basename(source).match(/^(\d+)_/);
     if (fileMatch) fm.chapter = parseInt(fileMatch[1], 10);
     stripped = stripped.replace(moduleHeader.match, '');
@@ -81,7 +81,7 @@ export function extractFrontmatter(tex, { book, source }) {
       fm.learning_outcomes.push({
         id: m[1].trim(),
         verb: m[2].trim().toLowerCase(),
-        text: collapseLatexWhitespace(m[3]),
+        text: lightLatexToMd(collapseLatexWhitespace(m[3])),
       });
     }
     stripped = stripped.replace(losBlock[0], '');
@@ -141,7 +141,7 @@ export function extractMdxComponents(tex) {
   // ---- pycode (verbatim Cypher) → extracted code fence ----
   work = extractEnv(work, /\\begin\{pycode\}/, /\\end\{pycode\}/, (body) => {
     const token = nextInline();
-    inlineMap.set(token, `\n\n\`\`\`cypher\n${body.trim()}\n\`\`\`\n\n`);
+    inlineMap.set(token, `\n\n\`\`\`cypher\n${cleanCodeBody(body)}\n\`\`\`\n\n`);
     return token;
   });
 
@@ -152,7 +152,7 @@ export function extractMdxComponents(tex) {
     /\\end\{minted\}/,
     (lang, body) => {
       const token = nextInline();
-      inlineMap.set(token, `\n\n\`\`\`${lang || 'text'}\n${body.trim()}\n\`\`\`\n\n`);
+      inlineMap.set(token, `\n\n\`\`\`${lang || 'text'}\n${cleanCodeBody(body)}\n\`\`\`\n\n`);
       return token;
     },
   );
@@ -418,11 +418,12 @@ function extractTerms(text, inlineMap, next) {
     if (defEnd === -1) break;
     const defRaw = collapseLatexWhitespace(out.slice(pos + 1, defEnd));
     const def = lightLatexToMd(defRaw);
+    const cardBack = mdxToCardText(resolveInlineTokensForCard(def, inlineMap));
     const totalEnd = defEnd + 1;
     const token = next();
     inlineMap.set(
       token,
-      `\n\n<Term name="${escapeAttr(name)}" los="${escapeAttr(id)}">\n  ${def}\n</Term>\n<AnkiCard type="term" front=${jsonAttr(name)} back=${jsonAttr(def)} los="${escapeAttr(id)}" />\n\n`,
+      `\n\n<Term name="${escapeAttr(name)}" los="${escapeAttr(id)}">\n  ${def}\n</Term>\n<AnkiCard type="term" front=${jsonAttr(name)} back=${jsonAttr(cardBack)} los="${escapeAttr(id)}" />\n\n`,
     );
     out = out.slice(0, startIdx) + token + out.slice(totalEnd);
   }
@@ -478,16 +479,17 @@ function lightLatexToMd(s) {
   out = out.replace(/~?\\cite\{([^}]+)\}/g, '[$1]');
   // Cross-references — no MDX equivalent yet, strip wholly
   out = out.replace(/\\(ref|cref|Cref|autoref|pageref)\{[^}]+\}/g, '');
-  out = out.replace(/\\textbf\{([^}]+)\}/g, '**$1**');
-  out = out.replace(/\\textit\{([^}]+)\}/g, '*$1*');
-  out = out.replace(/\\emph\{([^}]+)\}/g, '*$1*');
-  out = out.replace(/\\texttt\{([^}]+)\}/g, '`$1`');
+  out = replaceBalancedLatexMacro(out, 'textbf', (body) => `**${body}**`);
+  out = replaceBalancedLatexMacro(out, 'textit', (body) => `*${body}*`);
+  out = replaceBalancedLatexMacro(out, 'emph', (body) => `*${body}*`);
+  out = replaceBalancedLatexMacro(out, 'texttt', (body) => `\`${unescapeLatexCode(body)}\``);
   // \verb|content| → `content`
   out = out.replace(/\\verb([|!#@])([^|!#@]+)\1/g, (_, _delim, body) => `\`${body}\``);
   // Common LaTeX symbol commands
   out = out.replace(/\\S(?![a-zA-Z])/g, '§');
   out = out.replace(/\\P(?![a-zA-Z])/g, '¶');
   out = out.replace(/\\\$/g, '$').replace(/\\&/g, '&').replace(/\\%/g, '%');
+  out = out.replace(/\\_/g, '_').replace(/\\\{/g, '{').replace(/\\\}/g, '}');
   // \ (backslash-space) and \, (thin space) → space
   out = out.replace(/\\ /g, ' ').replace(/\\,/g, ' ');
   // Smart quotes
@@ -503,6 +505,65 @@ function lightLatexToMd(s) {
   // Remaining single \command tokens (no args) — drop
   out = out.replace(/\\[a-zA-Z]+\*?/g, '');
   return out.trim();
+}
+
+function replaceBalancedLatexMacro(text, macroName, replace) {
+  let out = text;
+  const needle = `\\${macroName}`;
+  let searchFrom = 0;
+  while (searchFrom < out.length) {
+    const macroIdx = out.indexOf(needle, searchFrom);
+    if (macroIdx === -1) break;
+    let braceIdx = macroIdx + needle.length;
+    while (braceIdx < out.length && /\s/.test(out[braceIdx])) braceIdx++;
+    if (out[braceIdx] !== '{') {
+      searchFrom = macroIdx + needle.length;
+      continue;
+    }
+    const closeIdx = findMatchingBrace(out, braceIdx);
+    if (closeIdx === -1) break;
+    const body = out.slice(braceIdx + 1, closeIdx);
+    const replacement = replace(body);
+    out = out.slice(0, macroIdx) + replacement + out.slice(closeIdx + 1);
+    searchFrom = macroIdx + replacement.length;
+  }
+  return out;
+}
+
+function unescapeLatexCode(s) {
+  return s
+    .replace(/\\_/g, '_')
+    .replace(/\\\{/g, '{')
+    .replace(/\\\}/g, '}')
+    .replace(/\\\$/g, '$')
+    .replace(/\\&/g, '&')
+    .replace(/\\%/g, '%')
+    .replace(/\\textgreater\{\}/g, '>')
+    .replace(/\\textless\{\}/g, '<');
+}
+
+function cleanCodeBody(s) {
+  let out = s.trim();
+  out = replaceBalancedLatexMacro(out, 'textbf', (body) => unescapeLatexCode(body));
+  out = replaceBalancedLatexMacro(out, 'textit', (body) => unescapeLatexCode(body));
+  out = replaceBalancedLatexMacro(out, 'emph', (body) => unescapeLatexCode(body));
+  out = replaceBalancedLatexMacro(out, 'texttt', (body) => unescapeLatexCode(body));
+  return unescapeLatexCode(out);
+}
+
+function mdxToCardText(s) {
+  return s
+    .replace(/<Citation\s+src="([^"]+)"\s*\/>/g, '[$1]')
+    .replace(/<[^>]+>/g, '')
+    .trim();
+}
+
+function resolveInlineTokensForCard(s, inlineMap) {
+  let out = s;
+  for (const [token, mdx] of inlineMap) {
+    out = out.split(token).join(mdx);
+  }
+  return out;
 }
 
 // ============================================================================
@@ -545,9 +606,16 @@ export function restoreMdxComponents(md, { inlineMap, blockMap }) {
     out = out.split(`${token}OPEN`).join(open);
     out = out.split(`${token}CLOSE`).join(close);
   }
-  // Inline tokens are full replacements
-  for (const [token, mdx] of inlineMap) {
-    out = out.split(token).join(mdx);
+  // Inline tokens are full replacements. Run until stable because a term or
+  // margin macro can contain a citation token that was extracted earlier.
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const [token, mdx] of inlineMap) {
+      if (!out.includes(token)) continue;
+      out = out.split(token).join(mdx);
+      changed = true;
+    }
   }
   return out;
 }
