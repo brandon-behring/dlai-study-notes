@@ -16,11 +16,11 @@
   "scripts": {
     "predev": "npm run build:bib --if-present && npm run build:labels --if-present && npm run build:figures",
     "prebuild": "npm run build:bib --if-present && npm run build:labels --if-present && npm run build:figures && npm run validate --if-present",
-    "build:bib": "book-scaffold build-bib",
+    "build:bib": "BOOK_BIB_PATH=citations.bib book-scaffold build-bib",
     "build:labels": "book-scaffold build-labels",
     "build:figures": "node tooling/build-figures/cli.mjs",
     "build:notebooks": "book-scaffold render-notebooks",
-    "validate": "book-scaffold validate",
+    "validate": "book-scaffold validate --preset tools",
     "dev": "astro dev",
     "build": "astro build && pagefind --site dist",
     "preview": "astro preview",
@@ -29,12 +29,12 @@
     "extract:cards": "node tooling/mdx-card-extractor/cli.mjs"
   },
   "dependencies": {
-    "@brandon_m_behring/book-scaffold-astro": "^3.1.0",
     "@astrojs/mdx": "^5.0.3",
     "@astrojs/preact": "^5.1.1",
+    "@brandon_m_behring/book-scaffold-astro": "^3.5.0",
     "astro": "^6.1.7",
-    "preact": "^10.29.1",
     "katex": "^0.16.11",
+    "preact": "^10.29.1",
     "rehype-katex": "^7.0.1",
     "remark-math": "^6.0.0"
   },

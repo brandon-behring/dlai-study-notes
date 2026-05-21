@@ -17,8 +17,20 @@ import rehypeKatex from 'rehype-katex';
 export default await defineBookConfig({
   site: 'https://study-notes.brandon-behring.dev',
   profile: 'tools',
+  routes: {
+    chapters: false,
+    convergence: false,
+  },
   markdown: {
     remarkPlugins: [remarkMath],
     rehypePlugins: [[rehypeKatex, { strict: false, output: 'htmlAndMathml' }]],
+  },
+  vite: {
+    ssr: {
+      noExternal: [
+        '@fontsource-variable/roboto',
+        '@fontsource-variable/source-code-pro',
+      ],
+    },
   },
 });
