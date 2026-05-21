@@ -147,8 +147,8 @@ test('roundtrip: block markers swap to MDX open/close around body', async () => 
   const tex = await fixture('tcolorbox.tex');
   const result = extractMdxComponents(tex);
   const restored = restoreMdxComponents(result.stripped, result);
-  assert.doesNotMatch(restored, /MDXBSTART/);
-  assert.doesNotMatch(restored, /MDXBEND/);
+  assert.doesNotMatch(restored, /MDXB-\d+-OPEN/);
+  assert.doesNotMatch(restored, /MDXB-\d+-CLOSE/);
   assert.match(restored, /<NarrativeBox title="Where We Are">/);
   assert.match(restored, /<\/NarrativeBox>/);
 });

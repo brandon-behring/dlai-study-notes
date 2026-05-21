@@ -75,10 +75,16 @@ function parseArgs(argv) {
 }
 
 function slugifyChapterFilename(texPath) {
-  // 01_m1_knowledge_graph_fundamentals.tex → 01-knowledge-graph-fundamentals.mdx
+  // Filename conventions across the DLAI corpus:
+  //   01_m1_knowledge_graph_fundamentals.tex → 01-knowledge-graph-fundamentals.mdx
+  //   01_01_openai_function_calling.tex      → 01-openai-function-calling.mdx
+  //   ch01_evaluation_foundations.tex        → 01-evaluation-foundations.mdx
+  //   ch01.tex                               → 01.mdx
   const base = basename(texPath, '.tex');
   return base
-    .replace(/^(\d+)_m\d+_/, '$1-')   // strip module prefix
+    .replace(/^ch(\d+)_?/, '$1-')           // strip ch-prefix
+    .replace(/^(\d+)_(?:m\d+|\d{1,2})_/, '$1-')  // strip module/lesson prefix
+    .replace(/-$/, '')                     // strip trailing hyphen from bare ch01
     .replace(/_/g, '-')
     .toLowerCase() + '.mdx';
 }

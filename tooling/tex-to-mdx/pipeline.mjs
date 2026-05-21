@@ -50,12 +50,19 @@ export function extractFrontmatter(tex, { book, source }) {
   };
   let stripped = tex;
 
-  const moduleHeader = matchBalancedBraces(stripped, /\\moduleheader/, 3);
+  // \moduleheader{M1}{Title}{description} (most books) or
+  // \lessonheader{L2}{Title}{description} (evaluating-ai-agents) — same 3-arg shape.
+  const moduleHeader = matchBalancedBraces(stripped, /\\(?:module|lesson)header/, 3);
   if (moduleHeader) {
     const [, title, desc] = moduleHeader.groups;
     fm.title = lightLatexToMd(collapseLatexWhitespace(title));
     fm.description = lightLatexToMd(collapseLatexWhitespace(desc));
-    const fileMatch = basename(source).match(/^(\d+)_/);
+    // Filename conventions across the DLAI corpus:
+    //   01_m1_topic.tex   (most books)         — number_module_topic
+    //   01_01_topic.tex   (functions-tools…)   — number_lesson_topic
+    //   ch01_topic.tex    (ai-agents-langgraph, evaluating-ai-agents, …)
+    //   ch01.tex          (some)               — bare ch-prefix number
+    const fileMatch = basename(source).match(/^(?:ch)?(\d+)[_.]/);
     if (fileMatch) fm.chapter = parseInt(fileMatch[1], 10);
     stripped = stripped.replace(moduleHeader.match, '');
   }
@@ -118,7 +125,12 @@ export function extractMdxComponents(tex) {
   const blockMap = new Map();
   let counter = 0;
   const nextInline = () => `MDXISTART${counter++}MDXIEND`;
-  const nextBlock = () => `MDXBSTART${counter++}MDXBEND`;
+  // Block markers are emitted as HTML comments so Pandoc preserves them
+  // verbatim in markdown_strict output instead of treating them as plain
+  // text (which it sometimes collapses across adjacent paragraphs).
+  // `nextBlock()` returns a base token; the full markers are derived as
+  //   <!--MDXB-<n>-OPEN--> and <!--MDXB-<n>-CLOSE-->
+  const nextBlock = () => `MDXB-${counter++}`;
   let work = tex;
 
   // Strip \label{...} noise
@@ -247,9 +259,9 @@ function markBlockEnvWithOpts(text, envName, blockMap, next, buildTags) {
     // \end{env} with `\n\nMDXBSTARTN MDXBENDCLOSE\n\n` — distinguish open
     // and close by suffix.
     out = out.slice(0, m.index) +
-      `\n\n${token}OPEN\n\n` +
+      `\n\n<!--${token}-OPEN-->\n\n` +
       out.slice(bodyStart, endStart) +
-      `\n\n${token}CLOSE\n\n` +
+      `\n\n<!--${token}-CLOSE-->\n\n` +
       out.slice(endEnd);
   }
   return out;
@@ -283,9 +295,9 @@ function markBlockEnvWithTwoOpts(text, envName, blockMap, next, buildTags) {
     const token = next();
     blockMap.set(token, buildTags(opt1, opt2));
     out = out.slice(0, m.index) +
-      `\n\n${token}OPEN\n\n` +
+      `\n\n<!--${token}-OPEN-->\n\n` +
       out.slice(bodyStart, endStart) +
-      `\n\n${token}CLOSE\n\n` +
+      `\n\n<!--${token}-CLOSE-->\n\n` +
       out.slice(endEnd);
   }
   return out;
@@ -307,9 +319,9 @@ function markBlockEnvNoOpts(text, envName, blockMap, next, buildTags) {
     const token = next();
     blockMap.set(token, buildTags());
     out = out.slice(0, startIdx) +
-      `\n\n${token}OPEN\n\n` +
+      `\n\n<!--${token}-OPEN-->\n\n` +
       out.slice(bodyStart, endStart) +
-      `\n\n${token}CLOSE\n\n` +
+      `\n\n<!--${token}-CLOSE-->\n\n` +
       out.slice(endEnd);
   }
   return out;
@@ -338,9 +350,9 @@ function markBlockEnvMaybeOpts(text, envName, blockMap, next, buildTags) {
     const token = next();
     blockMap.set(token, buildTags(opts));
     out = out.slice(0, m.index) +
-      `\n\n${token}OPEN\n\n` +
+      `\n\n<!--${token}-OPEN-->\n\n` +
       out.slice(bodyStart, endStart) +
-      `\n\n${token}CLOSE\n\n` +
+      `\n\n<!--${token}-CLOSE-->\n\n` +
       out.slice(endEnd);
   }
   return out;
@@ -470,6 +482,36 @@ function extractMarginMacros(text, inlineMap, next) {
 // block environments, Pandoc handles conversion in place.
 // ============================================================================
 
+/**
+ * State-tracking escape of bare HTML-style tags in text that MDX would
+ * otherwise try to parse as JSX. Skips content inside backtick code spans.
+ */
+function escapeBareHtmlTags(s) {
+  let out = '';
+  let i = 0;
+  while (i < s.length) {
+    if (s[i] === '`') {
+      // Pass through a backtick-delimited code span verbatim
+      out += s[i];
+      i++;
+      while (i < s.length && s[i] !== '`') { out += s[i]; i++; }
+      if (i < s.length) { out += s[i]; i++; }
+      continue;
+    }
+    // Match <tag> or </tag> with lowercase first letter and no attrs
+    const rest = s.slice(i);
+    const m = rest.match(/^<\/?([a-z][a-z0-9_-]*)>/);
+    if (m) {
+      out += '`' + m[0] + '`';
+      i += m[0].length;
+      continue;
+    }
+    out += s[i];
+    i++;
+  }
+  return out;
+}
+
 function lightLatexToMd(s) {
   let out = s;
   // \cite is handled at the global pre-Pandoc level via placeholder tokens;
@@ -492,6 +534,16 @@ function lightLatexToMd(s) {
   out = out.replace(/\\_/g, '_').replace(/\\\{/g, '{').replace(/\\\}/g, '}');
   // \ (backslash-space) and \, (thin space) → space
   out = out.replace(/\\ /g, ' ').replace(/\\,/g, ' ');
+  // {,} (LaTeX thousand-separator like 1{,}000) — MDX parses {,} as
+  // invalid JSX expression. Drop the braces, keep the comma.
+  out = out.replace(/\{([,.;:])\}/g, '$1');
+  // Bare lowercase tag references in text (e.g. <think> referring to a
+  // reasoning tag) — MDX parses these as HTML elements and demands a close.
+  // Wrap in backticks so they render as inline code. Skip:
+  //   - Content already inside backticks (would double-wrap)
+  //   - Uppercase-starting tags (real MDX components)
+  //   - Tags with attributes (e.g. <Citation src=...> — those are real)
+  out = escapeBareHtmlTags(out);
   // Smart quotes
   out = out.replace(/``/g, '"').replace(/''/g, '"');
   // Em-dash, en-dash
@@ -603,8 +655,8 @@ export function restoreMdxComponents(md, { inlineMap, blockMap }) {
   let out = md;
   // Block markers: each token has TOKEN_OPEN and TOKEN_CLOSE variants
   for (const [token, { open, close }] of blockMap) {
-    out = out.split(`${token}OPEN`).join(open);
-    out = out.split(`${token}CLOSE`).join(close);
+    out = out.split(`<!--${token}-OPEN-->`).join(open);
+    out = out.split(`<!--${token}-CLOSE-->`).join(close);
   }
   // Inline tokens are full replacements. Run until stable because a term or
   // margin macro can contain a citation token that was extracted earlier.
