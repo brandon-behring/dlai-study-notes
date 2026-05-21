@@ -1,0 +1,993 @@
+---
+book: finetuning-rl-intro
+title: Production Considerations
+chapter: 5
+description: Pipelines, agents, monitoring, and infrastructure
+learning_outcomes:
+  - id: FRI-5.1
+    verb: design
+    text: end-to-end post-training pipelines from cold-start SFT through RL to
+      deployment
+  - id: FRI-5.2
+    verb: apply
+    text: agent architectures using tool use, planning, and multi-agent coordination
+  - id: FRI-5.3
+    verb: apply
+    text: promotion rules, monitoring, and rollback strategies for model releases
+  - id: FRI-5.4
+    verb: apply
+    text: a data-feedback flywheel that converts production errors into training
+      signal
+  - id: FRI-5.5
+    verb: analyze
+    text: infrastructure, compute, and compression strategies for cost-effective
+      serving
+  - id: FRI-5.6
+    verb: design
+    text: monitoring dashboards that track performance, cost, and reliability
+      metrics with automated alerts and rollback triggers for production models
+sources: []
+tools_compared:
+  - MLE-Google-L4
+  - MLE-Meta-IC4
+  - RSWE-OpenAI
+  - MLE-Anthropic
+  - SRE-Netflix
+last_verified: 2026-05-21
+volatility: architectural-pattern
+---
+
+{/* TODO: per-chapter polish pass — see plan decision Q1 round 3 */}
+
+&lt;!–MDXB-4-OPEN–&gt;
+
+Modules 1–4 built the foundations: what post-training is, how SFT and RL work mechanically,
+how evaluation guides decisions, and how data quality drives outcomes. Module 5 closes the
+loop by asking: how do you ship all of this reliably? We move from training notebooks to
+production pipelines, from offline metrics to live monitoring, and from single models to
+multi-model infrastructure. The DeepSeek R1 pipeline serves as our running case study—a
+real system that chains every technique we have studied into a single, reproducible workflow.
+
+&lt;!–MDXB-4-CLOSE–&gt;
+
+# Production Pipeline: DeepSeek R1
+
+
+
+<Sidenote category="interview">"Walk me through an end-to-end post-training pipeline" is a top-5 MLE interview question at frontier labs.</Sidenote>
+
+
+
+&lt;!–MDXB-5-OPEN–&gt;
+
+**What:** A production post-training pipeline chains multiple stages—cold-start SFT,
+reinforcement learning, rejection sampling, data filtering, and final fine-tuning—into a
+reproducible workflow where each stage feeds the next.
+
+**Why:** No single training run produces a production-ready model. Each stage addresses
+a different failure mode: SFT teaches format, RL teaches reasoning, rejection sampling curates
+quality, and the final stages consolidate gains across domains.
+
+&lt;!–MDXB-5-CLOSE–&gt;
+
+## R1 Zero: Pure RL Baseline
+
+DeepSeek R1 Zero demonstrates that pure RL *without any SFT data* can produce
+reasoning capability. The key ingredients:
+
+- **Algorithm:** GRPO (Group Relative Policy Optimization)<Citation src="shao2024deepseekmath" />—no critic network,
+  group-level baselines from sampled completions.
+
+- **Verifiers:** Two reward signals—a math verifier (exact answer match) and a
+  code verifier (test case execution). No learned reward model.
+
+- **Results:** AIME accuracy improved from 15.6% to 86.7%.
+
+- **Emergent behavior:** The model spontaneously developed chain-of-thought
+  reflection (“wait, let me reconsider…”) without being trained on reasoning
+  traces.
+
+- **Limitation:** Capabilities remained confined to math and coding—domains
+  where verifiers provide clean signal.
+
+
+
+<Term name="R1 Zero" los="FRI-5.1">
+  A pure-RL post-training approach using GRPO with verifier-based rewards and no supervised fine-tuning data. Demonstrated emergent reasoning but limited to verifiable domains.
+</Term>
+<AnkiCard type="term" front={"R1 Zero"} back={"A pure-RL post-training approach using GRPO with verifier-based rewards and no supervised fine-tuning data. Demonstrated emergent reasoning but limited to verifiable domains."} los="FRI-5.1" />
+
+
+
+## R1 Full Pipeline
+
+
+
+<Sidenote category="pattern">Each stage in the R1 pipeline has a clear purpose. Map every stage in your own pipeline to a specific failure mode it addresses.</Sidenote>
+
+
+
+&lt;!–MDXB-6-OPEN–&gt;
+
+1.  **Cold-Start SFT** — Train on a small set of high-quality reasoning traces
+    to give the model a stable starting point for RL. Avoids the language-mixing and
+    formatting issues of R1 Zero.
+
+2.  **RL with Language Consistency Reward** — Run GRPO with verifiers plus an
+    additional reward term penalizing language switching mid-response.
+
+3.  **Rejection Sampling** — Generate multiple completions per prompt from the
+    RL-trained model. Keep only those that pass verification.
+
+4.  **Filter to 600K Reasoning Examples** — Apply quality filters to curate the
+    best reasoning traces from rejection sampling.
+
+5.  **Combine with Non-Reasoning Data** — Merge 600K reasoning examples with
+    ∼200K non-reasoning examples (general helpfulness, safety) to produce an 800K
+    training set.
+
+6.  **Final Fine-Tuning** — SFT on the combined 800K dataset to consolidate both
+    reasoning and general capabilities.
+
+7.  **Final RL** — One more round of RL to sharpen performance and enforce
+    alignment constraints.
+
+*Key insight:* The pipeline alternates between **exploration** (RL discovers new
+strategies) and **consolidation** (SFT locks in what works). Each RL stage expands the
+frontier; each SFT stage stabilizes it.
+
+&lt;!–MDXB-6-CLOSE–&gt;
+
+
+
+<Term name="Cold-Start SFT" los="FRI-5.1">
+  An initial supervised fine-tuning stage using a small curated dataset to provide stable formatting and language behavior before RL training begins.
+</Term>
+<AnkiCard type="term" front={"Cold-Start SFT"} back={"An initial supervised fine-tuning stage using a small curated dataset to provide stable formatting and language behavior before RL training begins."} los="FRI-5.1" />
+
+
+
+
+
+<Term name="Rejection Sampling" los="FRI-5.1">
+  Generating multiple candidate completions and filtering to retain only those that pass a verifier or quality threshold, used to distill RL-discovered strategies into SFT-compatible data.
+</Term>
+<AnkiCard type="term" front={"Rejection Sampling"} back={"Generating multiple candidate completions and filtering to retain only those that pass a verifier or quality threshold, used to distill RL-discovered strategies into SFT-compatible data."} los="FRI-5.1" />
+
+
+
+# Agents and Post-Training
+
+&lt;!–MDXB-12-OPEN–&gt;
+
+An **agent** is a model that takes actions in an environment—calling tools, planning
+multi-step strategies, and coordinating with other agents. Post-training for agents differs from
+standard instruction-following because the reward signal comes from *task completion*, not
+from matching a reference output.
+
+**When It Breaks:** Task-completion rewards are sparse and delayed—the agent may
+complete many intermediate steps before receiving signal. This makes credit assignment
+hard: RL struggles to learn which action in a 10-step plan caused the final failure.
+
+&lt;!–MDXB-12-CLOSE–&gt;
+
+## Three Pillars of Agent Post-Training
+
+
+
+<Term name="Tool Use" los="FRI-5.2">
+  Training a model to invoke external APIs, databases, or code interpreters rather than relying on parametric knowledge. Prefer tools over internal knowledge for factual lookups.
+</Term>
+<AnkiCard type="term" front={"Tool Use"} back={"Training a model to invoke external APIs, databases, or code interpreters rather than relying on parametric knowledge. Prefer tools over internal knowledge for factual lookups."} los="FRI-5.2" />
+
+
+
+Tool Use  
+Teach the model *when* and *how* to call external tools.
+SFT on tool-use transcripts; RL rewards correct tool invocation and final-answer
+accuracy. Principle: prefer tools over internal knowledge for factual queries.
+
+Planning  
+Multi-step decomposition. For SFT, train on chain-of-thought traces that
+show the planning process. For RL, reward only the *final answer*—let the model
+discover its own planning strategy.
+
+Coordination  
+Multi-agent systems where models hand off tasks. SFT on multi-agent
+transcripts; RL with handoff rewards that incentivize clean task boundaries.
+
+
+
+<Sidenote category="warning">Agent training data is hard to source. Live environments produce messy, non-stationary data that requires careful filtering.</Sidenote>
+
+
+
+## Live Challenges
+
+Production agents face challenges absent from offline training:
+
+- **Updating state:** The environment changes between tool calls; the model must
+  track what has already been done.
+
+- **New context:** Information retrieved via tools may contradict the model’s
+  parametric knowledge.
+
+- **Messy data:** Real API responses include malformed JSON, timeouts, and
+  partial results.
+
+
+
+<Term name="Handoff Reward" los="FRI-5.2">
+  An RL reward signal for multi-agent systems that incentivizes clean task boundaries—penalizing incomplete handoffs and rewarding successful delegation.
+</Term>
+<AnkiCard type="term" front={"Handoff Reward"} back={"An RL reward signal for multi-agent systems that incentivizes clean task boundaries—penalizing incomplete handoffs and rewarding successful delegation."} los="FRI-5.2" />
+
+
+
+# RL Promotion Rules
+
+
+
+<Sidenote category="crossref">Connects to M3 evaluation (Ch. ): promotion rules are the deployment-time expression of your eval strategy.</Sidenote>
+
+
+
+&lt;!–MDXB-7-OPEN–&gt;
+
+**What:** Promotion rules are the gates a model must pass to move from development to
+staging to production. They codify your risk tolerance as quantitative thresholds.
+
+**Why:** Without formal gates, models get deployed based on vibes. Promotion rules make
+go/no-go decisions reproducible and auditable.
+
+&lt;!–MDXB-7-CLOSE–&gt;
+
+## Frozen Test Environments
+
+
+
+<Term name="Frozen Test Environment" los="FRI-5.3">
+  A versioned, immutable evaluation suite used for promotion decisions. Never modify the test set between model candidates—add new tests in a separate version.
+</Term>
+<AnkiCard type="term" front={"Frozen Test Environment"} back={"A versioned, immutable evaluation suite used for promotion decisions. Never modify the test set between model candidates—add new tests in a separate version."} los="FRI-5.3" />
+
+
+
+Promotion tests must be **frozen**: the same test set, same verifiers, same hardware.
+If you change the test environment between candidates, you cannot compare results.
+
+## Slices and Behavioral Groupings
+
+A **slice** is a behaviorally meaningful subset of your test set (e.g., “multi-turn
+math,” “safety refusals,” “long-context retrieval”). Slices enable targeted no-regression
+checks.
+
+## Dev to Staging Gates
+
+- **Aggregate quality:** Overall metric must improve by a meaningful margin.
+
+- **No-regression slices:** No slice may degrade beyond a defined threshold.
+
+- **Strict safety caps:** Safety-critical slices have hard ceilings—any
+  regression is a blocker.
+
+- **Confidence intervals:** Improvements must be statistically significant, not
+  noise.
+
+- **Meaningful improvement:** The gain must justify the operational cost of
+  deploying a new model.
+
+- **Cost targets:** Inference cost per query must stay within budget.
+
+## Staging to Production
+
+
+
+<Term name="Shadow Deployment" los="FRI-5.3">
+  Running a candidate model on live traffic without serving its outputs to users, comparing its responses against the production baseline.
+</Term>
+<AnkiCard type="term" front={"Shadow Deployment"} back={"Running a candidate model on live traffic without serving its outputs to users, comparing its responses against the production baseline."} los="FRI-5.3" />
+
+
+
+1.  **Shadow deploy:** Run the candidate on 5K real requests over 24 hours.
+    Compare outputs to the production baseline.
+
+2.  **Canary traffic:** Route a small percentage (1–5%) of live traffic to the
+    candidate. Monitor error rates, latency, and user feedback.
+
+3.  **Full rollout:** Gradual traffic shift with automated rollback triggers.
+
+# Data-Feedback Flywheel
+
+&lt;!–MDXB-8-OPEN–&gt;
+
+**What:** The data-feedback flywheel is a continuous loop: production errors become
+training data that improves the model, which reduces errors, which surfaces subtler
+failure modes, which become the next round of training data.
+
+**Why:** A model that ships but never improves from production signal is a depreciating
+asset. The flywheel is what separates a one-off deployment from a compounding system.
+
+&lt;!–MDXB-8-CLOSE–&gt;
+
+## Error Analysis Flow
+
+
+
+<Sidenote category="interview">"How do you improve a deployed model over time?" — The data-feedback flywheel: errors $$ counterexamples $$ retrain $$ deploy. The loop is the product.</Sidenote>
+
+
+
+
+
+<Sidenote category="practice">Set up weekly error triage meetings where the team reviews clustered failure modes and decides on interventions.</Sidenote>
+
+
+
+1.  Collect production errors (user feedback, automated log mining).
+
+2.  Cluster errors by failure mode (topic, error type, severity).
+
+3.  Extract representative pairs (input, expected output).
+
+4.  Prioritize by frequency × severity.
+
+5.  Route to the appropriate intervention (see decision framework below).
+
+## Feedback Collection
+
+User feedback:  
+Thumbs-up/down, free-text corrections, escalation to human agents.
+
+Log mining:  
+Automated detection of refusals, hallucinations, format violations.
+
+Clustering:  
+Group similar failures to identify systemic patterns vs. one-off
+edge cases.
+
+Pair extraction:  
+Convert clustered failures into (prompt, ideal response) pairs
+for SFT or (prompt, chosen, rejected) triples for RL.
+
+## Data Hygiene
+
+Before feeding production data back into training: filter low-quality examples, deduplicate,
+check for demographic or topic bias, and scrub PII. Skipping any of these steps contaminates
+your training set.
+
+## Intervention Decision Framework
+
+&lt;!–MDXB-9-OPEN–&gt;
+
+*Rule of thumb:* Always try the fastest intervention first. Escalate only when the
+simpler approach fails or the error pattern is systemic.
+
+&lt;!–MDXB-9-CLOSE–&gt;
+
+# Monitoring and Drift
+
+
+
+<Sidenote category="interview">"How do you monitor a model in production?" Mention metrics, drift detection, and rollback—not just accuracy.</Sidenote>
+
+
+
+## Three Metric Families
+
+Performance:  
+Task accuracy, response quality scores, safety violation rate.
+
+Cost:  
+Tokens per request, GPU utilization, cost per query.
+
+Reliability:  
+Latency p50/p95/p99, error rate, timeout rate.
+
+## Version Control and Rollback
+
+Every deployed model must have: a unique version identifier, the exact training config that
+produced it, a pointer to the training data snapshot, and a one-command rollback path to the
+previous version.
+
+&lt;!–MDXB-10-OPEN–&gt;
+
+Data drift:  
+Input distribution shifts (new topics, new user demographics).
+*Signal:* Embedding distance between recent inputs and training data increases.
+*Fix:* Collect new data from the shifted distribution; retrain.
+
+Reward collapse:  
+The model finds a degenerate strategy that scores high on the
+reward signal but produces poor outputs.
+*Signal:* Reward metric stays high but user satisfaction drops.
+*Fix:* Audit reward function; add diversity constraints; retrain with corrected
+reward.
+
+Infra-induced degradation:  
+Quantization, batching changes, or hardware swaps
+silently alter model behavior.
+*Signal:* Quality drop correlates with infrastructure change, not data change.
+*Fix:* Diff infrastructure configs; run regression suite on new hardware before
+deployment.
+
+Model forgetting:  
+Fine-tuning on new data erodes performance on previously mastered
+tasks.
+*Signal:* Slice-level regressions on stable task categories.
+*Fix:* Replay buffer—mix old data into new training batches.
+
+&lt;!–MDXB-10-CLOSE–&gt;
+
+&lt;!–MDXB-23-OPEN–&gt;
+
+Reward collapse is insidious because your *automated metrics look fine*. The model has
+learned to game the reward signal. Classic symptoms:
+
+- Reward scores plateau or increase while user complaints rise.
+
+- Output diversity drops—the model converges on a narrow set of “safe” responses.
+
+- Length increases without information gain (the model pads responses).
+
+**Defenses:** (1) Always monitor a human-judgment metric alongside automated rewards.
+(2) Track output diversity (unique n-gram ratio). (3) Set SLOs on both reward *and*
+user satisfaction—trigger rollback if they diverge.
+
+&lt;!–MDXB-23-CLOSE–&gt;
+
+## Testing Strategies
+
+
+
+<Term name="A/B Testing" los="FRI-5.3">
+  Splitting live traffic between model variants and comparing outcomes with statistical rigor. Requires sufficient traffic volume for significance.
+</Term>
+<AnkiCard type="term" front={"A/B Testing"} back={"Splitting live traffic between model variants and comparing outcomes with statistical rigor. Requires sufficient traffic volume for significance."} los="FRI-5.3" />
+
+
+
+A/B testing:  
+Gold standard for causal claims. Requires sufficient traffic.
+
+Side-by-side evaluation:  
+Human raters compare outputs from two models on the same
+input. Faster than A/B but does not capture real user behavior.
+
+Internal playgrounds:  
+Engineers and domain experts manually probe the model before
+any external exposure.
+
+Beta testing:  
+Controlled rollout to a subset of real users with explicit feedback
+channels.
+
+# Infrastructure: Tooling and Frameworks
+
+
+
+<Term name="HF TRL" los="FRI-5.5">
+  Hugging Face Transformer Reinforcement Learning library. Best for learning and prototyping; supports SFT, DPO, PPO, and GRPO trainers.
+</Term>
+<AnkiCard type="term" front={"HF TRL"} back={"Hugging Face Transformer Reinforcement Learning library. Best for learning and prototyping; supports SFT, DPO, PPO, and GRPO trainers."} los="FRI-5.5" />
+
+
+
+
+
+<Term name="LLaMA-Factory" los="FRI-5.5">
+  A production-grade fine-tuning framework with broad model support, distributed training, and experiment management. Recommended for production SFT workflows.
+</Term>
+<AnkiCard type="term" front={"LLaMA-Factory"} back={"A production-grade fine-tuning framework with broad model support, distributed training, and experiment management. Recommended for production SFT workflows."} los="FRI-5.5" />
+
+
+
+&lt;!–MDXB-25-OPEN–&gt;
+
+&lt;!–MDXB-25-CLOSE–&gt;
+
+## Model Size Strategy
+
+
+
+<Sidenote category="pattern">Start small. A well-trained 7B model often outperforms a poorly trained 70B model and costs 10$$ less to serve.</Sidenote>
+
+
+
+
+
+<Sidenote category="crossref">See vol6 Ch 5 for deployment patterns including quantisation-aware serving, adapter routing, and cost modelling for fine-tuned models.</Sidenote>
+
+
+
+Start with the smallest model that meets your quality bar. Scale up only when evaluation shows
+the capability gap cannot be closed with better data or training.
+
+
+
+<Sidenote category="formula">GPU memory: params $$ bytes/param. 7B at FP16 $= 7  10^9  2 = 14$ GB. Training adds $$4$$ (grads + optimizer).</Sidenote>
+
+
+
+## Compression Techniques
+
+Quantization:  
+Reduce weight precision from 32-bit to 16/8/4-bit. Typical savings:
+2–8× memory reduction with minimal quality loss at 8-bit, measurable but
+often acceptable loss at 4-bit.
+
+Knowledge distillation:  
+Train a smaller “student” model to mimic a larger
+“teacher” model’s outputs. Captures the teacher’s learned behavior in a fraction
+of the parameters. See Section <a href="#sec:m5-distillation" data-reference-type="ref" data-reference="sec:m5-distillation">[sec:m5-distillation]</a> for the DeepSeek R1
+distillation case study.
+
+## Multi-Model Routing with LoRA
+
+Serve a single base model with multiple LoRA<Citation src="hu2021lora" /> adapters. Route requests to the appropriate
+adapter based on task type. This avoids duplicating the full model for each specialization
+and enables hot-swapping adapters without restarting inference.
+
+# Infrastructure: GPU Memory and Cost
+
+## Memory Footprint by Precision
+
+For a 7B parameter model:
+
+| **Precision**      | **Bytes/Param** | **7B Model** |
+|:-------------------|----------------:|-------------:|
+| 32-bit (FP32)      |               4 |        28 GB |
+| 16-bit (FP16/BF16) |               2 |        14 GB |
+| 8-bit (INT8)       |               1 |         7 GB |
+| 4-bit (NF4)        |             0.5 |       3.5 GB |
+
+## Training Memory Components
+
+
+
+<Term name="Training Memory" los="FRI-5.5">
+  GPU memory during training includes four components: model weights, gradients, optimizer states (2$$ weights for Adam), and activations. LoRA reduces this to 10–20% of the full fine-tuning footprint.
+</Term>
+<AnkiCard type="term" front={"Training Memory"} back={"GPU memory during training includes four components: model weights, gradients, optimizer states (2$$ weights for Adam), and activations. LoRA reduces this to 10–20% of the full fine-tuning footprint."} los="FRI-5.5" />
+
+
+
+Full fine-tuning:  
+Weights + gradients + optimizer states + activations.
+All four components at full size.
+
+LoRA:  
+Only adapter weights and their gradients are trainable. Reduces the
+training footprint to 10–20% of full FT.
+
+RL/GRPO:  
+Requires 2–4× the memory of supervised FT due to reference model,
+value estimates, and multiple sampled completions. A 13B model with GRPO requires
+approximately 170–190 GB.
+
+## Inference Capacity Planning
+
+
+
+```cypher
+import numpy as np
+import pandas as pd
+
+def compute_metrics(df: pd.DataFrame) -> dict:
+    """Production monitoring metrics from inference logs."""
+    return {
+        "avg_latency_ms": round(float(np.mean(df["response_time_ms"])), 2),
+        "p95_latency_ms": round(
+            float(np.percentile(df["response_time_ms"], 95)), 2),
+        "avg_tokens": round(float(np.mean(df["tokens_generated"])), 2),
+        "error_rate_pct": round(float(
+            len(df[df["error_type"] != "none"]) / len(df) * 100), 2),
+        "avg_satisfaction": round(float(df["user_satisfaction"].mean()), 2),
+    }
+
+ALERT_THRESHOLDS = {
+    "avg_latency_ms": 3000, "p95_latency_ms": 5000,
+    "error_rate_pct": 25.0, "avg_tokens": 1200,
+    "avg_satisfaction_min": 3.0,
+}
+
+def check_alerts(metrics, thresholds=ALERT_THRESHOLDS):
+    """Compare metrics to thresholds, return triggered alerts."""
+    triggered = []
+    for key in ["avg_latency_ms", "p95_latency_ms",
+                "error_rate_pct", "avg_tokens"]:
+        if metrics[key] > thresholds[key]:
+            triggered.append(f"{key}: {metrics[key]} > {thresholds[key]}")
+    if metrics["avg_satisfaction"] < thresholds["avg_satisfaction_min"]:
+        triggered.append(
+            f"avg_satisfaction: {metrics['avg_satisfaction']}"
+            f" < {thresholds['avg_satisfaction_min']}")
+    return triggered
+
+def categorize_issue(row, verbose_threshold=1500):
+    """Heuristic rule-based failure categorization."""
+    etype = str(row.get("error_type", "")).strip()
+    text = str(row.get("llm_response", "")).lower()
+    tokens = int(row.get("tokens_generated", 0))
+    if etype == "json_format_error":     return "json_malformed"
+    if etype == "knowledge_outdated":    return "knowledge_outdated"
+    if tokens > verbose_threshold:       return "too_verbose"
+    if any(pw in text for pw in ["thank you", "apolog", "sincerely"]):
+        return "too_polite"
+    return "other"
+```
+
+
+
+# Distillation: Compressing Frontier Reasoning
+
+
+
+<Sidenote category="interview">"How do you deploy a frontier reasoning model cost-effectively?" — Distillation is the answer. Know the R1 recipe: teacher traces $$ SFT on students.</Sidenote>
+
+
+
+Knowledge distillation for reasoning models follows a specific recipe, best
+illustrated by DeepSeek R1’s open-source pipeline<Citation src="deepseek2025r1" />:
+
+1.  **Generate teacher traces**: The frontier model (R1, 671B MoE)
+    generates chain-of-thought solutions for ∼800K problems spanning
+    math, code, science, and general reasoning.
+
+2.  **Verify and filter**: Each trace is verified against ground truth
+    (math answers, code tests). Only verified-correct traces are retained,
+    typically 10–15% of generated candidates.
+
+3.  **SFT on student models**: Smaller models (Qwen-1.5B/7B/14B/32B,
+    Llama-8B/70B) are fine-tuned on the filtered teacher traces using
+    standard SFT with LoRA.
+
+4.  **Evaluate**: Distilled students are compared against both the
+    teacher and RL-trained models of the same size.
+
+&lt;!–MDXB-13-OPEN–&gt;
+
+**Core Insight:** DeepSeek’s distilled models consistently outperform
+small models trained with direct RL. Qwen-7B distilled from R1 achieves
+higher AIME scores than Qwen-7B trained with GRPO from scratch. Reasoning
+capability transfers more efficiently through SFT on teacher traces than
+through independent RL exploration.
+
+**Why It Matters:** For deployment, you rarely need to run RL on your
+serving model. Instead, run RL on the largest model you can afford, generate
+verified reasoning traces, and distill into the model you actually serve.
+This separates the “research” cost (RL on frontier models) from the
+“deployment” cost (inference on distilled models).
+
+**When It Breaks:** Distillation transfers the teacher’s reasoning
+*style* but not necessarily its *capability ceiling*. If the
+student model lacks the parametric capacity to represent the reasoning
+patterns (e.g., distilling 671B reasoning into 1.5B), quality degrades
+sharply on complex problems. The sweet spot is 7B–14B students for
+most production deployments.
+
+&lt;!–MDXB-13-CLOSE–&gt;
+
+
+
+<Sidenote category="practice">Shadow deployment pattern: run the distilled model alongside production for 24h, compare outputs to the teacher on 5K real requests.</Sidenote>
+
+
+
+# Production Checklist
+
+&lt;!–MDXB-15-OPEN–&gt;
+
+Production deployment questions are standard at Staff+ interviews and increasingly
+common at IC4+ for MLEs at Meta, Google, Amazon, and Anthropic. The interviewer
+wants to see that you think beyond training accuracy to operational readiness.
+
+**What they’re really testing:** Whether you can design the full lifecycle—
+promotion gates, monitoring, rollback, and the data-feedback flywheel—not just
+train a model. The strongest signal is articulating *when to retrain vs. when to fix via prompt engineering or RAG*, showing you optimise for speed of
+intervention, not just model quality.
+
+**Expected depth by level:**
+
+- **IC4:** Know the five production requirements (reproducibility,
+  promotion rules, monitoring, feedback flywheel, infrastructure). Explain
+  shadow deployment and canary traffic. Name three metric families
+  (performance, cost, reliability).
+
+- **IC5+/Staff:** Design promotion rules with quantitative thresholds
+  and no-regression slice checks. Explain distillation as a deployment
+  strategy (R1 → student models). Discuss the intervention decision
+  framework: prompt eng (∼1 day) → RAG update (∼1 day) →
+  SFT (∼1 week) → RL (∼1 week).
+
+&lt;!–MDXB-15-CLOSE–&gt;
+
+L43 distills the entire module into five non-negotiable production requirements:
+
+1.  **Reproducible configuration:** Every training run must be fully specified—
+    model, data snapshot, hyperparameters, random seeds, code version—so that any
+    result can be reproduced.
+
+2.  **Promotion rules + rollback:** Formal gates with quantitative thresholds for
+    dev→staging→production. One-command rollback to the previous version.
+
+3.  **Monitoring + SLOs:** Dashboards covering performance, cost, and reliability.
+    Service-level objectives with automated alerts.
+
+4.  **Feedback-to-data flywheel:** A pipeline that routes production errors back
+    into training data with proper hygiene (filter, dedup, PII scrub).
+
+5.  **Infrastructure readiness:** Right-sized GPU allocation, compression strategy,
+    capacity plan, and cost projections validated before launch.
+
+&lt;!–MDXB-14-OPEN–&gt;
+
+**Core Insight:** The difference between a stagnant model and a compounding
+system is whether production errors flow back into the training pipeline. Better
+models generate better synthetic data, which improves the next generation. Teams
+that tighten this loop—error analysis → counterexamples → retrain →
+deploy → error analysis—compound improvements exponentially.
+
+**Why It Matters:** A single training run produces a point-in-time model.
+A flywheel produces a continuously improving system. The marginal cost of each
+improvement round decreases as the pipeline matures (filtering, dedup, PII
+scrubbing are automated once).
+
+**When It Breaks:** Without data hygiene (dedup, PII scrub, quality
+filtering), the flywheel amplifies noise instead of signal. Duplicated errors
+get over-represented; PII leaks create liability. The flywheel requires
+infrastructure investment before it compounds.
+
+&lt;!–MDXB-14-CLOSE–&gt;
+
+&lt;!–MDXB-16-OPEN–&gt;
+
+Define promotion rules for a math model. Strict rule: 90%+ AIME accuracy,
+0% regression on general helpfulness. Loose rule: 85%+ AIME, &lt;3%
+helpfulness regression. You run a sweep of 30 trained models. Estimate how
+many pass each rule. Which optimises for speed vs. safety?
+
+&lt;!–MDXB-16-CLOSE–&gt;
+
+&lt;!–MDXB-19-OPEN–&gt;
+
+**Approach:**
+**Strict rule:** Expect 2–3 models out of 30 to pass (90%+ AIME is
+aggressive, 0% regression is extremely restrictive). Time to promotion: weeks
+(multiple sweeps needed).
+
+**Loose rule:** Expect 8–12 models to pass (85% is achievable, 3%
+regression tolerance is practical). Time to promotion: days.
+
+**Speed vs. safety:** Strict optimises for safety (zero regressions in
+production) at the cost of slow iteration. Loose optimises for speed (more
+candidates pass) with acceptable risk (3% regression may be invisible to users).
+
+**Key Insight:** Start loose during development (fast iteration), tighten
+for production (user-facing). The 0% regression rule is aspirational—in
+practice, 1–2% regression on non-critical slices is often acceptable if the
+primary metric improves significantly.
+
+**Answer:** Start loose during development (fast iteration), tighten
+for production (user-facing). The 0% regression rule is aspirational—in
+practice, 1–2% regression on non-critical slices is often acceptable if the
+primary metric improves significantly.
+
+&lt;!–MDXB-19-CLOSE–&gt;
+
+&lt;!–MDXB-17-OPEN–&gt;
+
+You need to serve a 13B model for 100 QPS. In float16 (14 GB model), each
+A100 (80 GB) can serve 8 concurrent requests at 50 tokens/s. How many GPUs
+do you need? What if you quantise to int8 (7 GB model, 16 concurrent requests)?
+
+&lt;!–MDXB-17-CLOSE–&gt;
+
+&lt;!–MDXB-20-OPEN–&gt;
+
+**Approach:**
+**float16:** Each GPU handles 8 requests. At 50 tokens/s with average
+response of 200 tokens, each request takes 4s. Throughput per GPU:
+8/4 = 2 QPS. For 100 QPS: 100/2 = 50 GPUs.
+
+**int8:** Each GPU handles 16 requests. Throughput per GPU:
+16/4 = 4 QPS. For 100 QPS: 100/4 = 25 GPUs.
+
+**Savings:** int8 quantisation halves GPU count (and cost) with
+typically &lt;1% accuracy degradation for instruction-following tasks.
+
+**Key Insight:** Serving cost scales linearly with model size and
+inversely with batch size. Quantisation is the highest-ROI optimisation:
+it doubles batch capacity (and halves cost) for free in most cases.
+
+**Answer:** Serving cost scales linearly with model size and
+inversely with batch size. Quantisation is the highest-ROI optimisation:
+it doubles batch capacity (and halves cost) for free in most cases.
+
+&lt;!–MDXB-20-CLOSE–&gt;
+
+&lt;!–MDXB-18-OPEN–&gt;
+
+Your deployed model’s accuracy on a held-out test set drops from 82% to 74%
+over 3 months without any model changes. Propose three hypotheses ordered by
+likelihood and a diagnostic test for each.
+
+&lt;!–MDXB-18-CLOSE–&gt;
+
+&lt;!–MDXB-21-OPEN–&gt;
+
+**Approach:**
+**Hypothesis 1 (most likely): Data drift.** User queries have shifted (new
+topics, different phrasing, seasonal effects). **Test:** Compare embedding
+distributions of production queries from month 1 vs. month 3. If centroid
+distance exceeds a threshold, data drift is confirmed.
+
+**Hypothesis 2: Evaluation drift.** The test set has become unrepresentative
+of production traffic. **Test:** Sample 100 recent production queries and
+evaluate manually. If production accuracy differs significantly from test set
+accuracy, the test set needs refreshing.
+
+**Hypothesis 3: Infrastructure change.** A dependency update (tokeniser
+version, API provider, preprocessing pipeline) subtly changed model inputs.
+**Test:** Diff all infrastructure configs between month 1 and month 3.
+Replay month-1 queries through current infrastructure and compare outputs.
+
+**Key Insight:** No model change + accuracy drop = the world changed,
+not the model. Always diagnose environment before retraining.
+
+**Answer:** No model change + accuracy drop = the world changed,
+not the model. Always diagnose environment before retraining.
+
+&lt;!–MDXB-21-CLOSE–&gt;
+
+&lt;!–MDXB-24-OPEN–&gt;
+
+\[FRI-5.1, FRI-5.3\]
+Your team has two candidate models for a production reasoning system:
+
+| **Model** | **AIME (%)** | **Helpfulness** | **Cost/query** | **Method**        |
+|:----------|:------------:|:---------------:|:--------------:|:------------------|
+| Model A   |      88      |      4.2/5      |     $0.03      | SFT + GRPO        |
+| Model B   |      91      |      3.8/5      |     $0.08      | Full PPO pipeline |
+
+**Question 1:** Which model would you promote to production for a
+general-purpose assistant? For a math tutoring app?
+
+**Question 2:** Model B costs 2.7× more per query. At 1M
+queries/day, what is the annual cost difference? Is the 3% AIME improvement
+worth it?
+
+**Question 3:** You deploy Model A. After 1 month, you collect 50,000
+production conversations. Design the next iteration of the flywheel.
+
+&lt;!–MDXB-24-CLOSE–&gt;
+
+&lt;!–MDXB-22-OPEN–&gt;
+
+**Approach:**
+**Q1:**
+
+- **General assistant:** Model A. Helpfulness (4.2 vs. 3.8) matters
+  more than math accuracy for general use. 0.4 points on a 5-point scale is
+  significant.
+
+- **Math tutoring:** Model B. AIME accuracy is the primary metric.
+  3% improvement at the 88–91% range is meaningful (each point is harder at
+  higher levels). Cost is acceptable for a premium educational product.
+
+**Q2:** Cost difference: (0.08 − 0.03) × 1*M* × 365 = $18.25*M*/year.
+The 3% AIME improvement costs $18M annually. Only justifiable if math accuracy
+directly drives revenue (e.g., premium math tutoring subscriptions).
+
+**Q3:** Flywheel iteration:
+
+1.  Error analysis on the 50K conversations: cluster failures by type
+
+2.  Identify top 3 failure modes (expect: calculation errors, refusals on
+    valid questions, incomplete explanations)
+
+3.  Generate 200 counterexamples per failure mode from production data
+
+4.  Filter with quality scorer (keep top 60%)
+
+5.  Retrain Model A with augmented data (SFT + GRPO)
+
+6.  Evaluate on frozen test set + new production-derived test set
+
+7.  Promote if metrics improve; roll back if regression detected
+
+**Key Insight:** Model selection is task-dependent: general-purpose metrics (helpfulness) dominate for broad use cases, while domain-specific accuracy (AIME) dominates for specialized applications.
+
+**Answer:** General assistant: Model A (helpfulness 4.2 &gt; 3.8 matters most). Math tutoring: Model B (AIME 91% &gt; 88% at the top of the curve is significant). Match the primary metric to the deployment context.
+
+&lt;!–MDXB-22-CLOSE–&gt;
+
+&lt;!–MDXB-11-OPEN–&gt;
+
+Before deploying a post-trained model, verify you can answer “yes” to each question:
+
+1.  Can you design an end-to-end post-training pipeline from cold-start
+    SFT through RL to deployment? *(FRI-5.1)*
+
+2.  Describe how agent architectures use tool calling, planning, and
+    multi-agent coordination with post-trained models.
+    *(FRI-5.2)*
+
+3.  Is there a one-command rollback path to the previous production model?
+
+4.  Are you monitoring performance, cost, *and* reliability—not just accuracy?
+
+5.  Do you have a process to detect reward collapse (automated metric diverges from
+    human judgment)?
+
+6.  Design a monitoring dashboard that tracks performance, cost, and
+    reliability metrics simultaneously. *(FRI-5.6)*
+
+7.  Have you validated your GPU capacity plan against actual traffic projections?
+
+8.  Can you articulate which intervention (prompt eng / RAG / SFT / RL) you would reach
+    for first when a new failure mode appears?
+
+If any answer is “no,” that is your highest-priority pre-launch task.
+
+&lt;!–MDXB-11-CLOSE–&gt;
+
+{/* CARD-PLACEMENT-AUTOSTART */}
+
+## Review
+
+{/* CARD-PLACEMENT-TODO: polish pass should move these cards inline */}
+{/* near the concepts they test, per Q-R4.4 hybrid placement.       */}
+
+### Checkpoint cards (8)
+
+<AnkiCard type="checkpoint" id="chapters-vol0-ch05-CHECKPOINT-CHECKPOINT_PRODUCTION_READINESS_SELFCHECK_Q1" los="FRI-5.1" front={"Can you design an end-to-end post-training pipeline from cold-start\n SFT through RL to deployment? (FRI-5.1)"} back={"Self-check from: Checkpoint: Production Readiness Self-Check\n\n(Answer from memory, then verify against the chapter text.)"} />
+
+<AnkiCard type="checkpoint" id="chapters-vol0-ch05-CHECKPOINT-CHECKPOINT_PRODUCTION_READINESS_SELFCHECK_Q2" los="FRI-5.2" front={"Describe how agent architectures use tool calling, planning, and\n multi-agent coordination with post-trained models.\n (FRI-5.2)"} back={"Self-check from: Checkpoint: Production Readiness Self-Check\n\n(Answer from memory, then verify against the chapter text.)"} />
+
+<AnkiCard type="checkpoint" id="chapters-vol0-ch05-CHECKPOINT-CHECKPOINT_PRODUCTION_READINESS_SELFCHECK_Q3" los="" front={"Is there a one-command rollback path to the previous production model?"} back={"Self-check from: Checkpoint: Production Readiness Self-Check\n\n(Answer from memory, then verify against the chapter text.)"} />
+
+<AnkiCard type="checkpoint" id="chapters-vol0-ch05-CHECKPOINT-CHECKPOINT_PRODUCTION_READINESS_SELFCHECK_Q4" los="" front={"Are you monitoring performance, cost, and reliability—not just accuracy?"} back={"Self-check from: Checkpoint: Production Readiness Self-Check\n\n(Answer from memory, then verify against the chapter text.)"} />
+
+<AnkiCard type="checkpoint" id="chapters-vol0-ch05-CHECKPOINT-CHECKPOINT_PRODUCTION_READINESS_SELFCHECK_Q5" los="" front={"Do you have a process to detect reward collapse (automated metric diverges from\n human judgment)?"} back={"Self-check from: Checkpoint: Production Readiness Self-Check\n\n(Answer from memory, then verify against the chapter text.)"} />
+
+<AnkiCard type="checkpoint" id="chapters-vol0-ch05-CHECKPOINT-CHECKPOINT_PRODUCTION_READINESS_SELFCHECK_Q6" los="FRI-5.6" front={"Design a monitoring dashboard that tracks performance, cost, and\n reliability metrics simultaneously. (FRI-5.6)"} back={"Self-check from: Checkpoint: Production Readiness Self-Check\n\n(Answer from memory, then verify against the chapter text.)"} />
+
+<AnkiCard type="checkpoint" id="chapters-vol0-ch05-CHECKPOINT-CHECKPOINT_PRODUCTION_READINESS_SELFCHECK_Q7" los="" front={"Have you validated your GPU capacity plan against actual traffic projections?"} back={"Self-check from: Checkpoint: Production Readiness Self-Check\n\n(Answer from memory, then verify against the chapter text.)"} />
+
+<AnkiCard type="checkpoint" id="chapters-vol0-ch05-CHECKPOINT-CHECKPOINT_PRODUCTION_READINESS_SELFCHECK_Q8" los="" front={"Can you articulate which intervention (prompt eng / RAG / SFT / RL) you would reach\n for first when a new failure mode appears?"} back={"Self-check from: Checkpoint: Production Readiness Self-Check\n\n(Answer from memory, then verify against the chapter text.)"} />
+
+### Keyconcept cards (3)
+
+<AnkiCard type="keyconcept" id="chapters-vol0-ch05-CONCEPT-AGENT_ARCHITECTURES" los="FRI-5.2" front={"Key Concept: Agent Architectures"} back={"An agent is a model that takes actions in an environment—calling tools, planning\nmulti-step strategies, and coordinating with other agents. Post-training for agents differs from\nstandard instruction-following because the reward signal comes from task completion, not\nfrom matching a reference output.\n\nWhen It Breaks: Task-completion rewards are sparse and delayed—the agent may\ncomplete many intermediate steps before receiving signal. This makes credit assignment\nhard: RL struggles to learn which action in a 10-step plan caused the final failure."} />
+
+<AnkiCard type="keyconcept" id="chapters-vol0-ch05-CONCEPT-DISTILLATION_VS_DIRECT_RL_FOR_SMALL_MODELS" los="FRI-5.5" front={"Key Concept: Distillation vs.\\ Direct RL for Small Models"} back={"Core Insight: DeepSeek's distilled models consistently outperform\n small models trained with direct RL. Qwen-7B distilled from R1 achieves\n higher AIME scores than Qwen-7B trained with GRPO from scratch. Reasoning\n capability transfers more efficiently through SFT on teacher traces than\n through independent RL exploration.\n\n Why It Matters: For deployment, you rarely need to run RL on your\n serving model."} />
+
+<AnkiCard type="keyconcept" id="chapters-vol0-ch05-CONCEPT-THE_DATAFEEDBACK_FLYWHEEL" los="FRI-5.4" front={"Key Concept: The Data-Feedback Flywheel"} back={"Core Insight: The difference between a stagnant model and a compounding\nsystem is whether production errors flow back into the training pipeline. Better\nmodels generate better synthetic data, which improves the next generation. Teams\nthat tighten this loop—error analysis $\\to$ counterexamples $\\to$ retrain $\\to$\ndeploy $\\to$ error analysis—compound improvements exponentially.\n\nWhy It Matters: A single training run produces a point-in-time model.\nA flywheel produces a continuously improving system."} />
+
+### Problem cards (3)
+
+<AnkiCard type="problem" id="chapters-vol0-ch05-PROB-DEFINE_PROMOTION_RULES_FOR_A_MATH_MODEL_STRICT_RUL" los="FRI-5.3" front={"Define promotion rules for a math model. Strict rule: 90\n0\nhelpfulness regression. You run a sweep of 30 trained models. Estimate how\nmany pass each rule. Which optimises for speed vs. safety?"} back={"Approach:\nStrict rule: Expect 2–3 models out of 30 to pass (90\naggressive, 0\n(multiple sweeps needed).\n\nLoose rule: Expect 8–12 models to pass (85\nregression tolerance is practical). Time to promotion: days.\n\nSpeed vs. safety: Strict optimises for safety (zero regressions in\nproduction) at the cost of slow iteration. Loose optimises for speed (more\ncandidates pass) with acceptable risk (3\n\nKey Insight: Start loose during development (fast iteration), tighten\nfor production (user-facing). The 0\npractice, 1–2\nprimary metric improves significantly.\n\nAnswer: Start loose during development (fast iteration), tighten\nfor production (user-facing). The 0\npractice, 1–2\nprimary metric improves significantly."} />
+
+<AnkiCard type="problem" id="chapters-vol0-ch05-PROB-YOU_NEED_TO_SERVE_A_13B_MODEL_FOR_100_QPS_IN_FLOAT" los="FRI-5.5" front={"You need to serve a 13B model for 100 QPS. In float16 (14 GB model), each\nA100 (80 GB) can serve 8 concurrent requests at 50 tokens/s. How many GPUs\ndo you need? What if you quantise to int8 (7 GB model, 16 concurrent requests)?"} back={"Approach:\nfloat16: Each GPU handles 8 requests. At 50 tokens/s with average\nresponse of 200 tokens, each request takes 4s. Throughput per GPU:\n$8 / 4 = 2$ QPS. For 100 QPS: $100 / 2 = 50$ GPUs.\n\nint8: Each GPU handles 16 requests. Throughput per GPU:\n$16 / 4 = 4$ QPS. For 100 QPS: $100 / 4 = 25$ GPUs.\n\nSavings: int8 quantisation halves GPU count (and cost) with\ntypically $<$1\n\nKey Insight: Serving cost scales linearly with model size and\ninversely with batch size. Quantisation is the highest-ROI optimisation:\nit doubles batch capacity (and halves cost) for free in most cases.\n\nAnswer: Serving cost scales linearly with model size and\ninversely with batch size. Quantisation is the highest-ROI optimisation:\nit doubles batch capacity (and halves cost) for free in most cases."} />
+
+<AnkiCard type="problem" id="chapters-vol0-ch05-PROB-YOUR_DEPLOYED_MODELS_ACCURACY_ON_A_HELDOUT_TEST_SE" los="FRI-5.4" front={"Your deployed model's accuracy on a held-out test set drops from 82\nover 3 months without any model changes. Propose three hypotheses ordered by\nlikelihood and a diagnostic test for each."} back={"Approach:\nHypothesis 1 (most likely): Data drift. User queries have shifted (new\ntopics, different phrasing, seasonal effects). Test: Compare embedding\ndistributions of production queries from month 1 vs. month 3. If centroid\ndistance exceeds a threshold, data drift is confirmed.\n\nHypothesis 2: Evaluation drift. The test set has become unrepresentative\nof production traffic. Test: Sample 100 recent production queries and\nevaluate manually. If production accuracy differs significantly from test set\naccuracy, the test set needs refreshing.\n\nHypothesis 3: Infrastructure change. A dependency update (tokeniser\nversion, API provider, preprocessing pipeline) subtly changed model inputs.\nTest: Diff all infrastructure configs between month 1 and month 3.\nReplay month-1 queries through current infrastructure and compare outputs.\n\nKey Insight: No model change $+$ accuracy drop $=$ the world changed,\nnot the model. Always diagnose environment before retraining.\n\nAnswer: No model change $+$ accuracy drop $=$ the world changed,\nnot the model. Always diagnose environment before retraining."} />
+
+### Redflag cards (1)
+
+<AnkiCard type="redflag" id="chapters-vol0-ch05-RF-REWARD_COLLAPSE_IN_PRODUCTION" los="" front={"Warning: Reward Collapse in Production"} back={"Reward collapse is insidious because your automated metrics look fine. The model has\nlearned to game the reward signal. Classic symptoms:\n\n- Reward scores plateau or increase while user complaints rise.\n\n- Output diversity drops—the model converges on a narrow set of \"safe\" responses.\n\n- Length increases without information gain (the model pads responses).\n\nDefenses: (1) Always monitor a human-judgment metric alongside automated rewards.\n(2) Track output diversity (unique n-gram ratio)."} />
+
+### Vignette cards (1)
+
+<AnkiCard type="vignette" id="chapters-vol0-ch05-VIG-PRODUCTION_DEPLOYMENT_DECISION" los="FRI-5.1, FRI-5.3" front={"Case Study: Production Deployment Decision\n\nYour team has two candidate models for a production reasoning system:\n\nModel | AIME (\n\nModel A | 88 | 4.2/5 | $0.03 | SFT + GRPO \nModel B | 91 | 3.8/5 | $0.08 | Full PPO pipeline"} back={"Question 1: Which model would you promote to production for a\ngeneral-purpose assistant? For a math tutoring app?\n\nQuestion 2: Model B costs 2.7$\\times$ more per query. At 1M\nqueries/day, what is the annual cost difference? Is the 3\nworth it?\n\nQuestion 3: You deploy Model A. After 1 month, you collect 50,000\nproduction conversations. Design the next iteration of the flywheel.\n\n---\n\n**Answer Rubric:**\nApproach:\nQ1:\n\n- General assistant: Model A. Helpfulness (4.2 vs. 3.8) matters\n more than math accuracy for general use. 0.4 points on a 5-point scale is\n significant.\n\n- Math tutoring: Model B. AIME accuracy is the primary metric.\n 3\n higher levels). Cost is acceptable for a premium educational product.\n\nQ2: Cost difference: $(0.08 - 0.03) \\times 1M \\times 365 = $18.25M$/year.\nThe 3\ndirectly drives revenue (e.g., premium math tutoring subscriptions).\n\nQ3: Flywheel iteration:\n\n- Error analysis on the 50K conversations: cluster failures by type\n\n- Identify top 3 failure modes (expect: calculation errors, refusals on\n valid questions, incomplete explanations)\n\n- Generate 200 counterexamples per failure mode from production data\n\n- Filter with quality scorer (keep top 60\n\n- Retrain Model A with augmented data (SFT + GRPO)\n\n- Evaluate on frozen test set + new production-derived test set\n\n- Promote if metrics improve; roll back if regression detected\n\nKey Insight: Model selection is task-dependent: general-purpose metrics (helpfulness) dominate for broad use cases, while domain-specific accuracy (AIME) dominates for specialized applications.\n\nAnswer: General assistant: Model A (helpfulness 4.2 > 3.8 matters most). Math tutoring: Model B (AIME 91"} />
+
+### Interview cards (1)
+
+<AnkiCard type="interview" id="chapters-vol0-ch05-INT-PRODUCTION_DEPLOYMENT_OF_POSTTRAINED_MODELS" los="FRI-5.1, FRI-5.3, FRI-5.5" front={"Interview Q: distillation as a deployment\n strategy (R1 $\\to$ student models)"} back={"Production deployment questions are standard at Staff+ interviews and increasingly\ncommon at IC4+ for MLEs at Meta, Google, Amazon, and Anthropic. The interviewer\nwants to see that you think beyond training accuracy to operational readiness.\n\nWhat they're really testing: Whether you can design the full lifecycle—\npromotion gates, monitoring, rollback, and the data-feedback flywheel—not just\ntrain a model. The strongest signal is articulating when to retrain vs."} />
+
+### Decisiontree cards (1)
+
+<AnkiCard type="decisiontree" id="chapters-vol0-ch05-DECISION-CHOOSING_A_POSTTRAINING_FRAMEWORK" los="" front={"Decision: Choosing a Post-Training Framework"} back={"Are you prototyping or learning?\nYes $\\rightarrow$ Use HF TRL. Excellent documentation, tight\nintegration with Hugging Face ecosystem, native support for SFT/DPO/PPO/GRPO.\n\nDo you need production SFT with experiment tracking?\nYes $\\rightarrow$ Use LLaMA-Factory. Broad model support,\nbuilt-in distributed training, production-tested.\n\nIs single-GPU training speed your bottleneck?\nYes $\\rightarrow$ Use Unsloth. Kernel-level optimizations for\n2–5$\\times$ speedup on single-GPU setups. Best for rapid iteration.\n\nDo you need enterprise-grade RL at scale?\nYes $\\rightarrow$ Use Verl. Purpose-built for large-scale RLHF/GRPO\nwith multi-GPU orchestration.\n\nIs your bottleneck inference, not training?\nYes $\\rightarrow$ Use vLLM or SGLang."} />
+
+{/* CARD-PLACEMENT-AUTOEND */}

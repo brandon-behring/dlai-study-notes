@@ -82,7 +82,7 @@ Consider a tensor with four values quantized to 2-bit precision (values 0–3):
 
 
 
-<Sidenote category="formula">Packing ratio: $8{b}$ values per uint8 byte, where $b$ is the quantized bit width. For 2-bit: 4 values/byte. For 4-bit: 2 values/byte.</Sidenote>
+<Sidenote category="formula">Packing ratio: $8\{b\}$ values per uint8 byte, where $b$ is the quantized bit width. For 2-bit: 4 values/byte. For 4-bit: 2 values/byte.</Sidenote>
 
 
 
@@ -327,7 +327,7 @@ dynamic ranges, enabling accurate INT8 quantization of both.
 
 
 
-<Sidenote category="formula">SmoothQuant scaling: $s_j = (|X_j|)^ / (|W_j|)^{1-}$. Typical $ = 0.5$ balances difficulty equally.</Sidenote>
+<Sidenote category="formula">SmoothQuant scaling: $s_j = (|X_j|)^ / (|W_j|)^\{1-\}$. Typical $ = 0.5$ balances difficulty equally.</Sidenote>
 
 
 

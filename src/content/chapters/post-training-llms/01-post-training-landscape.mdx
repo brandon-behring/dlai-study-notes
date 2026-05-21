@@ -77,7 +77,7 @@ pre-training scale, typically 1 000 to 1 billion tokens<Citation src="ouyang2
 
 
 
-<Sidenote category="formula">Pre-train: minimize $-\! P(x_t  x_{<t})$ over all tokens. Post-train: same objective but **only on response tokens** (SFT case).</Sidenote>
+<Sidenote category="formula">Pre-train: minimize $-\! P(x_t  x_\{<t\})$ over all tokens. Post-train: same objective but **only on response tokens** (SFT case).</Sidenote>
 
 
 
@@ -108,7 +108,7 @@ domains.
 
 
 
-<Sidenote category="pattern">Post-training pipeline: Base model ${SFT}$ Instruct model ${DPO}$ Aligned model ${Online RL}$ Capability-enhanced model.</Sidenote>
+<Sidenote category="pattern">Post-training pipeline: Base model $\{SFT\}$ Instruct model $\{DPO\}$ Aligned model $\{Online RL\}$ Capability-enhanced model.</Sidenote>
 
 
 

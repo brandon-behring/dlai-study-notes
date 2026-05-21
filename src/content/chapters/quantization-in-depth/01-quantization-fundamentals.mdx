@@ -169,7 +169,7 @@ def linear_dequantization(q_tensor, scale, zero_point):
 
 
 
-<Sidenote category="pattern">Derivation pattern: two unknowns ($s$, $z$), two constraints ($r_{}  q_{}$, $r_{}  q_{}$). Solve the system algebraically.</Sidenote>
+<Sidenote category="pattern">Derivation pattern: two unknowns ($s$, $z$), two constraints ($r_\{\}  q_\{\}$, $r_\{\}  q_\{\}$). Solve the system algebraically.</Sidenote>
 
 
 
@@ -227,7 +227,7 @@ def get_q_scale_and_zero_point(tensor, dtype=torch.int8):
 
 
 <Term name="Scale ($s$)" los="QD-1.2">
-  A floating-point factor that maps between the quantized integer range and the original value range: $s = (r_{} - r_{}) / (q_{} - q_{})$.
+  A floating-point factor that maps between the quantized integer range and the original value range: $s = (r_\{\} - r_\{\}) / (q_\{\} - q_\{\})$.
 </Term>
 <AnkiCard type="term" front={"Scale ($s$)"} back={"A floating-point factor that maps between the quantized integer range and the original value range: $s = (r_{} - r_{}) / (q_{} - q_{})$."} los="QD-1.2" />
 
@@ -347,7 +347,7 @@ def linear_q_symmetric(tensor, dtype=torch.int8):
 
 
 
-<Sidenote category="formula">Quantization error: $ = 1{n}|r_i - r_i|$. With optimal $s,z$ for INT8, expect $  s/2$ per element.</Sidenote>
+<Sidenote category="formula">Quantization error: $ = 1\{n\}|r_i - r_i|$. With optimal $s,z$ for INT8, expect $  s/2$ per element.</Sidenote>
 
 
 
