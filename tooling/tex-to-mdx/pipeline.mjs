@@ -435,7 +435,7 @@ function extractTerms(text, inlineMap, next) {
     const token = next();
     inlineMap.set(
       token,
-      `\n\n<Term name="${escapeAttr(name)}" los="${escapeAttr(id)}">\n  ${def}\n</Term>\n<AnkiCard type="term" front=${jsonAttr(name)} back=${jsonAttr(cardBack)} los="${escapeAttr(id)}" />\n\n`,
+      `\n\n<Term name="${escapeAttr(name)}" los="${escapeAttr(id)}">\n  ${escapeMdxBraces(def)}\n</Term>\n<AnkiCard type="term" front=${jsonAttr(name)} back=${jsonAttr(cardBack)} los="${escapeAttr(id)}" />\n\n`,
     );
     out = out.slice(0, startIdx) + token + out.slice(totalEnd);
   }
@@ -467,7 +467,7 @@ function extractMarginMacros(text, inlineMap, next) {
       const token = next();
       inlineMap.set(
         token,
-        `\n\n<Sidenote category="${category}">${body}</Sidenote>\n\n`,
+        `\n\n<Sidenote category="${category}">${escapeMdxBraces(body)}</Sidenote>\n\n`,
       );
       out = out.slice(0, startIdx) + token + out.slice(endIdx + 1);
     }
@@ -481,6 +481,33 @@ function extractMarginMacros(text, inlineMap, next) {
 // Used only for inline-macro bodies (margin macros, term name/def). For
 // block environments, Pandoc handles conversion in place.
 // ============================================================================
+
+/**
+ * Escape `{` and `}` characters in MDX body text so JSX doesn't try to
+ * parse them as expressions. Skips content inside backtick code spans
+ * (MDX treats those as verbatim already).
+ *
+ * Use in Term/Sidenote body contexts, NOT in title attributes (those go
+ * inside JSX attr quotes where braces are safe).
+ */
+function escapeMdxBraces(s) {
+  let out = '';
+  let i = 0;
+  while (i < s.length) {
+    if (s[i] === '`') {
+      out += s[i];
+      i++;
+      while (i < s.length && s[i] !== '`') { out += s[i]; i++; }
+      if (i < s.length) { out += s[i]; i++; }
+      continue;
+    }
+    if (s[i] === '{') { out += '\\{'; i++; continue; }
+    if (s[i] === '}') { out += '\\}'; i++; continue; }
+    out += s[i];
+    i++;
+  }
+  return out;
+}
 
 /**
  * State-tracking escape of bare HTML-style tags in text that MDX would
