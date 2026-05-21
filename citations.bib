@@ -1,12 +1,183 @@
-% DLAI Study Notes — corpus bibliography
-%
-% This bib starts empty. During Phase 1 pilot, the pilot book's
-% references.bib (~/Claude/course_learning/dlai_knowledge_graphs_rag/
-% notes/notebook/references.bib) gets merged here.
-%
-% Future-Brandon: at book #2, if duplicate entries appear, extract them
-% to the scaffold's package/shared/common-citations.bib (a v3.2 scaffold
-% feature). Until then, this single file serves the whole corpus.
-%
-% See PLAN decision #14 in /home/brandon_behring/.claude/plans/
-% what-are-the-consudewquence-snazzy-thompson.md
+@article{robinson2015graph,
+  title={Graph Databases: New Opportunities for Connected Data},
+  author={Robinson, Ian and Webber, Jim and Eifrem, Emil},
+  publisher={O'Reilly Media},
+  year={2015},
+  edition={2nd},
+  note={Foundational Neo4j and graph database concepts; see M1, M2}
+}
+
+@inproceedings{francis2018cypher,
+  title={Cypher: An Evolving Query Language for Property Graphs},
+  author={Francis, Nadime and Green, Alastair and Guagliardo, Paolo and Libkin, Leonid and Lindaaker, Tobias and Marsault, Victor and Plantikow, Stefan and Rydberg, Mats and Selmer, Petra and Taylor, Andr{\'e}s},
+  booktitle={Proceedings of the 2018 International Conference on Management of Data},
+  pages={1433--1445},
+  year={2018},
+  organization={ACM},
+  note={Cypher language specification and semantics; see M2}
+}
+
+@article{lewis2020retrieval,
+  title={Retrieval-Augmented Generation for Knowledge-Intensive {NLP} Tasks},
+  author={Lewis, Patrick and Perez, Ethan and Piktus, Aleksandra and Petroni, Fabio and Karpukhin, Vladimir and Goyal, Naman and K{\"u}ttler, Heinrich and Lewis, Mike and Yih, Wen-tau and Rockt{\"a}schel, Tim and others},
+  journal={Advances in Neural Information Processing Systems},
+  volume={33},
+  pages={9459--9474},
+  year={2020},
+  note={Foundational RAG architecture; see M3, M4}
+}
+
+@article{johnson2019billion,
+  title={Billion-Scale Similarity Search with {GPU}s},
+  author={Johnson, Jeff and Douze, Matthijs and J{\'e}gou, Herv{\'e}},
+  journal={IEEE Transactions on Big Data},
+  volume={7},
+  number={3},
+  pages={535--547},
+  year={2019},
+  note={FAISS vector search; vector index fundamentals; see M3}
+}
+
+@article{hogan2021knowledge,
+  title={Knowledge Graphs},
+  author={Hogan, Aidan and Blomqvist, Eva and Cochez, Michael and d'Amato, Claudia and Melo, Gerard de and Gutierrez, Claudio and Kirrane, Sabrina and Gayo, Jos{\'e} Emilio Labra and Navigli, Roberto and Neumaier, Sebastian and others},
+  journal={ACM Computing Surveys},
+  volume={54},
+  number={4},
+  pages={1--37},
+  year={2021},
+  note={Comprehensive KG survey; node/relationship/property model; see M1}
+}
+
+@inproceedings{langchain2023,
+  title={{LangChain}: Building Applications with {LLM}s through Composability},
+  author={Chase, Harrison},
+  year={2023},
+  note={LangChain framework: Neo4jVector, RetrievalQA, GraphCypherQAChain; see M4--M7}
+}
+
+@article{pan2024unifying,
+  title={Unifying Large Language Models and Knowledge Graphs: A Roadmap},
+  author={Pan, Shirui and Luo, Linhao and Wang, Yufei and Chen, Chen and Wang, Jiapu and Wu, Xindong},
+  journal={IEEE Transactions on Knowledge and Data Engineering},
+  volume={36},
+  number={7},
+  pages={3580--3599},
+  year={2024},
+  note={LLM + KG integration patterns; see M7}
+}
+
+@inproceedings{edge2024local,
+  title={From Local to Global: A Graph {RAG} Approach to Query-Focused Summarization},
+  author={Edge, Darren and Trinh, Ha and Cheng, Newman and Bradley, Joshua and Chao, Alex and Mody, Apurva and Truitt, Steven and Larson, Jonathan},
+  booktitle={arXiv preprint arXiv:2404.16130},
+  year={2024},
+  note={Microsoft GraphRAG: community detection + summarization; see M5, M6}
+}
+
+@article{neo4j2024vector,
+  title={Vector Search in {Neo4j}: Combining Graph and Vector for Better {AI}},
+  author={{Neo4j Inc.}},
+  journal={Neo4j Documentation},
+  year={2024},
+  note={Neo4j vector index implementation: genai.vector.encode, db.index.vector.queryNodes; see M3}
+}
+
+@article{gao2024retrieval,
+  title={Retrieval-Augmented Generation for Large Language Models: A Survey},
+  author={Gao, Yunfan and Xiong, Yun and Gao, Xinyu and Jia, Kangxiang and Pan, Jinliu and Bi, Yuxi and Dai, Yi and Sun, Jiawei and Wang, Haofen},
+  journal={arXiv preprint arXiv:2312.10997},
+  year={2024},
+  note={RAG survey: chunking strategies, retrieval methods, generation; see M3, M4}
+}
+
+@article{mihalcea2004textrank,
+  title={{TextRank}: Bringing Order into Texts},
+  author={Mihalcea, Rada and Tarau, Paul},
+  journal={Proceedings of EMNLP},
+  pages={404--411},
+  year={2004},
+  note={Graph-based text ranking; relevance to text-to-graph pipelines; see M4}
+}
+
+@article{sec2024edgar,
+  title={{EDGAR} Full-Text Search: Accessing {SEC} Filings},
+  author={{U.S. Securities and Exchange Commission}},
+  journal={SEC.gov},
+  year={2024},
+  note={SEC EDGAR database: Form 10-K and Form 13 data sources; see M4, M6}
+}
+
+@article{noy2019industry,
+  title={Industry-Scale Knowledge Graphs: Lessons and Challenges},
+  author={Noy, Natasha and Gao, Yuqing and Jain, Anshu and Narang, Anant and Patterson, Alan and Taylor, Jamie},
+  journal={Communications of the ACM},
+  volume={62},
+  number={8},
+  pages={36--43},
+  year={2019},
+  note={Google Knowledge Graph at scale; enterprise KG patterns; see M1, M7}
+}
+
+@article{brown2020language,
+  title={Language Models are Few-Shot Learners},
+  author={Brown, Tom B and Mann, Benjamin and Ryder, Nick and Subbiah, Melanie and Kaplan, Jared and Dhariwal, Prafulla and Neelakantan, Arvind and Shyam, Pranav and Sastry, Girish and Askell, Amanda and others},
+  journal={Advances in Neural Information Processing Systems},
+  volume={33},
+  pages={1877--1901},
+  year={2020},
+  note={Few-shot learning with LLMs; foundation for few-shot Cypher generation; see M7}
+}
+
+@article{angles2017foundations,
+  title={Foundations of Modern Query Languages for Graph Databases},
+  author={Angles, Renzo and Arenas, Marcelo and Barcel{\'o}, Pablo and Hogan, Aidan and Reutter, Juan and Vrgo{\v{c}}, Domagoj},
+  journal={ACM Computing Surveys},
+  volume={50},
+  number={5},
+  pages={1--40},
+  year={2017},
+  note={Graph query language foundations; Cypher semantics and property graph model; see M2, M7}
+}
+
+@article{srivastava2024financial,
+  title={Financial Knowledge Graphs: A Survey of Methods, Applications, and Challenges},
+  author={Srivastava, Saurabh and Hasan, Sadid A. and Yenala, Harish and Roychowdhury, Suchitra},
+  journal={arXiv preprint arXiv:2401.02892},
+  year={2024},
+  note={Financial KG construction from SEC filings; entity resolution with CUSIP/CIK; see M4, M6}
+}
+
+% --- Appendix E: Post-Course Updates ---
+
+@article{ms_graphrag_2024,
+  title = {From Local to Global: A Graph {RAG} Approach to Query-Focused Summarization},
+  author = {Edge, Darren and Trinh, Ha and Cheng, Ning and Bradley, Joshua and Chao, Alex and Mody, Apurva and Truitt, Steven and Larson, Jonathan},
+  journal = {arXiv preprint arXiv:2404.16130},
+  year = {2024},
+  note = {Microsoft GraphRAG: community detection, global/local search, LazyGraphRAG; App.~E}
+}
+
+@online{neo4j_graphrag_python_2025,
+  title = {{neo4j-graphrag-python} Releases},
+  author = {{Neo4j}},
+  year = {2025},
+  url = {https://github.com/neo4j/neo4j-graphrag-python/releases},
+  note = {Official Neo4j GraphRAG Python package: extractors, schema discovery, chat history; App.~E}
+}
+
+@online{neo4j_cypher_ai_2025,
+  title = {New {Cypher} {AI} Procedures},
+  author = {Bergman, Christoffer},
+  year = {2025},
+  url = {https://medium.com/neo4j/new-cypher-ai-procedures-6b8c3177d56d},
+  note = {Native AI functions in Cypher: text completion, structured output; App.~E}
+}
+
+@online{llamaindex_propertygraph_2025,
+  title = {Customizing {PropertyGraphIndex} in {LlamaIndex}},
+  author = {{Neo4j and LlamaIndex}},
+  year = {2025},
+  url = {https://neo4j.com/blog/developer/property-graph-index-llamaindex/},
+  note = {PropertyGraphIndex for KG-powered RAG in LlamaIndex; App.~E}
+}
