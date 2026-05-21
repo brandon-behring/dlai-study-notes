@@ -1,0 +1,698 @@
+---
+book: grpo-finetuning
+title: Reward Design
+chapter: 2
+description: How to design reward functions that produce meaningful learning
+  signals, from binary scoring through partial credit to LLM-as-a-judge, and how
+  to defend against reward hacking
+learning_outcomes:
+  - id: GRPO-2.1
+    verb: explain
+    text: Explain why reward functions must produce diverse scores across sampled
+      responses for GRPO learning to occur
+  - id: GRPO-2.2
+    verb: design
+    text: Design partial-credit reward functions that assign graded scores for
+      partially correct outputs
+  - id: GRPO-2.3
+    verb: apply
+    text: Apply advantage normalization to convert raw reward scores into
+      zero-centered training signals
+  - id: GRPO-2.4
+    verb: evaluate
+    text: Evaluate the trade-offs of LLM-as-a-judge reward functions including score
+      compression and quiz-based grounding
+  - id: GRPO-2.5
+    verb: identify
+    text: Identify reward hacking vulnerabilities and design penalty terms that
+      enforce task constraints
+  - id: GRPO-2.6
+    verb: analyze
+    text: Analyze how temperature controls the exploration–exploitation trade-off in
+      GRPO sampling
+sources: []
+tools_compared:
+  - AI Engineer / MLE --- All companies --- L4/L5
+last_verified: 2026-05-21
+volatility: architectural-pattern
+---
+
+{/* TODO: per-chapter polish pass — see plan decision Q1 round 3 */}
+
+&lt;!–MDXB-8-OPEN–&gt;
+
+Chapter 1 established *why* GRPO works and when to use it. This chapter
+dives into the component that makes or breaks GRPO training: the reward
+function. We progress from naive binary rewards through partial credit and
+LLM-as-a-judge, then confront the central failure mode—reward hacking—and
+design mitigations. Chapter 3 uses these rewards inside the full loss function.
+
+&lt;!–MDXB-8-CLOSE–&gt;
+
+# Binary Rewards and Their Limitations
+
+&lt;!–MDXB-9-OPEN–&gt;
+
+**What**: A binary reward function returns 1 for a correct answer and 0
+for anything else. This is the RL analog of supervised fine-tuning’s ground-truth
+comparison.  
+**Why**: Binary rewards are simple to implement but produce zero
+learning signal when no sampled response is fully correct—the standard
+deviation of rewards is zero, so all advantages are zero.
+
+&lt;!–MDXB-9-CLOSE–&gt;
+
+
+
+<Sidenote category="warning">Binary rewards + hard tasks = zero learning. If no sampled response is exactly correct, all rewards and advantages are 0. No weight update occurs.</Sidenote>
+
+
+
+
+
+```cypher
+def wordle_reward_binary(guess: str, secret_word: str) -> float:
+    """Binary reward: 1.0 for exact match, 0.0 otherwise."""
+    return 1.0 if guess == secret_word else 0.0
+
+# Problem: if none of 8 guesses match, all rewards=0, all advantages=0
+rewards = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+# std(rewards) = 0 -> advantages = [0, 0, 0, ...] -> no learning
+```
+
+
+
+The binary reward function is the RL equivalent of exact-match accuracy. For
+the Wordle task, when the secret word is “pound” and the model guesses
+“crane”, “tower”, “sword”, “food”—none matching—every response
+scores zero. The GRPO algorithm sees uniform rewards and produces zero
+advantages, meaning *no weight updates occur at all*.
+
+
+
+<Sidenote category="interview">GRPO requires reward *variance* within each group. Uniform binary rewards produce zero advantages and zero learning.</Sidenote>
+
+
+
+This reveals two necessary conditions for GRPO learning:
+
+1.  **Diversity of responses**: the model must generate different
+    outputs for the same prompt (controlled by temperature)
+
+2.  **Diversity of rewards**: different responses must receive
+    different scores (controlled by reward function granularity)
+
+# Partial Credit Reward Functions
+
+&lt;!–MDXB-11-OPEN–&gt;
+
+**Core Insight:** A partial-credit reward function assigns graded scores
+based on how close each response is to the target. This produces non-zero
+standard deviations across the group, enabling advantage computation and
+weight updates even when no response is fully correct.
+
+**Why It Matters:** Partial credit converts a sparse binary signal into
+a dense learning signal. The model receives directional feedback: “this
+guess was better than that one” rather than “both were wrong.”
+
+**When It Breaks:** If the partial credit metric does not correlate
+with actual task success, the model optimizes for the proxy metric instead
+of the real objective (reward hacking—see Section <a href="#sec:m2-reward-hacking" data-reference-type="ref" data-reference="sec:m2-reward-hacking">[sec:m2-reward-hacking]</a>).
+
+&lt;!–MDXB-11-CLOSE–&gt;
+
+
+
+```cypher
+def wordle_reward_partial(guess: str, secret_word: str) -> float:
+    """Partial credit: 0.2 per correct-position letter,
+    0.1 per correct-but-wrong-position letter."""
+    if len(guess) != len(secret_word):
+        return 0.0  # Penalize wrong-length guesses
+    score = 0.0
+    secret_letters = set(secret_word)
+    for g, s in zip(guess, secret_word):
+        if g == s:
+            score += 0.2   # Right letter, right position
+        elif g in secret_letters:
+            score += 0.1   # Right letter, wrong position
+    return score  # Range: 0.0 to 1.0
+```
+
+
+
+
+
+<Sidenote category="formula">Partial credit range: 0.0 (no letters match) to 1.0 (all 5 correct position). "nouse" for "pound" scores 0.5.</Sidenote>
+
+
+
+The advantage computation normalizes raw rewards within each
+group<Citation src="shao2024grpo" />:
+
+$$\hat{A}\_i = \frac{r\_i - \mu}{\sigma}$$
+
+where *r*<sub>*i*</sub> is the reward for response *i*, *μ* is the group mean,
+and *σ* is the group standard deviation. Positive advantages
+encourage similar responses; negative advantages discourage them.
+
+
+
+<Sidenote category="pattern">Advantage = z-score of rewards within the group. Above-average responses get positive advantage, below-average get negative. Mean advantage is always zero.</Sidenote>
+
+
+
+
+
+```cypher
+import torch
+
+def compute_advantages(rewards: list[float]) -> list[float]:
+    """Normalize rewards to zero-centered advantages."""
+    t = torch.tensor(rewards, dtype=torch.float32)
+    mean, std = t.mean(), t.std()
+    if std == 0:
+        return [0.0] * len(rewards)
+    return ((t - mean) / std).tolist()
+
+# Example: diverse rewards produce diverse advantages
+rewards = [0.0, 0.2, 0.4, 0.5, 0.6, 0.8, 0.9, 1.0]
+advantages = compute_advantages(rewards)
+# advantages: [-1.53, -0.93, -0.33, -0.03, 0.27, 0.87, 1.17, 1.47]
+```
+
+
+
+# Temperature and the Exploration–Exploitation Trade-off
+
+Temperature controls the randomness of token sampling and therefore the
+diversity of the response group:
+
+- **Temperature = 0** (greedy): deterministic output, every sample
+  identical. Rewards are uniform, advantages are zero. No learning.
+
+- **Temperature = 1.3** (high): diverse outputs, but many are low
+  quality (blank guesses, wrong-length words). Learning is slow because
+  the average guess quality is poor.
+
+- **Temperature = 0.7** (balanced): diverse enough for reward
+  variation, coherent enough for meaningful guesses.
+
+
+
+<Sidenote category="warning">Temperature = 0 is deterministic: all $N$ samples are identical. Advantage = 0 for every response. Always use $T > 0$ for GRPO training. Typical range: 0.6–0.9.</Sidenote>
+
+
+
+&lt;!–MDXB-12-OPEN–&gt;
+
+**Core Insight:** Temperature is the primary hyperparameter controlling
+GRPO’s exploration–exploitation trade-off. Too low means no exploration
+(identical outputs, no learning). Too high means too much exploration
+(incoherent outputs, slow learning).
+
+**Why It Matters:** The “sweet spot” must produce responses that are
+(1) syntactically valid, (2) semantically diverse, and (3) span a range of
+reward scores. For Wordle, 0.7 works well.
+
+**When It Breaks:** As the model improves during training, the optimal
+temperature may shift. Some implementations use temperature annealing.
+
+&lt;!–MDXB-12-CLOSE–&gt;
+
+# LLM-as-a-Judge Reward Functions
+
+For tasks where outputs cannot be verified programmatically—such as
+summarization quality or writing style—an LLM can serve as a proxy
+for human judgment. The judge model scores each response, and that score
+becomes the reward.
+
+
+
+<Sidenote category="interview">For subjective tasks, use LLM-as-a-judge with quiz-based grounding, not open-ended rating. Open-ended scoring suffers from score compression.</Sidenote>
+
+
+
+**Naive approach**: Ask a judge model to rate the output 1–10. Problem:
+LLMs exhibit *score compression*—they cluster ratings around 7–8,
+rarely giving very low or very high scores. This reduces reward variance
+and weakens the learning signal.
+
+**Quiz-based grounding**: A more robust approach developed by Predibase
+customers for summarization tasks<Citation src="dlai-grpo-course" />:
+
+1.  Generate a multiple-choice quiz from the source document using
+    structured output (Pydantic schema for questions, options, answers)
+
+2.  Shuffle answer options to mitigate the LLM’s tendency to place
+    correct answers in position B
+
+3.  Have the judge model take the quiz using *only* the summary
+
+4.  Score = fraction of correctly answered questions
+
+
+
+<Sidenote category="practice">Quiz-based scoring converts subjective quality into objective accuracy. Score range 0.0–1.0 with natural variance.</Sidenote>
+
+
+
+
+
+```cypher
+def quiz_reward(summary: str, quiz: Quiz, judge_model: str) -> float:
+    """Score summary by how many quiz questions
+    the judge can answer using only the summary."""
+    answers = take_quiz(summary, quiz, model=judge_model)
+    return score_quiz_answers(answers, quiz)  # fraction correct
+
+def score_quiz_answers(answers: list[str], quiz: Quiz) -> float:
+    correct = sum(
+        1 for ans, q in zip(answers, quiz.questions)
+        if ans == q.options[q.answer]
+    )
+    return correct / len(quiz.questions)
+```
+
+
+
+
+
+<Sidenote category="crossref">For Pydantic structured output schemas in quiz generation, see Pydantic for LLM Workflows Ch 1 (PLW-1.3).</Sidenote>
+
+
+
+# Reward Hacking
+
+&lt;!–MDXB-13-OPEN–&gt;
+
+**Core Insight:** Reward hacking occurs when the model discovers a
+strategy that maximizes the reward function score without actually solving
+the intended task<Citation src="christiano2017rlhf" />. The model exploits gaps
+between what you measure and what you want.
+
+**Why It Matters:** This is the most common failure mode in RL fine-tuning.
+For summarization with a quiz-based reward, the transcript itself scores
+a perfect 1.0—so the model learns to regurgitate the transcript instead
+of producing a concise summary.
+
+**When It Breaks:** Every reward function is potentially hackable.
+Mitigation requires *multi-objective* rewards with penalty terms that
+enforce auxiliary constraints.
+
+&lt;!–MDXB-13-CLOSE–&gt;
+
+&lt;!–MDXB-15-OPEN–&gt;
+
+**Why interviewers ask this:** Anthropic, OpenAI, and Google DeepMind
+alignment and post-training teams (L5/L6) ask “Design a reward function
+for X and tell me how it could be hacked.” This is a signal question for
+safety-aware engineering. Every frontier lab has experienced reward hacking
+in production—it is the most common RL fine-tuning failure mode.
+
+**What they’re really testing:** Whether you think adversarially
+about reward functions. The meta-signal: can you simultaneously design
+*and* attack your own system? The impressive answer proposes a
+multi-objective reward, then immediately identifies a hack vector and
+adds a mitigation term.
+
+**Expected depth by level:**
+
+- **IC3/IC4:** Define reward hacking with a concrete example
+  (e.g., model copies the transcript to maximize quiz score).
+  Propose a length penalty as mitigation.
+
+- **IC5+/Staff:** Design multi-objective rewards with
+  weighted components, explain Goodhart’s law in the RL context,
+  discuss LLM-as-judge reward functions and their own hack
+  vectors, and propose reward ensemble strategies.
+
+**Red flag:** Designing a single-metric reward without
+acknowledging it is hackable. Any candidate who does not immediately
+ask “how could a model exploit this?” lacks the adversarial mindset
+frontier labs require.
+
+&lt;!–MDXB-15-CLOSE–&gt;
+
+
+
+<Sidenote category="warning">Reward hacking: the full transcript scores 1.0 on the quiz reward, so the model copies it instead of summarizing. Test rewards on adversarial inputs.</Sidenote>
+
+
+
+The earnings call summarization task illustrates this clearly:
+
+- Quiz reward alone: summaries score 0.6–0.8, but the full transcript
+  scores 1.0. The model is incentivized to produce longer outputs.
+
+- Over training, summaries grow longer, approaching transcript length
+
+- The model “hacks” the reward by ignoring the conciseness instruction
+  in favor of information retention
+
+**Mitigation: penalty terms.** Add a length penalty reward that
+penalizes outputs exceeding a target length:
+
+
+
+```cypher
+def length_penalty_reward(response: str, target_len: int = 1024) -> float:
+    """Penalize responses exceeding target character length.
+    Returns 0.0 (no penalty) to -10.0 (max penalty)."""
+    length = len(response)
+    if length <= target_len:
+        return 0.0  # no penalty for concise summaries
+    penalty = -10.0 * (length - target_len) / length
+    return max(penalty, -10.0)
+
+# Full transcript (21k chars) -> max penalty of -10.0
+# Summary at 941 chars -> 0.0 penalty (below target)
+# Summary at 1365 chars -> small negative penalty
+```
+
+
+
+
+
+<Sidenote category="formula">Total reward = quiz_score + length_penalty. The penalty creates a Pareto frontier: balance information retention against conciseness.</Sidenote>
+
+
+
+The final reward function combines quiz score and length penalty:
+
+*R*<sub>total</sub> = *R*<sub>quiz</sub> + *R*<sub>length</sub>
+
+This creates a multi-objective optimization where the model must find responses
+that score well on *both* dimensions. The highest-advantage response is
+the one that retains the most quiz-relevant information within the length budget.
+
+&lt;!–MDXB-14-OPEN–&gt;
+
+**Core Insight:** Single-objective reward functions are fragile.
+Combining multiple reward signals—each capturing a different aspect of
+quality—creates a Pareto frontier that is harder to exploit.
+
+**Why It Matters:** For the Wordle training run (Chapter 3), three
+reward functions are combined: output format check, prior feedback usage,
+and guess effectiveness. Each prevents a different failure mode.
+
+**When It Breaks:** If penalty weights are too high, they dominate the
+primary reward and the model optimizes for the constraint instead of the task.
+Tuning reward weights is an empirical process.
+
+&lt;!–MDXB-14-CLOSE–&gt;
+
+
+
+<Sidenote category="pattern">Reward engineering checklist: (1) define primary metric, (2) test on adversarial inputs, (3) add penalty for each exploit found, (4) verify total reward produces diverse advantages.</Sidenote>
+
+
+
+&lt;!–MDXB-16-OPEN–&gt;
+
+You are training an LLM to generate unit tests for Python functions. Define
+a reward function with at least three components. For each component, explain
+what failure mode it prevents. Show the advantage computation for a sample
+group of 6 responses with your reward function.
+
+&lt;!–MDXB-16-CLOSE–&gt;
+
+&lt;!–MDXB-19-OPEN–&gt;
+
+**Approach:** Design three reward components targeting correctness,
+coverage, and format compliance.
+
+**Step 1: Define components**
+
+- **Syntax reward** (0 or 0.3): Does the generated test file parse
+  without syntax errors? Prevents reward from broken code.
+
+- **Pass rate reward** (0.0–0.5): What fraction of generated tests
+  pass when executed against the target function? Primary quality signal.
+
+- **Coverage reward** (0.0–0.2): What branch coverage do the passing
+  tests achieve? Prevents trivial tests that pass but cover nothing.
+
+*R*<sub>total</sub> = *R*<sub>syntax</sub> + *R*<sub>pass</sub> + *R*<sub>coverage</sub>  
+Range: 0.0 to 1.0.
+
+**Step 2: Sample group**  
+Suppose 6 responses yield rewards: \[0.0, 0.3, 0.5, 0.65, 0.8, 0.95\].  
+Mean = 0.533, Std = 0.330.  
+Advantages: \[−1.62, −0.71, −0.10, +0.35, +0.81, +1.26\].
+
+**Key Insight:** The syntax check acts as a gate—without it, the model
+could produce outputs that accidentally get high coverage scores from parsing
+errors. The multi-component design ensures each dimension of quality is
+independently measured and rewarded.
+
+**Answer:** Design three reward components targeting correctness,
+coverage, and format compliance.
+
+&lt;!–MDXB-19-CLOSE–&gt;
+
+&lt;!–MDXB-17-OPEN–&gt;
+
+After 500 training steps, you observe that your GRPO training loss has
+flatlined near zero and model outputs are not improving. Your reward function
+returns scores in {0, 1} (binary) and you are sampling 8 responses per
+prompt at temperature 0.3. Diagnose the issue and propose two fixes.
+
+&lt;!–MDXB-17-CLOSE–&gt;
+
+&lt;!–MDXB-20-OPEN–&gt;
+
+**Approach:** **Diagnosis:** Two compounding problems cause zero learning.
+
+**Problem 1: Low temperature.** At *T* = 0.3, token sampling is nearly
+greedy. Many of the 8 responses are identical or near-identical, producing
+uniform rewards and zero advantages.
+
+**Problem 2: Binary rewards.** Even with diverse responses, if none
+achieves the exact correct answer, all score 0. If one scores 1 and the rest
+score 0, there is some learning, but the signal is sparse and noisy.
+
+**Fix 1:** Increase temperature to 0.7 to ensure response diversity.
+
+**Fix 2:** Replace the binary reward with a partial-credit function
+that assigns intermediate scores based on partial correctness.
+
+**Key Insight:** GRPO learning requires the product of two diversities:
+diverse responses (temperature) × diverse rewards (partial credit).
+If either is zero, advantages are zero and no learning occurs.
+
+**Answer:** **Diagnosis:** Two compounding problems cause zero learning.
+
+**Problem 1: Low temperature.** At *T* = 0.3, token sampling is nearly
+greedy.
+
+&lt;!–MDXB-20-CLOSE–&gt;
+
+&lt;!–MDXB-18-OPEN–&gt;
+
+You implement an LLM-as-a-judge reward for a dialogue summarization task. The
+judge (GPT-4) rates each summary on a 1–10 scale. After generating 16 candidate
+summaries for a single prompt, you observe the following score distribution:
+\[7, 7, 7, 8, 7, 8, 7, 7, 8, 7, 7, 8, 7, 7, 7, 8\].
+
+(a) Compute the mean, standard deviation, and resulting advantages for the
+responses scoring 7 and 8.
+
+(b) Explain why this distribution is problematic for GRPO training.
+
+(c) Design a quiz-based grounding alternative that would produce a wider score
+distribution. Describe the quiz generation pipeline, how you would handle answer
+shuffling, and the expected score range.
+
+&lt;!–MDXB-18-CLOSE–&gt;
+
+&lt;!–MDXB-21-OPEN–&gt;
+
+**Approach:** Compute advantage statistics and diagnose score compression.
+
+**(a) Statistics:**  
+Scores: eleven 7s and five 8s.  
+Mean *μ* = (11 × 7 + 5 × 8)/16 = 117/16 = 7.3125.  
+Variance  = (11 × (7 − 7.3125)<sup>2</sup> + 5 × (8 − 7.3125)<sup>2</sup>)/16 = (11 × 0.0977 + 5 × 0.4727)/16 = 0.215.  
+Std *σ* ≈ 0.464.  
+Advantage for score 7: (7 − 7.3125)/0.464 = −0.67.  
+Advantage for score 8: (8 − 7.3125)/0.464 = +1.48.
+
+**(b) Problem:** Score compression reduces the effective range to a single integer difference.
+With *σ* = 0.464, the advantage magnitudes are modest and the gradient signal is weak.
+
+Worse, the judge conflates “mediocre” and “good” summaries into the same 7–8 band, so the model receives almost no signal about which aspects of a summary matter.
+Over many training steps, learning is slow and the model may converge on superficial features that nudge scores from 7 to 8 rather than genuinely improving summary quality.
+
+**(c) Quiz-based alternative:**
+
+1.  Generate a 10-question multiple-choice quiz from the source document
+    using structured output (Pydantic schema: question, 4 options, correct
+    index).
+
+2.  Shuffle answer options randomly to prevent the judge from exploiting
+    positional bias (LLMs tend to favor option B).
+
+3.  Have the judge answer all 10 questions using *only* the candidate
+    summary as context.
+
+4.  Score = fraction correct (range 0.0 to 1.0 in increments of 0.1).
+
+Expected distribution: scores spanning 0.3–0.9 with natural variance driven by
+which facts the summary retains or omits, producing *σ* ≈ 0.15–0.25
+and much sharper advantage separation.
+
+**Key Insight:** Quiz-based grounding converts a subjective rating into an
+objective accuracy metric. The score distribution is driven by information
+retention, not by the judge’s rating biases, producing the reward variance GRPO
+needs.
+
+**Answer:**
+
+&lt;!–MDXB-21-CLOSE–&gt;
+
+&lt;!–MDXB-22-OPEN–&gt;
+
+\[GRPO-2.4, GRPO-2.5\]
+Your team ships a GRPO-tuned summarization model using an LLM-as-a-judge reward
+that asks GPT-4 to rate summaries 1–10. After two weeks in production, the PM
+reports that summaries are verbose and formulaic—they all start with “This
+document discusses…” and pad to exactly 800 tokens. Meanwhile, the reward
+dashboard shows a steady climb from 6.2 to 8.1 average score. The judge model
+exhibits score compression: 94% of ratings fall between 7 and 9.
+
+**Question 1:** Why does score compression in the LLM-as-a-judge reward
+weaken GRPO’s learning signal, and how does it interact with advantage
+normalization?
+
+**Question 2:** Design a quiz-based grounding replacement that produces
+a wider score distribution. Specify the quiz generation pipeline and how you
+would shuffle answer options.
+
+**Question 3:** The model has also learned the formulaic opening. Propose
+a penalty term that discourages template-style outputs without penalizing all
+long summaries equally.
+
+**Answer Rubric:**
+
+- **Q1:** Score compression collapses the advantage distribution—when 94% of scores land in a 2-point band, group-relative advantages become near-zero after
+  normalization, so the policy gradient vanishes and the model stops learning meaningful distinctions between good and bad summaries.
+
+- **Q2:** Generate 5 factual quiz questions per source document (entity, number, relationship, temporal, causal), score each summary 0/1 per question, and shuffle answer
+  options with distractors drawn from other documents; the resulting 0–5 integer scale produces a uniform-like distribution with high inter-rater reliability.
+
+- **Q3:** Add a *self-BLEU penalty* that computes n-gram overlap between the candidate summary and a template bank of known formulaic openings, then subtract *λ* ⋅ self-BLEU from the reward; this penalizes structural repetition while leaving genuinely long but original summaries unaffected because their n-gram overlap with the
+  template bank stays low.
+
+&lt;!–MDXB-22-CLOSE–&gt;
+
+&lt;!–MDXB-23-OPEN–&gt;
+
+\[GRPO-1.3, GRPO-2.6\]
+An e-commerce startup wants to GRPO-tune a 3B model to classify customer support
+tickets into five urgency tiers and draft a one-sentence routing justification.
+They have 200 labeled tickets but 50,000 unlabeled ones. The CTO proposes
+using all 50,000 unlabeled tickets as GRPO prompts with a reward function that
+checks (1) valid tier assignment and (2) justification mentions at least one
+keyword from the ticket. The ML lead worries that the reward is too easy to hack
+and that temperature tuning on a classification task is fundamentally different
+from a generation task like Wordle.
+
+**Question 1:** Is this task a good fit for reinforcement fine-tuning?
+Evaluate against the three RFT gates (label volume, CoT benefit, output
+verifiability) and recommend SFT, GRPO, or a combination.
+
+**Question 2:** The ML lead’s concern about temperature is valid—at
+*T* = 0.7, the model produces diverse but often incorrect tier assignments. At
+*T* = 0.2, all 16 samples return the same tier. Propose a temperature strategy
+that accounts for the classification-vs-generation distinction.
+
+**Question 3:** The keyword-matching reward is trivially hackable (the
+model can parrot the ticket text). Design a three-component reward function
+that resists this exploit while producing sufficient score variance for GRPO
+learning.
+
+**Answer Rubric:**
+
+- **Q1:** Classification with only 5 discrete outputs benefits little from chain-of-thought and is easily verifiable, so SFT on the 200 labeled examples to teach format,
+  then GRPO on the 50K unlabeled prompts is the right combination—pure GRPO fails the “label volume” gate since there is no ground truth to learn from on the unlabeled set
+  without a well-calibrated reward.
+
+- **Q2:** Use a low temperature (*T* = 0.1–0.2) for the tier classification token to keep assignments accurate, but apply a higher temperature (*T* = 0.6–0.8) to the
+  justification generation portion; this can be achieved with a two-stage decoding strategy or by structuring the output so the tier is generated first with constrained sampling.
+
+- **Q3:** Combine (1) NLI-based entailment score verifying the justification is *entailed* by the ticket rather than copied from it, (2) tier-correctness checked
+  against a soft classifier trained on the 200 labeled examples, and (3) a brevity bonus rewarding justifications under 30 tokens; the NLI component breaks the parroting exploit
+  while the three-way combination produces score variance across the 0–3 range.
+
+&lt;!–MDXB-23-CLOSE–&gt;
+
+&lt;!–MDXB-10-OPEN–&gt;
+
+1.  Why do binary reward functions often produce zero learning signal
+    in GRPO?
+
+2.  Write the advantage normalization formula and explain each term.
+
+3.  What two conditions must hold for GRPO to produce non-zero
+    advantages?
+
+4.  Why does the naive LLM-as-a-judge approach suffer from score
+    compression? How does quiz-based grounding fix it?
+
+5.  Define reward hacking. Give one example from the summarization task.
+
+6.  Why is temperature = 0 incompatible with GRPO training?
+
+&lt;!–MDXB-10-CLOSE–&gt;
+
+{/* CARD-PLACEMENT-AUTOSTART */}
+
+## Review
+
+{/* CARD-PLACEMENT-TODO: polish pass should move these cards inline */}
+{/* near the concepts they test, per Q-R4.4 hybrid placement.       */}
+
+### Checkpoint cards (6)
+
+<AnkiCard type="checkpoint" id="chapters-vol0-ch02-CHECKPOINT-SELFCHECK_M2_REWARD_DESIGN_Q1" los="" front={"Why do binary reward functions often produce zero learning signal\n in GRPO?"} back={"Self-check from: Self-Check: M2 --- Reward Design\n\n(Answer from memory, then verify against the chapter text.)"} />
+
+<AnkiCard type="checkpoint" id="chapters-vol0-ch02-CHECKPOINT-SELFCHECK_M2_REWARD_DESIGN_Q2" los="" front={"Write the advantage normalization formula and explain each term."} back={"Self-check from: Self-Check: M2 --- Reward Design\n\n(Answer from memory, then verify against the chapter text.)"} />
+
+<AnkiCard type="checkpoint" id="chapters-vol0-ch02-CHECKPOINT-SELFCHECK_M2_REWARD_DESIGN_Q3" los="" front={"What two conditions must hold for GRPO to produce non-zero\n advantages?"} back={"Self-check from: Self-Check: M2 --- Reward Design\n\n(Answer from memory, then verify against the chapter text.)"} />
+
+<AnkiCard type="checkpoint" id="chapters-vol0-ch02-CHECKPOINT-SELFCHECK_M2_REWARD_DESIGN_Q4" los="" front={"Why does the naive LLM-as-a-judge approach suffer from score\n compression? How does quiz-based grounding fix it?"} back={"Self-check from: Self-Check: M2 --- Reward Design\n\n(Answer from memory, then verify against the chapter text.)"} />
+
+<AnkiCard type="checkpoint" id="chapters-vol0-ch02-CHECKPOINT-SELFCHECK_M2_REWARD_DESIGN_Q5" los="" front={"Define reward hacking. Give one example from the summarization task."} back={"Self-check from: Self-Check: M2 --- Reward Design\n\n(Answer from memory, then verify against the chapter text.)"} />
+
+<AnkiCard type="checkpoint" id="chapters-vol0-ch02-CHECKPOINT-SELFCHECK_M2_REWARD_DESIGN_Q6" los="" front={"Why is temperature = 0 incompatible with GRPO training?"} back={"Self-check from: Self-Check: M2 --- Reward Design\n\n(Answer from memory, then verify against the chapter text.)"} />
+
+### Keyconcept cards (4)
+
+<AnkiCard type="keyconcept" id="chapters-vol0-ch02-CONCEPT-PARTIAL_CREDIT_UNLOCKS_CONTINUOUS_LEARNING" los="GRPO-2.2" front={"Key Concept: Partial Credit Unlocks Continuous Learning"} back={"Core Insight: A partial-credit reward function assigns graded scores\nbased on how close each response is to the target. This produces non-zero\nstandard deviations across the group, enabling advantage computation and\nweight updates even when no response is fully correct.\n\nWhy It Matters: Partial credit converts a sparse binary signal into\na dense learning signal. The model receives directional feedback: \"this\nguess was better than that one\" rather than \"both were wrong.\"\n\nWhen It Breaks: If the partial credit metric does not correlate\nwith actual task success, the model optimizes for the proxy metric instead\nof the real objective (reward hacking—see Section (§ m2-reward-hacking))."} />
+
+<AnkiCard type="keyconcept" id="chapters-vol0-ch02-CONCEPT-TEMPERATURE_AS_THE_DIVERSITY_LEVER" los="GRPO-2.6" front={"Key Concept: Temperature as the Diversity Lever"} back={"Core Insight: Temperature is the primary hyperparameter controlling\nGRPO's exploration–exploitation trade-off. Too low means no exploration\n(identical outputs, no learning). Too high means too much exploration\n(incoherent outputs, slow learning).\n\nWhy It Matters: The \"sweet spot\" must produce responses that are\n(1) syntactically valid, (2) semantically diverse, and (3) span a range of\nreward scores. For Wordle, 0.7 works well.\n\nWhen It Breaks: As the model improves during training, the optimal\ntemperature may shift. Some implementations use temperature annealing."} />
+
+<AnkiCard type="keyconcept" id="chapters-vol0-ch02-CONCEPT-REWARD_HACKING_OPTIMIZING_THE_PROXY_NOT_THE_GOAL" los="GRPO-2.5" front={"Key Concept: Reward Hacking: Optimizing the Proxy, Not the Goal"} back={"Core Insight: Reward hacking occurs when the model discovers a\nstrategy that maximizes the reward function score without actually solving\nthe intended task. The model exploits gaps\nbetween what you measure and what you want.\n\nWhy It Matters: This is the most common failure mode in RL fine-tuning.\nFor summarization with a quiz-based reward, the transcript itself scores\na perfect 1.0—so the model learns to regurgitate the transcript instead\nof producing a concise summary.\n\nWhen It Breaks: Every reward function is potentially hackable.\nMitigation requires multi-objective rewards with penalty terms that\nenforce auxiliary constraints."} />
+
+<AnkiCard type="keyconcept" id="chapters-vol0-ch02-CONCEPT-MULTIOBJECTIVE_REWARDS_AS_HACK_RESISTANCE" los="GRPO-2.5" front={"Key Concept: Multi-Objective Rewards as Hack Resistance"} back={"Core Insight: Single-objective reward functions are fragile.\nCombining multiple reward signals—each capturing a different aspect of\nquality—creates a Pareto frontier that is harder to exploit.\n\nWhy It Matters: For the Wordle training run (Chapter 3), three\nreward functions are combined: output format check, prior feedback usage,\nand guess effectiveness. Each prevents a different failure mode.\n\nWhen It Breaks: If penalty weights are too high, they dominate the\nprimary reward and the model optimizes for the constraint instead of the task.\nTuning reward weights is an empirical process."} />
+
+### Problem cards (3)
+
+<AnkiCard type="problem" id="chapters-vol0-ch02-PROB-YOU_ARE_TRAINING_AN_LLM_TO_GENERATE_UNIT_TESTS_FOR" los="GRPO-2.2" front={"You are training an LLM to generate unit tests for Python functions. Define\na reward function with at least three components. For each component, explain\nwhat failure mode it prevents. Show the advantage computation for a sample\ngroup of 6 responses with your reward function."} back={"Approach: Design three reward components targeting correctness,\ncoverage, and format compliance.\n\nStep 1: Define components\n\n- Syntax reward (0 or 0.3): Does the generated test file parse\n without syntax errors? Prevents reward from broken code.\n\n- Pass rate reward (0.0–0.5): What fraction of generated tests\n pass when executed against the target function? Primary quality signal.\n\n- Coverage reward (0.0–0.2): What branch coverage do the passing\n tests achieve? Prevents trivial tests that pass but cover nothing.\n\n$R_{\\text{total}} = R_{\\text{syntax}} + R_{\\text{pass}} + R_{\\text{coverage}}$ \nRange: 0.0 to 1.0.\n\nStep 2: Sample group \nSuppose 6 responses yield rewards: [0.0, 0.3, 0.5, 0.65, 0.8, 0.95]. \nMean = 0.533, Std = 0.330. \nAdvantages: [$-1.62$, $-0.71$, $-0.10$, $+0.35$, $+0.81$, $+1.26$].\n\nKey Insight: The syntax check acts as a gate—without it, the model\ncould produce outputs that accidentally get high coverage scores from parsing\nerrors. The multi-component design ensures each dimension of quality is\nindependently measured and rewarded.\n\nAnswer: Design three reward components targeting correctness,\ncoverage, and format compliance."} />
+
+<AnkiCard type="problem" id="chapters-vol0-ch02-PROB-AFTER_500_TRAINING_STEPS_YOU_OBSERVE_THAT_YOUR_GRP" los="GRPO-2.1" front={"After 500 training steps, you observe that your GRPO training loss has\nflatlined near zero and model outputs are not improving. Your reward function\nreturns scores in ${0, 1}$ (binary) and you are sampling 8 responses per\nprompt at temperature 0.3. Diagnose the issue and propose two fixes."} back={"Approach: Diagnosis: Two compounding problems cause zero learning.\n\nProblem 1: Low temperature. At $T=0.3$, token sampling is nearly\ngreedy. Many of the 8 responses are identical or near-identical, producing\nuniform rewards and zero advantages.\n\nProblem 2: Binary rewards. Even with diverse responses, if none\nachieves the exact correct answer, all score 0. If one scores 1 and the rest\nscore 0, there is some learning, but the signal is sparse and noisy.\n\nFix 1: Increase temperature to 0.7 to ensure response diversity.\n\nFix 2: Replace the binary reward with a partial-credit function\nthat assigns intermediate scores based on partial correctness.\n\nKey Insight: GRPO learning requires the product of two diversities:\ndiverse responses (temperature) $\\times$ diverse rewards (partial credit).\nIf either is zero, advantages are zero and no learning occurs.\n\nAnswer: Diagnosis: Two compounding problems cause zero learning.\n\nProblem 1: Low temperature. At $T=0.3$, token sampling is nearly\ngreedy."} />
+
+<AnkiCard type="problem" id="chapters-vol0-ch02-PROB-YOU_IMPLEMENT_AN_LLMASAJUDGE_REWARD_FOR_A_DIALOGUE" los="GRPO-2.4" front={"You implement an LLM-as-a-judge reward for a dialogue summarization task. The\njudge (GPT-4) rates each summary on a 1–10 scale. After generating 16 candidate\nsummaries for a single prompt, you observe the following score distribution:\n$[7, 7, 7, 8, 7, 8, 7, 7, 8, 7, 7, 8, 7, 7, 7, 8]$.\n\n(a) Compute the mean, standard deviation, and resulting advantages for the\nresponses scoring 7 and 8.\n\n(b) Explain why this distribution is problematic for GRPO training.\n\n(c) Design a quiz-based grounding alternative that would produce a wider score\ndistribution. Describe the quiz generation pipeline, how you would handle answer\nshuffling, and the expected score range."} back={"Approach: Compute advantage statistics and diagnose score compression.\n\n(a) Statistics: \nScores: eleven 7s and five 8s. \nMean $\\mu = (11 \\times 7 + 5 \\times 8) / 16 = 117/16 = 7.3125$. \nVariance $= (11 \\times (7-7.3125)^2 + 5 \\times (8-7.3125)^2)/16 = (11 \\times 0.0977 + 5 \\times 0.4727)/16 = 0.215$. \nStd $\\sigma approx 0.464$. \nAdvantage for score 7: $(7-7.3125)/0.464 = -0.67$. \nAdvantage for score 8: $(8-7.3125)/0.464 = +1.48$.\n\n(b) Problem: Score compression reduces the effective range to a single integer difference.\nWith $\\sigma = 0.464$, the advantage magnitudes are modest and the gradient signal is weak.\n\nWorse, the judge conflates \"mediocre\" and \"good\" summaries into the same 7–8 band, so the model receives almost no signal about which aspects of a summary matter.\nOver many training steps, learning is slow and the model may converge on superficial features that nudge scores from 7 to 8 rather than genuinely improving summary quality.\n\n(c) Quiz-based alternative:\n\n- Generate a 10-question multiple-choice quiz from the source document\n using structured output (Pydantic schema: question, 4 options, correct\n index).\n\n- Shuffle answer options randomly to prevent the judge from exploiting\n positional bias (LLMs tend to favor option B).\n\n- Have the judge answer all 10 questions using only the candidate\n summary as context.\n\n- Score = fraction correct (range 0.0 to 1.0 in increments of 0.1).\n\nExpected distribution: scores spanning 0.3–0.9 with natural variance driven by\nwhich facts the summary retains or omits, producing $\\sigma approx 0.15$–$0.25$\nand much sharper advantage separation.\n\nKey Insight: Quiz-based grounding converts a subjective rating into an\nobjective accuracy metric. The score distribution is driven by information\nretention, not by the judge's rating biases, producing the reward variance GRPO\nneeds.\n\nAnswer:\n\n- Statistics: Scores: eleven 7s and five 8s. Mean $\\mu = (11 \\times 7 + 5 \\times 8) / 16 = 117/16 = 7.3125$."} />
+
+### Vignette cards (2)
+
+<AnkiCard type="vignette" id="chapters-vol0-ch02-VIG-THE_SUMMARIZATION_REWARD_REDESIGN" los="GRPO-2.4, GRPO-2.5" front={"Case Study: The Summarization Reward Redesign\n\nYour team ships a GRPO-tuned summarization model using an LLM-as-a-judge reward\nthat asks GPT-4 to rate summaries 1–10. After two weeks in production, the PM\nreports that summaries are verbose and formulaic—they all start with \"This\ndocument discusses \" and pad to exactly 800 tokens. Meanwhile, the reward\ndashboard shows a steady climb from 6.2 to 8.1 average score. The judge model\nexhibits score compression: 94"} back={"Question 1: Why does score compression in the LLM-as-a-judge reward\nweaken GRPO's learning signal, and how does it interact with advantage\nnormalization?\n\nQuestion 2: Design a quiz-based grounding replacement that produces\na wider score distribution. Specify the quiz generation pipeline and how you\nwould shuffle answer options.\n\nQuestion 3: The model has also learned the formulaic opening. Propose\na penalty term that discourages template-style outputs without penalizing all\nlong summaries equally.\n\nAnswer Rubric:\n\n- Q1: Score compression collapses the advantage distribution—when 94\n normalization, so the policy gradient vanishes and the model stops learning meaningful distinctions between good and bad summaries.\n\n- Q2: Generate 5 factual quiz questions per source document (entity, number, relationship, temporal, causal), score each summary 0/1 per question, and shuffle answer\n options with distractors drawn from other documents; the resulting 0–5 integer scale produces a uniform-like distribution with high inter-rater reliability.\n\n- Q3: Add a self-BLEU penalty that computes n-gram overlap between the candidate summary and a template bank of known formulaic openings, then subtract $\\lambda\n    \\cdot \\text{self-BLEU}$ from the reward; this penalizes structural repetition while leaving genuinely long but original summaries unaffected because their n-gram overlap with the\n template bank stays low."} />
+
+<AnkiCard type="vignette" id="chapters-vol0-ch02-VIG-DEPLOYING_GRPO_FOR_CUSTOMER_SUPPORT_ROUTING" los="GRPO-1.3, GRPO-2.6" front={"Case Study: Deploying GRPO for Customer Support Routing\n\nAn e-commerce startup wants to GRPO-tune a 3B model to classify customer support\ntickets into five urgency tiers and draft a one-sentence routing justification.\nThey have 200 labeled tickets but 50,000 unlabeled ones. The CTO proposes\nusing all 50,000 unlabeled tickets as GRPO prompts with a reward function that\nchecks (1) valid tier assignment and (2) justification mentions at least one\nkeyword from the ticket. The ML lead worries that the reward is too easy to hack\nand that temperature tuning on a classification task is fundamentally different\nfrom a generation task like Wordle."} back={"Question 1: Is this task a good fit for reinforcement fine-tuning?\nEvaluate against the three RFT gates (label volume, CoT benefit, output\nverifiability) and recommend SFT, GRPO, or a combination.\n\nQuestion 2: The ML lead's concern about temperature is valid—at\n$T=0.7$, the model produces diverse but often incorrect tier assignments. At\n$T=0.2$, all 16 samples return the same tier. Propose a temperature strategy\nthat accounts for the classification-vs-generation distinction.\n\nQuestion 3: The keyword-matching reward is trivially hackable (the\nmodel can parrot the ticket text). Design a three-component reward function\nthat resists this exploit while producing sufficient score variance for GRPO\nlearning.\n\nAnswer Rubric:\n\n- Q1: Classification with only 5 discrete outputs benefits little from chain-of-thought and is easily verifiable, so SFT on the 200 labeled examples to teach format,\n then GRPO on the 50K unlabeled prompts is the right combination—pure GRPO fails the \"label volume\" gate since there is no ground truth to learn from on the unlabeled set\n without a well-calibrated reward.\n\n- Q2: Use a low temperature ($T{=}0.1$–$0.2$) for the tier classification token to keep assignments accurate, but apply a higher temperature ($T{=}0.6$–$0.8$) to the\n justification generation portion; this can be achieved with a two-stage decoding strategy or by structuring the output so the tier is generated first with constrained sampling.\n\n- Q3: Combine (1) NLI-based entailment score verifying the justification is entailed by the ticket rather than copied from it, (2) tier-correctness checked\n against a soft classifier trained on the 200 labeled examples, and (3) a brevity bonus rewarding justifications under 30 tokens; the NLI component breaks the parroting exploit\n while the three-way combination produces score variance across the 0–3 range."} />
+
+### Interview cards (1)
+
+<AnkiCard type="interview" id="chapters-vol0-ch02-INT-REWARD_DESIGN_AND_REWARD_HACKING" los="GRPO-2.5" front={"Interview Q: Goodhart's law in the RL context,\n discuss LLM-as-judge reward functions and their own hack\n..."} back={"Why interviewers ask this: Anthropic, OpenAI, and Google DeepMind\n alignment and post-training teams (L5/L6) ask \"Design a reward function\n for X and tell me how it could be hacked.\" This is a signal question for\n safety-aware engineering. Every frontier lab has experienced reward hacking\n in production—it is the most common RL fine-tuning failure mode.\n\n What they're really testing: Whether you think adversarially\n about reward functions."} />
+
+{/* CARD-PLACEMENT-AUTOEND */}

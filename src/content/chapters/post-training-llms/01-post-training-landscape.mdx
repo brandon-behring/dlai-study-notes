@@ -1,0 +1,551 @@
+---
+book: post-training-llms
+title: The Post-Training Landscape
+chapter: 1
+description: Pre-training gives knowledge; post-training gives behavior—SFT,
+  DPO, and online RL each address a different control surface
+learning_outcomes:
+  - id: PTL-1.1
+    verb: explain
+    text: Explain the two-phase LLM training pipeline (pre-training for knowledge,
+      post-training for behavior) and why the phases differ in data scale and
+      cost
+  - id: PTL-1.2
+    verb: compare
+    text: Compare SFT, DPO, and online RL in terms of data format, loss signal, and
+      best-fit use case
+  - id: PTL-1.3
+    verb: identify
+    text: "Identify the three elements required for successful post-training:
+      data–algorithm co-design, reliable library, and evaluation suite"
+  - id: PTL-1.4
+    verb: evaluate
+    text: Evaluate when post-training is the right intervention versus prompting,
+      RAG, or continual pre-training
+  - id: PTL-1.5
+    verb: describe
+    text: Describe the evaluation landscape for post-trained models including
+      Chatbot Arena, AlpacaEval, LiveCodeBench, and AIME benchmarks
+  - id: PTL-1.6
+    verb: analyze
+    text: "Analyze the trade-off between GRPO and PPO for online RL: GRPO eliminates
+      the value model by comparing grouped responses, while PPO provides
+      per-token credit assignment at the cost of training a separate value
+      network"
+sources: []
+tools_compared:
+  - AI Engineer / MLE --- All companies --- L4/L5
+last_verified: 2026-05-21
+volatility: architectural-pattern
+---
+
+{/* TODO: per-chapter polish pass — see plan decision Q1 round 3 */}
+
+&lt;!–MDXB-6-OPEN–&gt;
+
+This opening chapter maps the full post-training landscape before we dive into
+individual methods. The goal is a mental model: pre-training builds the engine,
+post-training steers it. Every subsequent chapter implements one steering method
+(SFT, DPO, online RL) with code.
+
+&lt;!–MDXB-6-CLOSE–&gt;
+
+# Pre-Training vs Post-Training
+
+&lt;!–MDXB-7-OPEN–&gt;
+
+**What**: LLM training splits into two phases. Pre-training learns to predict
+the next token from massive unlabeled corpora (Wikipedia, Common Crawl, GitHub)—often
+trillions of tokens over months. Post-training refines the resulting base model on
+curated data so it follows instructions, uses tools, or adopts specific behaviors.  
+**Why**: A base model can predict likely continuations but cannot answer questions.
+Post-training bridges the gap between “predicts text” and “solves tasks.”
+
+&lt;!–MDXB-7-CLOSE–&gt;
+
+
+
+<Sidenote category="interview">"Walk me through LLM training." Two sentences: pre-training = next-token prediction on trillions of tokens; post-training = behavior alignment on curated data (1K–1B tokens).</Sidenote>
+
+
+
+Pre-training minimizes the negative log-likelihood for every token in the corpus:
+ℒ<sub>PT</sub> = −∑<sub>*t*</sub>log *P*(*x*<sub>*t*</sub> ∣ *x*<sub> &lt; *t*</sub>)
+The result is a *base model* that completes text but does not follow instructions.
+Post-training then operates on curated prompt–response data at a fraction of the
+pre-training scale, typically 1 000 to 1 billion tokens<Citation src="ouyang2022instructgpt" />.
+
+
+
+<Sidenote category="formula">Pre-train: minimize $-\! P(x_t  x_{<t})$ over all tokens. Post-train: same objective but **only on response tokens** (SFT case).</Sidenote>
+
+
+
+The base model’s behavior after pre-training is predictable: given “What is the
+capital of France?” it may generate a similar question rather than answering. After
+post-training—specifically SFT on instruction data—it learns to respond “The
+capital of France is Paris.”
+
+&lt;!–MDXB-10-OPEN–&gt;
+
+**Core Insight:** Pre-training and post-training optimize the same next-token
+objective but differ in scope and purpose. Pre-training sees trillions of tokens to
+build world knowledge; post-training sees thousands to millions of curated tokens to
+steer how that knowledge is expressed.
+
+**Why It Matters:** This separation means you can swap the behavior layer
+(instruction following, safety, tool use) without retraining knowledge from scratch.
+Post-training is orders of magnitude cheaper than pre-training.
+
+**When It Breaks:** Post-training cannot inject knowledge the base model lacks.
+If the model never saw medical literature during pre-training, SFT on medical Q&A
+produces fluent but hallucinated answers. Use continual pre-training first for new
+domains.
+
+&lt;!–MDXB-10-CLOSE–&gt;
+
+# The Three Post-Training Methods
+
+
+
+<Sidenote category="pattern">Post-training pipeline: Base model ${SFT}$ Instruct model ${DPO}$ Aligned model ${Online RL}$ Capability-enhanced model.</Sidenote>
+
+
+
+## Supervised Fine-Tuning (SFT)
+
+SFT treats post-training as imitation learning on labeled prompt–response pairs.
+The loss is the negative log-likelihood of the response tokens only:
+ℒ<sub>SFT</sub> = −∑<sub>*i*</sub>log *P*(response<sub>*i*</sub> ∣ prompt<sub>*i*</sub>)
+SFT is the simplest method and the typical first step: it turns a base model into an
+instruct model that can follow instructions, use tools, or chat fluently.
+
+## Direct Preference Optimization (DPO)
+
+DPO learns from pairs of good and bad responses for the same prompt<Citation src="rafailov2023dpo" />. It pushes the
+model toward preferred outputs and away from dispreferred ones using a contrastive
+loss. Unlike RLHF, DPO requires no separate reward model—the preference signal is
+baked directly into the loss function. Typical use case: changing model identity,
+improving safety responses, or refining style.
+
+## Online Reinforcement Learning
+
+Online RL lets the model generate its own responses, scores them with a reward
+function, and updates weights to maximize reward. Two algorithms dominate:
+
+- **PPO** (Proximal Policy Optimization)—used in the original ChatGPT<Citation src="schulman2017ppo" />;
+  requires a trained value model for per-token credit assignment
+
+- **GRPO** (Group Relative Policy Optimization)—proposed by DeepSeek<Citation src="shao2024grpo" />;
+  eliminates the value model by comparing a group of responses per prompt
+
+
+
+<Sidenote category="formula">GRPO advantage: $A_i = (r_i - r)/_r$ over a group of $G$ responses. No value model needed.</Sidenote>
+
+
+
+
+
+<Sidenote category="warning">Improving one benchmark with post-training can degrade others. Always evaluate on a diverse suite, not a single metric.</Sidenote>
+
+
+
+&lt;!–MDXB-11-OPEN–&gt;
+
+**Core Insight:** Each post-training method requires a different data structure:
+SFT needs prompt–response pairs, DPO needs prompt + chosen/rejected pairs, and
+online RL needs prompts + a reward function (no labeled responses required).
+
+**Why It Matters:** Data format drives method selection. If you can only
+collect binary correctness signals (math, code), online RL with verifiable rewards
+is natural. If you have expert demonstrations, SFT is the starting point.
+
+**When It Breaks:** SFT imitates all data equally—low-quality examples
+degrade the model. DPO can overfit to surface-level shortcuts in the preference
+pairs. Online RL requires a reliable reward signal or it amplifies reward hacking.
+
+&lt;!–MDXB-11-CLOSE–&gt;
+
+&lt;!–MDXB-13-OPEN–&gt;
+
+**Why interviewers ask this:** Anthropic, OpenAI, and Google DeepMind
+MLE screens (L4–L5) ask “walk me through SFT vs DPO vs RLHF” in 70%+
+of alignment-team loops. It gates whether you can design a post-training
+pipeline end-to-end.
+
+**What they’re really testing:** Whether you reason from *data
+format* to *method*, not from method to data. The impressive answer
+starts with “what signal do I have?” (demonstrations, preferences, or
+a reward function) and derives the algorithm. The correct-but-mediocre
+answer lists methods with textbook definitions.
+
+**Expected depth by level:**
+
+- **IC3/IC4:** Name the three methods, state data format
+  for each, give one use case per method. Know SFT comes first.
+
+- **IC5+/Staff:** Discuss when to chain methods (SFT then
+  DPO then GRPO), failure modes of each stage, evaluation strategy
+  across the pipeline, and data–algorithm co-design trade-offs.
+
+**Red flag:** Treating DPO and RLHF as interchangeable, or claiming
+DPO “always replaces” RLHF without acknowledging that online RL enables
+exploration beyond the preference dataset.
+
+&lt;!–MDXB-13-CLOSE–&gt;
+
+# Three Elements of Successful Post-Training
+
+&lt;!–MDXB-8-OPEN–&gt;
+
+**What**: Banghua Zhu identifies three prerequisites: (1) co-design of data and
+algorithm, (2) a reliable training library, and (3) an appropriate evaluation suite.  
+**Why**: Getting any single element wrong—wrong data format for the algorithm,
+buggy gradient computation, or evaluating on the wrong benchmark—causes silent
+failure. The model trains but does not improve on what matters.
+
+&lt;!–MDXB-8-CLOSE–&gt;
+
+
+
+<Sidenote category="interview">NexusFlow perspective: the hardest part of post-training is *not* the algorithm—it is curating the right data and choosing the right evaluation. Name specific benchmarks.</Sidenote>
+
+
+
+**Data–algorithm co-design.** Each method (SFT, DPO, GRPO, PPO, RLOO)
+requires a slightly different data structure. Mismatching data to algorithm
+(e.g., feeding preference pairs to SFTTrainer) produces silent failures.
+
+
+
+<Sidenote category="practice">TRL for prototyping; OpenRLHF or veRL for multi-node production runs. Library choice drives memory ceiling.</Sidenote>
+
+
+
+**Reliable library.** HuggingFace TRL<Citation src="trl2024docs" /> is the primary library used in this
+course. For production-scale training, Zhu also recommends OpenRLHF, veRL, and
+NeMo RL for better memory efficiency.
+
+**Evaluation suite.** The table below maps common benchmarks to their domains:
+
+
+
+```cypher
+# Benchmark mapping (for reference, not executable)
+benchmarks = {
+    "Chatbot Arena":   "Human preference for chat",
+    "AlpacaEval":      "LLM-as-judge for chat",
+    "MT-Bench":        "Multi-turn chat evaluation",
+    "LiveCodeBench":   "Coding (dynamic, anti-contamination)",
+    "AIME 2024/2025":  "Advanced math reasoning",
+    "GPQA / MMLU-Pro": "Knowledge and reasoning",
+    "IFEval":          "Instruction following",
+    "BFCL / NexusBench":"Function calling and agents",
+}
+```
+
+
+
+# When to Post-Train (and When Not To)
+
+&lt;!–MDXB-12-OPEN–&gt;
+
+**Core Insight:** Post-training is the right tool when you need to reliably
+change model behavior or improve a targeted capability (instruction following,
+function calling, reasoning). For simpler needs, lighter interventions suffice.
+
+**Decision Rule:**
+
+- Few instructions to follow → **Prompting** (simple but brittle)
+
+- Real-time knowledge needed → **RAG** (adapts to changing data)
+
+- Domain-specific knowledge → **Continual pre-training** (&gt;1B tokens) then standard post-training
+
+- 20+ instructions, capability improvement → **Post-training**
+
+**When It Breaks:** Post-training done incorrectly can degrade capabilities
+you did not train on. Always evaluate broadly, not just on the target task.
+
+&lt;!–MDXB-12-CLOSE–&gt;
+
+
+
+<Sidenote category="warning">Prompting fails silently at scale: 20+ behavioral rules overwhelm the context window. Post-train when prompt engineering breaks.</Sidenote>
+
+
+
+
+
+<Sidenote category="crossref">For DPO alignment techniques and comparison with SFT, see vol6 Ch 5 (Fine-tuning—DPO/ORPO).</Sidenote>
+
+
+
+&lt;!–MDXB-14-OPEN–&gt;
+
+For each scenario, identify which post-training method (SFT, DPO, or online RL)
+is most appropriate and justify your choice:
+
+1.  You have a base model and 50 000 high-quality instruction–response pairs
+    from a teacher model. Goal: turn it into an instruct model.
+
+2.  Your instruct model says “I am Llama” but you want it to say “I am Athene.”
+    You can generate responses from the current model.
+
+3.  You want to improve math problem-solving. You have 10 000 math problems
+    with known correct answers but no worked solutions.
+
+&lt;!–MDXB-14-CLOSE–&gt;
+
+&lt;!–MDXB-19-OPEN–&gt;
+
+**Approach:**
+
+1.  **SFT.** You have labeled prompt–response pairs and want to introduce
+    a new behavior (instruction following). SFT is the standard first step for
+    converting a base model to an instruct model via imitation learning.
+
+2.  **DPO.** This is a small behavioral change (identity). Generate responses
+    from the current model as rejected samples, replace “Llama” with “Athene”
+    for chosen samples. DPO’s contrastive loss is designed for targeted behavior
+    modification.
+
+3.  **Online RL (GRPO).** You have verifiable rewards (correct/incorrect)
+    but no reference solutions. GRPO generates multiple responses per prompt,
+    scores them against the ground truth, and updates the model to favor correct
+    reasoning paths.
+
+**Key insight**: The data format you have (or can create) determines the method.
+SFT needs demonstrations, DPO needs preference pairs, online RL needs a reward signal.
+
+**Answer:**
+
+1.  You have labeled prompt–response pairs and want to introduce a new behavior (instruction following).
+
+2.  This is a small behavioral change (identity).
+
+3.  You have verifiable rewards (correct/incorrect) but no reference solutions.
+
+&lt;!–MDXB-19-CLOSE–&gt;
+
+
+
+<Sidenote category="practice">Target: 5 min. Map data format to method. Demonstrations $$ SFT, preferences $$ DPO, reward signal $$ online RL.</Sidenote>
+
+
+
+&lt;!–MDXB-15-OPEN–&gt;
+
+A startup has a general-purpose LLM and wants it to generate valid SQL queries.
+They have 200 example natural-language-to-SQL pairs. Should they use prompting,
+RAG, or post-training? What if they had 200 000 pairs?
+
+&lt;!–MDXB-15-CLOSE–&gt;
+
+&lt;!–MDXB-20-OPEN–&gt;
+
+**Approach:** **With 200 pairs**: Use **few-shot prompting** or **RAG**. Include
+representative NL-to-SQL examples in the prompt. 200 examples is too few for
+reliable SFT on a complex task like SQL generation—the model would overfit.
+
+**With 200 000 pairs**: **Post-training (SFT)** becomes viable. This
+is enough data to teach the model SQL syntax patterns, schema awareness, and
+common query structures. Follow SFT with DPO on preference-ranked SQL outputs
+to further improve query quality.
+
+**Key insight**: The decision boundary depends on data volume and task
+complexity. Post-training shines when you have sufficient diverse, high-quality data
+and need reliable behavior change rather than occasional correct output.
+
+**Answer:** **With 200 pairs**: Use **few-shot prompting** or **RAG**.
+
+&lt;!–MDXB-20-CLOSE–&gt;
+
+&lt;!–MDXB-16-OPEN–&gt;
+
+Your team post-trains a 3B model with SFT on 20K instruction-following examples and DPO
+on 5K preference pairs. The PM asks you to pick three benchmarks to evaluate the model
+before release. You must cover: (1) instruction following, (2) reasoning capability,
+and (3) overall chat quality. Select one benchmark for each and justify your choice.
+What is the risk of evaluating on only one of these three dimensions?
+
+&lt;!–MDXB-16-CLOSE–&gt;
+
+&lt;!–MDXB-21-OPEN–&gt;
+
+**Approach:** Select benchmarks that cover each dimension independently to
+detect capability regressions.
+
+**Step 1: Instruction following → IFEval.** Measures whether the model
+follows explicit formatting constraints (“respond in JSON,” “use exactly 3 bullet
+points”). Directly tests the SFT objective.
+
+**Step 2: Reasoning → MMLU-Pro or GSM8K.** MMLU-Pro tests knowledge and
+multi-step reasoning across domains. GSM8K tests math reasoning specifically. Choose
+based on the model’s intended use case.
+
+**Step 3: Chat quality → AlpacaEval or MT-Bench.** LLM-as-judge benchmarks
+that assess overall response quality, coherence, and helpfulness in open-ended conversation.
+
+**Risk of single-dimension evaluation:** Post-training improves the trained
+dimension but can silently degrade others. A model that scores well on IFEval may
+have lost reasoning ability; one that scores well on chat quality may fail to follow
+precise instructions. The DPO stage is especially prone to capability regression.
+
+**Key Insight:** Post-training evaluation requires a multi-dimensional suite.
+The minimum viable evaluation covers the trained skill, a reasoning baseline, and
+a general quality metric to detect regressions.
+
+**Answer:** IFEval (instruction following), MMLU-Pro (reasoning), AlpacaEval
+(chat quality). Single-benchmark evaluation risks shipping a model with hidden
+capability regressions.
+
+&lt;!–MDXB-21-CLOSE–&gt;
+
+&lt;!–MDXB-17-OPEN–&gt;
+
+A product manager asks: “Why can’t we just train the model once on all our
+data?” Explain the two-phase LLM training pipeline (pre-training vs. post-training), stating the objective, data type, and compute scale of
+each phase, and why splitting into two phases is more efficient than a
+single pass.
+
+&lt;!–MDXB-17-CLOSE–&gt;
+
+&lt;!–MDXB-22-OPEN–&gt;
+
+**Approach:** Contrast the two phases along three axes: objective, data,
+and compute.
+
+**Pre-training** uses a self-supervised next-token prediction objective on
+trillions of tokens of raw internet text. It runs for weeks on thousands of
+GPUs and costs millions of dollars. The result is a “base model” that can
+complete text but does not follow instructions.
+
+**Post-training** uses supervised and/or preference-based objectives on
+curated datasets (thousands to millions of examples). It runs for hours to days
+on tens of GPUs. The result is an “aligned model” that follows instructions,
+refuses harmful requests, and matches a desired style.
+
+Splitting is efficient because general language knowledge (syntax, world facts,
+reasoning patterns) is learned once in pre-training and reused across many
+downstream behaviors shaped cheaply in post-training. Re-training from scratch
+every time you want a new behavior would re-learn all general knowledge at
+enormous cost.
+
+**Key Insight:** Pre-training encodes knowledge (expensive, done once);
+post-training encodes behavior (cheap, done many times).
+
+**Answer:** Phase 1 (pre-training): self-supervised, raw text, massive
+compute → base model. Phase 2 (post-training): supervised/preference,
+curated data, modest compute → aligned model. Two phases separate the
+expensive knowledge acquisition from the cheap behavioral shaping.
+
+&lt;!–MDXB-22-CLOSE–&gt;
+
+&lt;!–MDXB-18-OPEN–&gt;
+
+Banghua Zhu identifies three prerequisites for successful post-training.
+Name each element, explain why it is necessary, and give one example of
+what happens when that element is missing.
+
+&lt;!–MDXB-18-CLOSE–&gt;
+
+&lt;!–MDXB-23-OPEN–&gt;
+
+**Approach:** State each element and reason about its failure mode.
+
+**1. A strong base model:** Post-training cannot inject knowledge the
+base model lacks. If the base model has poor reasoning ability, SFT on
+reasoning examples produces superficially formatted but factually wrong
+responses.
+
+**2. High-quality data:** The curated instruction–response or
+preference pairs must be accurate and diverse. Missing this element—e.g.,
+using noisy crowd-sourced labels—teaches the model to replicate errors and
+degrades performance below the base model (“alignment tax”).
+
+**3. A scalable training recipe:** The optimization procedure (SFT, DPO,
+RLHF) must converge reliably at scale. Without this—e.g., using RLHF with an
+unstable reward model—training diverges or produces reward hacking (the model
+exploits the reward signal without genuinely improving).
+
+**Key Insight:** These three elements are conjunctive: weakness in
+*any one* bottlenecks the entire post-training outcome.
+
+**Answer:** (1) Strong base model (knowledge foundation), (2) high-quality
+data (behavioral signal), (3) scalable training recipe (reliable optimization).
+Missing any one degrades the result regardless of the other two.
+
+&lt;!–MDXB-23-CLOSE–&gt;
+
+&lt;!–MDXB-9-OPEN–&gt;
+
+1.  What is the key difference between pre-training and post-training
+    in terms of data, scale, and objective?
+
+2.  Name the three post-training methods and the data format each requires.
+
+3.  What three elements does Banghua Zhu identify as prerequisites
+    for successful post-training?
+
+4.  Give two scenarios where post-training is *not* the best intervention.
+
+5.  Why is evaluating on a single benchmark dangerous after post-training?
+
+6.  What is the difference between a trained reward model and a verifiable
+    reward function?
+
+7.  analyze Analyze the trade-off between GRPO and PPO for online RL:
+    GRPO eliminates the value model by comparing grouped responses, while PPO provides per-token credit assignment at the cost of training a separate value network.
+
+&lt;!–MDXB-9-CLOSE–&gt;
+
+{/* CARD-PLACEMENT-AUTOSTART */}
+
+## Review
+
+{/* CARD-PLACEMENT-TODO: polish pass should move these cards inline */}
+{/* near the concepts they test, per Q-R4.4 hybrid placement.       */}
+
+### Checkpoint cards (7)
+
+<AnkiCard type="checkpoint" id="chapters-vol0-ch01-CHECKPOINT-SELFCHECK_M1_THE_POSTTRAINING_LANDSCAPE_Q1" los="" front={"What is the key difference between pre-training and post-training\n in terms of data, scale, and objective?"} back={"Self-check from: Self-Check: M1 --- The Post-Training Landscape\n\n(Answer from memory, then verify against the chapter text.)"} />
+
+<AnkiCard type="checkpoint" id="chapters-vol0-ch01-CHECKPOINT-SELFCHECK_M1_THE_POSTTRAINING_LANDSCAPE_Q2" los="" front={"Name the three post-training methods and the data format each requires."} back={"Self-check from: Self-Check: M1 --- The Post-Training Landscape\n\n(Answer from memory, then verify against the chapter text.)"} />
+
+<AnkiCard type="checkpoint" id="chapters-vol0-ch01-CHECKPOINT-SELFCHECK_M1_THE_POSTTRAINING_LANDSCAPE_Q3" los="" front={"What three elements does Banghua Zhu identify as prerequisites\n for successful post-training?"} back={"Self-check from: Self-Check: M1 --- The Post-Training Landscape\n\n(Answer from memory, then verify against the chapter text.)"} />
+
+<AnkiCard type="checkpoint" id="chapters-vol0-ch01-CHECKPOINT-SELFCHECK_M1_THE_POSTTRAINING_LANDSCAPE_Q4" los="" front={"Give two scenarios where post-training is not the best intervention."} back={"Self-check from: Self-Check: M1 --- The Post-Training Landscape\n\n(Answer from memory, then verify against the chapter text.)"} />
+
+<AnkiCard type="checkpoint" id="chapters-vol0-ch01-CHECKPOINT-SELFCHECK_M1_THE_POSTTRAINING_LANDSCAPE_Q5" los="" front={"Why is evaluating on a single benchmark dangerous after post-training?"} back={"Self-check from: Self-Check: M1 --- The Post-Training Landscape\n\n(Answer from memory, then verify against the chapter text.)"} />
+
+<AnkiCard type="checkpoint" id="chapters-vol0-ch01-CHECKPOINT-SELFCHECK_M1_THE_POSTTRAINING_LANDSCAPE_Q6" los="" front={"What is the difference between a trained reward model and a verifiable\n reward function?"} back={"Self-check from: Self-Check: M1 --- The Post-Training Landscape\n\n(Answer from memory, then verify against the chapter text.)"} />
+
+<AnkiCard type="checkpoint" id="chapters-vol0-ch01-CHECKPOINT-SELFCHECK_M1_THE_POSTTRAINING_LANDSCAPE_Q7" los="PTL-1.6" front={"analyze Analyze the trade-off between GRPO and PPO for online RL:\n GRPO eliminates the value model by comparing grouped responses, while PPO provides per-token credit assignment at the cost of training a separate value network."} back={"Self-check from: Self-Check: M1 --- The Post-Training Landscape\n\n(Answer from memory, then verify against the chapter text.)"} />
+
+### Keyconcept cards (3)
+
+<AnkiCard type="keyconcept" id="chapters-vol0-ch01-CONCEPT-PRETRAINING_GIVES_KNOWLEDGE_POSTTRAINING_GIVES_BEH" los="PTL-1.1" front={"Key Concept: Pre-Training Gives Knowledge, Post-Training Gives Behavior"} back={"Core Insight: Pre-training and post-training optimize the same next-token\nobjective but differ in scope and purpose. Pre-training sees trillions of tokens to\nbuild world knowledge; post-training sees thousands to millions of curated tokens to\nsteer how that knowledge is expressed.\n\nWhy It Matters: This separation means you can swap the behavior layer\n(instruction following, safety, tool use) without retraining knowledge from scratch.\nPost-training is orders of magnitude cheaper than pre-training.\n\nWhen It Breaks: Post-training cannot inject knowledge the base model lacks.\nIf the model never saw medical literature during pre-training, SFT on medical Q&A\nproduces fluent but hallucinated answers. Use continual pre-training first for new\ndomains."} />
+
+<AnkiCard type="keyconcept" id="chapters-vol0-ch01-CONCEPT-THREE_METHODS_THREE_DATA_FORMATS" los="PTL-1.2" front={"Key Concept: Three Methods, Three Data Formats"} back={"Core Insight: Each post-training method requires a different data structure:\nSFT needs prompt–response pairs, DPO needs prompt + chosen/rejected pairs, and\nonline RL needs prompts + a reward function (no labeled responses required).\n\nWhy It Matters: Data format drives method selection. If you can only\ncollect binary correctness signals (math, code), online RL with verifiable rewards\nis natural. If you have expert demonstrations, SFT is the starting point.\n\nWhen It Breaks: SFT imitates all data equally—low-quality examples\ndegrade the model. DPO can overfit to surface-level shortcuts in the preference\npairs. Online RL requires a reliable reward signal or it amplifies reward hacking."} />
+
+<AnkiCard type="keyconcept" id="chapters-vol0-ch01-CONCEPT-POSTTRAINING_DECISION_RULE" los="PTL-1.4" front={"Key Concept: Post-Training Decision Rule"} back={"Core Insight: Post-training is the right tool when you need to reliably\nchange model behavior or improve a targeted capability (instruction following,\nfunction calling, reasoning). For simpler needs, lighter interventions suffice.\n\nDecision Rule:\n\n- Few instructions to follow $\\rightarrow$ Prompting (simple but brittle)\n\n- Real-time knowledge needed $\\rightarrow$ RAG (adapts to changing data)\n\n- Domain-specific knowledge $\\rightarrow$ Continual pre-training ($>$1B tokens) then standard post-training\n\n- 20+ instructions, capability improvement $\\rightarrow$ Post-training\n\nWhen It Breaks: Post-training done incorrectly can degrade capabilities\nyou did not train on. Always evaluate broadly, not just on the target task."} />
+
+### Problem cards (5)
+
+<AnkiCard type="problem" id="chapters-vol0-ch01-PROB-FOR_EACH_SCENARIO_IDENTIFY_WHICH_POSTTRAINING_METH" los="PTL-1.2" front={"For each scenario, identify which post-training method (SFT, DPO, or online RL)\nis most appropriate and justify your choice:\n\n- You have a base model and 50 000 high-quality instruction–response pairs\n from a teacher model. Goal: turn it into an instruct model.\n\n- Your instruct model says \"I am Llama\" but you want it to say \"I am Athene.\"\n You can generate responses from the current model.\n\n- You want to improve math problem-solving. You have 10 000 math problems\n with known correct answers but no worked solutions."} back={"Approach: \n\n- SFT. You have labeled prompt–response pairs and want to introduce\n a new behavior (instruction following). SFT is the standard first step for\n converting a base model to an instruct model via imitation learning.\n\n- DPO. This is a small behavioral change (identity). Generate responses\n from the current model as rejected samples, replace \"Llama\" with \"Athene\"\n for chosen samples. DPO's contrastive loss is designed for targeted behavior\n modification.\n\n- Online RL (GRPO). You have verifiable rewards (correct/incorrect)\n but no reference solutions. GRPO generates multiple responses per prompt,\n scores them against the ground truth, and updates the model to favor correct\n reasoning paths.\n\nKey insight: The data format you have (or can create) determines the method.\nSFT needs demonstrations, DPO needs preference pairs, online RL needs a reward signal.\n\nAnswer:\n\n- You have labeled prompt–response pairs and want to introduce a new behavior (instruction following).\n\n- This is a small behavioral change (identity).\n\n- You have verifiable rewards (correct/incorrect) but no reference solutions."} />
+
+<AnkiCard type="problem" id="chapters-vol0-ch01-PROB-A_STARTUP_HAS_A_GENERALPURPOSE_LLM_AND_WANTS_IT_TO" los="PTL-1.4" front={"A startup has a general-purpose LLM and wants it to generate valid SQL queries.\nThey have 200 example natural-language-to-SQL pairs. Should they use prompting,\nRAG, or post-training? What if they had 200 000 pairs?"} back={"Approach: With 200 pairs: Use few-shot prompting or RAG. Include\nrepresentative NL-to-SQL examples in the prompt. 200 examples is too few for\nreliable SFT on a complex task like SQL generation—the model would overfit.\n\nWith 200 000 pairs: Post-training (SFT) becomes viable. This\nis enough data to teach the model SQL syntax patterns, schema awareness, and\ncommon query structures. Follow SFT with DPO on preference-ranked SQL outputs\nto further improve query quality.\n\nKey insight: The decision boundary depends on data volume and task\ncomplexity. Post-training shines when you have sufficient diverse, high-quality data\nand need reliable behavior change rather than occasional correct output.\n\nAnswer: With 200 pairs: Use few-shot prompting or RAG."} />
+
+<AnkiCard type="problem" id="chapters-vol0-ch01-PROB-YOUR_TEAM_POSTTRAINS_A_3B_MODEL_WITH_SFT_ON_20K_IN" los="PTL-1.5" front={"Your team post-trains a 3B model with SFT on 20K instruction-following examples and DPO\non 5K preference pairs. The PM asks you to pick three benchmarks to evaluate the model\nbefore release. You must cover: (1) instruction following, (2) reasoning capability,\nand (3) overall chat quality. Select one benchmark for each and justify your choice.\nWhat is the risk of evaluating on only one of these three dimensions?"} back={"Approach: Select benchmarks that cover each dimension independently to\ndetect capability regressions.\n\nStep 1: Instruction following $\\to$ IFEval. Measures whether the model\nfollows explicit formatting constraints (\"respond in JSON,\" \"use exactly 3 bullet\npoints\"). Directly tests the SFT objective.\n\nStep 2: Reasoning $\\to$ MMLU-Pro or GSM8K. MMLU-Pro tests knowledge and\nmulti-step reasoning across domains. GSM8K tests math reasoning specifically. Choose\nbased on the model's intended use case.\n\nStep 3: Chat quality $\\to$ AlpacaEval or MT-Bench. LLM-as-judge benchmarks\nthat assess overall response quality, coherence, and helpfulness in open-ended conversation.\n\nRisk of single-dimension evaluation: Post-training improves the trained\ndimension but can silently degrade others. A model that scores well on IFEval may\nhave lost reasoning ability; one that scores well on chat quality may fail to follow\nprecise instructions. The DPO stage is especially prone to capability regression.\n\nKey Insight: Post-training evaluation requires a multi-dimensional suite.\nThe minimum viable evaluation covers the trained skill, a reasoning baseline, and\na general quality metric to detect regressions.\n\nAnswer: IFEval (instruction following), MMLU-Pro (reasoning), AlpacaEval\n(chat quality). Single-benchmark evaluation risks shipping a model with hidden\ncapability regressions."} />
+
+<AnkiCard type="problem" id="chapters-vol0-ch01-PROB-A_PRODUCT_MANAGER_ASKS_WHY_CANT_WE_JUST_TRAIN_THE_" los="PTL-1.1" front={"A product manager asks: \"Why can't we just train the model once on all our\ndata?\" Explain the two-phase LLM training pipeline (pre-training vs. post-training), stating the objective, data type, and compute scale of\neach phase, and why splitting into two phases is more efficient than a\nsingle pass."} back={"Approach: Contrast the two phases along three axes: objective, data,\nand compute.\n\nPre-training uses a self-supervised next-token prediction objective on\ntrillions of tokens of raw internet text. It runs for weeks on thousands of\nGPUs and costs millions of dollars. The result is a \"base model\" that can\ncomplete text but does not follow instructions.\n\nPost-training uses supervised and/or preference-based objectives on\ncurated datasets (thousands to millions of examples). It runs for hours to days\non tens of GPUs. The result is an \"aligned model\" that follows instructions,\nrefuses harmful requests, and matches a desired style.\n\nSplitting is efficient because general language knowledge (syntax, world facts,\nreasoning patterns) is learned once in pre-training and reused across many\ndownstream behaviors shaped cheaply in post-training. Re-training from scratch\nevery time you want a new behavior would re-learn all general knowledge at\nenormous cost.\n\nKey Insight: Pre-training encodes knowledge (expensive, done once);\npost-training encodes behavior (cheap, done many times).\n\nAnswer: Phase 1 (pre-training): self-supervised, raw text, massive\ncompute $\\to$ base model. Phase 2 (post-training): supervised/preference,\ncurated data, modest compute $\\to$ aligned model. Two phases separate the\nexpensive knowledge acquisition from the cheap behavioral shaping."} />
+
+<AnkiCard type="problem" id="chapters-vol0-ch01-PROB-BANGHUA_ZHU_IDENTIFIES_THREE_PREREQUISITES_FOR_SUC" los="PTL-1.3" front={"Banghua Zhu identifies three prerequisites for successful post-training.\nName each element, explain why it is necessary, and give one example of\nwhat happens when that element is missing."} back={"Approach: State each element and reason about its failure mode.\n\n1. A strong base model: Post-training cannot inject knowledge the\nbase model lacks. If the base model has poor reasoning ability, SFT on\nreasoning examples produces superficially formatted but factually wrong\nresponses.\n\n2. High-quality data: The curated instruction–response or\npreference pairs must be accurate and diverse. Missing this element—e.g.,\nusing noisy crowd-sourced labels—teaches the model to replicate errors and\ndegrades performance below the base model (\"alignment tax\").\n\n3. A scalable training recipe: The optimization procedure (SFT, DPO,\nRLHF) must converge reliably at scale. Without this—e.g., using RLHF with an\nunstable reward model—training diverges or produces reward hacking (the model\nexploits the reward signal without genuinely improving).\n\nKey Insight: These three elements are conjunctive: weakness in\nany one bottlenecks the entire post-training outcome.\n\nAnswer: (1) Strong base model (knowledge foundation), (2) high-quality\ndata (behavioral signal), (3) scalable training recipe (reliable optimization).\nMissing any one degrades the result regardless of the other two."} />
+
+### Interview cards (1)
+
+<AnkiCard type="interview" id="chapters-vol0-ch01-INT-POSTTRAINING_METHOD_SELECTION" los="PTL-1.2" front={"Interview Q: SFT vs DPO vs RLHF\" in 70\n of alignment-team loops"} back={"Why interviewers ask this: Anthropic, OpenAI, and Google DeepMind\n MLE screens (L4–L5) ask \"walk me through SFT vs DPO vs RLHF\" in 70\n of alignment-team loops. It gates whether you can design a post-training\n pipeline end-to-end.\n\n What they're really testing: Whether you reason from data\n format to method, not from method to data. The impressive answer\n starts with \"what signal do I have?\" (demonstrations, preferences, or\n a reward function) and derives the algorithm."} />
+
+{/* CARD-PLACEMENT-AUTOEND */}

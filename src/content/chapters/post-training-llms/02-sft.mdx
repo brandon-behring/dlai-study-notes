@@ -1,0 +1,592 @@
+---
+book: post-training-llms
+title: Supervised Fine-Tuning
+chapter: 2
+description: SFT imitates expert demonstrations—data quality trumps quantity,
+  and the loss trains only on response tokens
+learning_outcomes:
+  - id: PTL-2.1
+    verb: explain
+    text: "Explain the SFT objective: minimize negative log-likelihood on response
+      tokens only, treating it as imitation learning"
+  - id: PTL-2.2
+    verb: compare
+    text: Compare full fine-tuning versus LoRA in terms of memory, expressiveness,
+      and forgetting trade-offs
+  - id: PTL-2.3
+    verb: apply
+    text: "Apply the LIMA principle: 1 000 high-quality diverse examples can
+      outperform 1 million mixed-quality samples"
+  - id: PTL-2.4
+    verb: implement
+    text: Implement an SFT pipeline using TRL SFTTrainer including dataset
+      preparation, chat templates, and hyperparameter configuration
+  - id: PTL-2.5
+    verb: identify
+    text: "Identify three data curation strategies for SFT: distillation, Best-of-K
+      rejection sampling, and quality filtering"
+  - id: PTL-2.6
+    verb: evaluate
+    text: Evaluate SFT results by comparing base model and fine-tuned model outputs
+      on instruction-following tasks
+sources: []
+tools_compared:
+  - AI Engineer / MLE --- All companies --- L4/L5
+last_verified: 2026-05-21
+volatility: architectural-pattern
+---
+
+{/* TODO: per-chapter polish pass — see plan decision Q1 round 3 */}
+
+&lt;!–MDXB-7-OPEN–&gt;
+
+Chapter 1 mapped the landscape; now we implement the first and simplest method.
+SFT is the foundation—nearly every instruct model starts here<Citation src="dlai-post-training-course" />. Mastering data
+curation and training configuration for SFT is prerequisite to DPO (Chapter 3)
+and online RL (Chapter 4).
+
+&lt;!–MDXB-7-CLOSE–&gt;
+
+# SFT as Imitation Learning
+
+&lt;!–MDXB-8-OPEN–&gt;
+
+**What**: SFT trains the model to imitate labeled prompt–response pairs<Citation src="ouyang2022instructgpt" />. Given
+a dataset of (prompt, ideal response) tuples, the loss is the negative log-likelihood
+of the response tokens *conditioned on* the prompt—but the prompt tokens
+themselves do not contribute to the loss.  
+**Why**: This asymmetry is critical. The model learns to *generate*
+responses, not to *memorize* prompts. Pre-training trains on all tokens;
+SFT trains only on the tokens the model should produce.
+
+&lt;!–MDXB-8-CLOSE–&gt;
+
+
+
+<Sidenote category="formula">SFT loss: $L = -_{i}_{t}  P(r_t^{(i)}  r_{<t}^{(i)}, p^{(i)})$ where $r$ = response tokens, $p$ = prompt tokens.</Sidenote>
+
+
+
+The SFT loss for a single example decomposes as:
+$$\mathcal{L}\_{\text{SFT}}^{(i)} = -\log P(\text{response}^{(i)} \mid \text{prompt}^{(i)}) = -\sum\_{t=1}^{T} \log P(r\_t \mid r\_{&lt;t}, p)$$
+where the product runs over response tokens *r*<sub>1</sub>, …, *r*<sub>*T*</sub>, each conditioned on
+all prior tokens including the full prompt *p*. This is equivalent to cross-entropy
+loss or maximum likelihood estimation on the response portion only.
+
+
+
+<Sidenote category="interview">SFT differs from pre-training only in the token mask: pre-training computes loss on **all** tokens, SFT on **response tokens only**.</Sidenote>
+
+
+
+&lt;!–MDXB-11-OPEN–&gt;
+
+**Core Insight:** SFT masks prompt tokens from the loss and trains only on
+response tokens. The model learns to *generate* answers, not to *memorize*
+questions. This is the single architectural distinction between pre-training and SFT:
+same cross-entropy objective, different token mask.
+
+**Why It Matters:** If you accidentally train on prompt tokens (e.g., wrong
+masking configuration), the model wastes capacity learning to predict user queries
+rather than improving response quality. Always verify the loss mask in your training
+code.
+
+**When It Breaks:** Multi-turn conversations require careful mask design—the
+assistant turns are response tokens, but prior assistant turns in context should also
+be masked if they are treated as conditioning rather than training targets.
+
+&lt;!–MDXB-11-CLOSE–&gt;
+
+&lt;!–MDXB-14-OPEN–&gt;
+
+**Why interviewers ask this:** Meta FAIR, Anthropic, and Google
+DeepMind ask “explain the SFT loss” in nearly every MLE alignment
+interview (L4+). At OpenAI, the follow-up is “what goes wrong if
+you train on prompt tokens?” It gates basic post-training literacy.
+
+**What they’re really testing:** Whether you understand that SFT
+and pre-training share the *same* cross-entropy objective but differ
+only in the token mask. The impressive answer connects the mask to
+data curation: because SFT imitates all training tokens equally,
+data quality dominates data quantity (the LIMA principle).
+
+**Expected depth by level:**
+
+- **IC3/IC4:** Write the SFT loss, explain response-only
+  masking, name one data curation strategy (distillation or
+  Best-of-K). Know that SFT is imitation learning.
+
+- **IC5+/Staff:** Discuss multi-turn mask design, chat
+  template pitfalls (double-wrapping special tokens), LoRA vs
+  full fine-tuning trade-offs, and how data quality failures
+  propagate through downstream DPO/RL stages.
+
+**Red flag:** Saying SFT “trains on all tokens like pre-training”
+or being unable to explain why a single bad example in a 1 000-example
+SFT dataset degrades the model.
+
+&lt;!–MDXB-14-CLOSE–&gt;
+
+## Best Use Cases for SFT
+
+SFT excels at introducing fundamentally new behaviors:
+
+- **Base → instruct model**: teach the model to answer questions instead
+  of continuing text<Citation src="brown2020gpt3" />
+
+- **Non-reasoning → reasoning model**: introduce chain-of-thought style
+
+- **Tool use**: teach the model to emit function calls without tool
+  descriptions in the prompt
+
+- **Distillation**: transfer a large model’s capabilities to a smaller model
+  by training on the large model’s outputs
+
+# Data Curation: Quality Over Quantity
+
+&lt;!–MDXB-12-OPEN–&gt;
+
+**Core Insight:** 1 000 high-quality, diverse SFT examples can outperform
+1 million mixed-quality examples. Because SFT imitates *all* data equally,
+a single bad response forces the model to learn that bad pattern.
+
+**Why It Matters:** Data curation effort has higher ROI than scaling data
+volume. Invest in response quality and prompt diversity, not sheer quantity.
+
+**When It Breaks:** For complex domains (medical, legal), 1 000 examples
+may not cover enough edge cases. The principle holds for general instruction
+following but needs domain-specific augmentation for specialized tasks.
+
+&lt;!–MDXB-12-CLOSE–&gt;
+
+
+
+<Sidenote category="warning">SFT imitates **all** data—including bad examples. One low-quality response in 100 high-quality ones still degrades the model. Filter aggressively.</Sidenote>
+
+
+
+Three standard data curation methods:
+
+1.  **Distillation**: generate responses from a stronger, larger instruct
+    model; train the smaller model to imitate those responses
+
+2.  **Best-of-K (rejection sampling)**: generate *K* responses from the
+    model itself, score with a reward function, keep only the best
+
+3.  **Quality filtering**: start from a large-scale dataset (e.g., from
+    HuggingFace), filter by response quality and prompt diversity to produce a
+    smaller, higher-quality subset
+
+
+
+<Sidenote category="pattern">Data curation priority: (1) filter low quality, (2) ensure prompt diversity, (3) then scale quantity. Quality $>$ diversity $>$ volume.</Sidenote>
+
+
+
+# Full Fine-Tuning vs Parameter-Efficient Fine-Tuning
+
+&lt;!–MDXB-9-OPEN–&gt;
+
+**What**: Full fine-tuning updates all model weights *W* by adding *Δ**W* of
+the same dimensions. LoRA (Low-Rank Adaptation) replaces *Δ**W* with a low-rank
+factorization *B**A* where *B* ∈ ℝ<sup>*d* × *r*</sup> and
+*A* ∈ ℝ<sup>*r* × *d*</sup>, with *r* ≪ *d*.  
+**Why**: LoRA reduces trainable parameters (and GPU memory) dramatically while
+preserving most learning capacity. The trade-off: LoRA learns less but also forgets
+less, because fewer parameters change.
+
+&lt;!–MDXB-9-CLOSE–&gt;
+
+
+
+<Sidenote category="formula">Full FT: $h = (W +  W)x$, params = $d^2$. LoRA: $h = (W + BA)x$, params = $2dr$ where $r  d$.</Sidenote>
+
+
+
+Both methods work with any post-training algorithm (SFT, DPO, online RL). LoRA is
+the standard choice when GPU memory is constrained or when you want to minimize
+catastrophic forgetting.
+
+
+
+<Sidenote category="interview">LoRA when GPU memory is limited or base capabilities must be preserved. Full fine-tuning when behavior change is large and compute is sufficient.</Sidenote>
+
+
+
+# SFT in Practice with TRL
+
+The course implements SFT on a small Qwen model using HuggingFace TRL’s
+<Citation src="trl2024docs" />. The pipeline has four stages: load model, prepare data,
+configure training, and evaluate.
+
+## Model and Tokenizer Loading
+
+
+
+```cypher
+from transformers import AutoTokenizer, AutoModelForCausalLM
+
+model_name = "Qwen/Qwen2.5-0.5B"  # or SmolLM2-135M for CPU
+tokenizer = AutoTokenizer.from_pretrained(model_name)
+model = AutoModelForCausalLM.from_pretrained(model_name)
+
+# Set chat template if missing (Jinja2 format)
+if tokenizer.chat_template is None:
+    tokenizer.chat_template = (
+        "{% for m in messages %}"
+        "{{ m['role'] + ': ' + m['content'] + '\n' }}"
+        "{% endfor %}"
+    )
+```
+
+
+
+
+
+<Sidenote category="warning">Base models often lack a chat template. If tokenizer.chat_template is None, set one manually—otherwise apply_chat_template() will fail.</Sidenote>
+
+
+
+## Dataset Preparation
+
+SFT data is a list of prompt–response pairs in chat format. Each example contains
+a user message and an assistant response. The uses the chat
+template to format these into the token sequence the model expects.
+
+## Training Configuration
+
+
+
+```cypher
+from trl import SFTTrainer, SFTConfig
+
+config = SFTConfig(
+    output_dir="./sft_output",
+    learning_rate=5e-5,
+    num_train_epochs=1,
+    per_device_train_batch_size=1,
+    gradient_accumulation_steps=8,  # effective batch = 1 * 1 * 8 = 8
+    gradient_checkpointing=False,   # True to save GPU memory
+    logging_steps=1,
+)
+
+trainer = SFTTrainer(
+    model=model,
+    args=config,
+    train_dataset=train_dataset,
+    processing_class=tokenizer,
+)
+trainer.train()
+```
+
+
+
+
+
+<Sidenote category="practice">Effective batch size = per_device_batch $$ num_GPUs $$ gradient_accumulation_steps. Tune learning rate **after** fixing batch size.</Sidenote>
+
+
+
+&lt;!–MDXB-13-OPEN–&gt;
+
+**Core Insight:** The effective batch size is
+per\_device\_batch × num\_GPUs × gradient\_accumulation\_steps.
+Gradient accumulation lets you simulate large batches without the memory cost of
+actually loading all samples simultaneously.
+
+**Why It Matters:** Learning rate and batch size are coupled. Doubling
+effective batch size often requires increasing the learning rate proportionally.
+Getting this wrong causes training divergence or slow convergence.
+
+**When It Breaks:** Very large effective batch sizes can reduce generalization.
+For SFT with &lt;10K examples, batch sizes of 8–32 are typical.
+
+&lt;!–MDXB-13-CLOSE–&gt;
+
+# Evaluating SFT Results
+
+
+
+<Sidenote category="crossref">For evaluation benchmarks (Chatbot Arena, AlpacaEval, IFEval), see Chapter 1 (PTL-1.5).</Sidenote>
+
+
+
+After SFT, compare the base model and fine-tuned model on the same test prompts.
+The course demonstrates this with questions like “Give me a one-sentence
+introduction of a language model” and “Calculate 1 + 1 − 1.”
+
+
+
+```cypher
+def generate_response(model, tokenizer, user_message, max_new_tokens=100):
+    messages = [{"role": "user", "content": user_message}]
+    text = tokenizer.apply_chat_template(messages, tokenize=False)
+    inputs = tokenizer(text, return_tensors="pt").to(model.device)
+    outputs = model.generate(**inputs, max_new_tokens=max_new_tokens)
+    generated_ids = outputs[0][inputs["input_ids"].shape[-1]:]
+    return tokenizer.decode(generated_ids, skip_special_tokens=True)
+
+# Compare base vs SFT model
+for q in ["Explain threads vs processes", "Calculate 1+1-1"]:
+    print(f"Base:  {generate_response(base_model, tokenizer, q)}")
+    print(f"SFT:   {generate_response(sft_model, tokenizer, q)}")
+```
+
+
+
+The base model produces incoherent continuations; the SFT model produces structured,
+relevant answers. This qualitative comparison is the first-pass evaluation.
+For production, use automated benchmarks from the evaluation suite in Chapter 1.
+
+&lt;!–MDXB-15-OPEN–&gt;
+
+Consider a prompt “What is 2+2?” (3 tokens) and response “The answer is 4.”
+(5 tokens). The full sequence is 8 tokens. On which tokens does the SFT loss
+compute gradients? What would change if this were a pre-training loss?
+
+&lt;!–MDXB-15-CLOSE–&gt;
+
+&lt;!–MDXB-19-OPEN–&gt;
+
+**Approach:** **SFT loss**: Gradients are computed only on the 5 response tokens
+(“The”, “answer”, “is”, “4”, “.”). The 3 prompt tokens (“What”, “is”,
+“2+2?”) are used as conditioning context but do not contribute to the loss.
+
+**Pre-training loss**: Gradients would be computed on *all 8 tokens*,
+including the prompt tokens. The model would be trained to predict every token,
+not just the response.
+
+**Key insight**: The response-only mask is what makes SFT “supervised”—it
+tells the model which tokens to imitate. Training on prompt tokens would teach
+the model to generate prompts, not responses.
+
+**Answer:** **SFT loss**: Gradients are computed only on the 5 response tokens
+(“The”, “answer”, “is”, “4”, “.”).
+
+&lt;!–MDXB-19-CLOSE–&gt;
+
+&lt;!–MDXB-16-OPEN–&gt;
+
+You have two SFT datasets for building a customer support chatbot:
+
+- Dataset A: 500 expert-written responses, each reviewed by a domain specialist
+
+- Dataset B: 50 000 responses generated by GPTL-4 with no filtering
+
+Which dataset would you start with? What risk does each carry?
+
+&lt;!–MDXB-16-CLOSE–&gt;
+
+&lt;!–MDXB-20-OPEN–&gt;
+
+**Approach:** **Start with Dataset A** (500 expert responses). Per the LIMA principle,
+SFT imitates all data equally. A small number of high-quality, diverse examples
+produces a more consistent model than a large noisy dataset.
+
+**Risk of A**: 500 examples may not cover all edge cases. The model may
+struggle with out-of-distribution queries. Augment with targeted examples as
+failure modes are discovered.
+
+**Risk of B**: GPTL-4 outputs without filtering will include hallucinations,
+verbose responses, and occasional errors. The SFT model will imitate these flaws.
+**If using B**, apply quality filtering first: score responses with a reward
+model, filter to the top 5–10%, then verify diversity of prompts.
+
+**Key insight**: The optimal path is often Dataset A for initial SFT, then
+Dataset B (filtered) for continued training to expand coverage.
+
+**Answer:** **Start with Dataset A** (500 expert responses).
+
+&lt;!–MDXB-20-CLOSE–&gt;
+
+&lt;!–MDXB-17-OPEN–&gt;
+
+You are fine-tuning a 7B instruct model for legal document summarization using LoRA.
+You have 15 000 training examples and two GPU options: (A) a single A100-80GB that
+can handle LoRA with rank *r* = 64 or full fine-tuning at batch size 1, and (B) four
+A10-24GB GPUs that can handle LoRA with rank *r* = 16 only. The legal domain requires
+significant behavioral change (new terminology, citation formats, structured output).
+Which configuration do you choose? What rank would you start with and why?
+
+&lt;!–MDXB-17-CLOSE–&gt;
+
+&lt;!–MDXB-21-OPEN–&gt;
+
+**Approach:** Choose configuration A (single A100) with LoRA at *r* = 64. Legal
+summarization requires substantial behavioral change—new vocabulary patterns, citation
+formats, and structured outputs. Higher rank gives LoRA more expressiveness to learn
+these domain-specific patterns.
+
+**Step 1: Eliminate full fine-tuning.** Although the A100 supports it, full
+fine-tuning on 15K examples risks catastrophic forgetting of the model’s general
+capabilities. LoRA preserves the base model’s knowledge while adapting behavior.
+
+**Step 2: Choose rank.** Start with *r* = 32 as a baseline. The expressiveness
+needed for legal domain adaptation exceeds simple style changes (*r* = 8–16) but
+does not require the full parameter space. If validation loss plateaus, increase to
+*r* = 64. If the model overfits, reduce to *r* = 16.
+
+**Key Insight:** Rank selection is a bias-variance tradeoff: higher rank
+learns more but risks overfitting on 15K examples. The domain gap (general to legal)
+favors higher rank, but the dataset size constrains it. *r* = 32 balances both.
+
+**Answer:** Configuration A with LoRA *r* = 32, tuning up or down based on
+validation performance.
+
+&lt;!–MDXB-21-CLOSE–&gt;
+
+
+
+<Sidenote category="practice">Target: 5 min. LoRA rank heuristic: style changes $r{=}8$–$16$, domain adaptation $r{=}32$–$64$, full behavior change consider full FT.</Sidenote>
+
+
+
+&lt;!–MDXB-18-OPEN–&gt;
+
+
+
+<Sidenote category="practice">5 min  SFTTrainer config  Phone screen</Sidenote>
+
+
+
+You are fine-tuning Llama-3-8B-Instruct on a customer support dataset using
+TRL’s SFTTrainer. After training, the model outputs garbled text with repeated
+special tokens like `<|eot_id|>` in the middle of responses. Training
+loss decreased normally.
+
+1.  What is the most likely cause of this behavior?
+
+2.  How does the chat template interact with `SFTTrainer`’s
+    dataset preparation, and where can the mismatch occur?
+
+3.  Write the corrected `SFTTrainer` configuration that avoids
+    this issue.
+
+&lt;!–MDXB-18-CLOSE–&gt;
+
+&lt;!–MDXB-22-OPEN–&gt;
+
+**Approach:** Trace the data pipeline from raw conversations through
+chat template formatting to tokenization, identifying where special tokens
+can leak into training targets.
+
+**Part 1: Most likely cause.**
+The training data was pre-formatted with one chat template (e.g., ChatML
+style with `<|im_start|>`/`<|im_end|>`), but the tokenizer
+applies Llama-3’s native template on top, double-wrapping turns with
+conflicting special tokens. The model learns to predict these artifacts as
+part of the response.
+
+**Part 2: Template interaction.**
+`SFTTrainer` calls `tokenizer.apply_chat_template()` on each
+conversation when the dataset contains message lists. If the data is already
+formatted as strings with template markup, the trainer re-applies the
+template, producing nested delimiters. The mismatch occurs when:
+
+- Data is pre-formatted strings but trainer expects message dicts
+
+- Data uses a different model’s template than the tokenizer’s default
+
+- Special tokens in the data are not in the tokenizer’s vocabulary
+
+**Part 3: Corrected configuration.**
+
+~~~ python
+from trl import SFTTrainer, SFTConfig
+
+# Option A: Pass message dicts, let trainer apply template
+trainer = SFTTrainer(
+    model=model,
+    args=SFTConfig(
+        output_dir="./sft_output",
+        per_device_train_batch_size=2,
+        gradient_accumulation_steps=8,
+        max_seq_length=2048,
+    ),
+    train_dataset=dataset,  # Each row: {"messages": [...]}
+    processing_class=tokenizer,  # Applies native template
+)
+
+# Option B: Pre-formatted strings, disable template
+# Set dataset_text_field="text" and ensure data is
+# already formatted with the CORRECT model template
+~~~
+
+**Key Insight:** SFT pipelines have two formatting paths—message
+dicts (trainer applies template) and pre-formatted strings (trainer
+passes through). Mixing them produces double-wrapped special tokens that
+the model faithfully learns to reproduce. Always verify the formatted
+output of a single example before launching training.
+
+**Answer:** Chat template double-application. Pass raw message dicts
+and let `SFTTrainer` apply the tokenizer’s native template, or
+pre-format with the correct template and skip auto-application.
+
+&lt;!–MDXB-22-CLOSE–&gt;
+
+&lt;!–MDXB-10-OPEN–&gt;
+
+1.  Write the SFT loss function and explain which tokens are masked.
+
+2.  Why does data quality matter more than quantity for SFT?
+
+3.  Name three methods for curating high-quality SFT data.
+
+4.  What is the effective batch size if per-device batch is 2, you have
+    4 GPUs, and gradient accumulation is 8?
+
+5.  Explain the LoRA trade-off: what do you gain and what do you lose
+    compared to full fine-tuning?
+
+6.  What is the role of the chat template in SFT data preparation?
+
+7.  identify Identify three data curation strategies for SFT: distillation, Best-of-K rejection sampling, and quality filtering.
+
+&lt;!–MDXB-10-CLOSE–&gt;
+
+{/* CARD-PLACEMENT-AUTOSTART */}
+
+## Review
+
+{/* CARD-PLACEMENT-TODO: polish pass should move these cards inline */}
+{/* near the concepts they test, per Q-R4.4 hybrid placement.       */}
+
+### Checkpoint cards (7)
+
+<AnkiCard type="checkpoint" id="chapters-vol0-ch02-CHECKPOINT-SELFCHECK_M2_SUPERVISED_FINETUNING_Q1" los="" front={"Write the SFT loss function and explain which tokens are masked."} back={"Self-check from: Self-Check: M2 --- Supervised Fine-Tuning\n\n(Answer from memory, then verify against the chapter text.)"} />
+
+<AnkiCard type="checkpoint" id="chapters-vol0-ch02-CHECKPOINT-SELFCHECK_M2_SUPERVISED_FINETUNING_Q2" los="" front={"Why does data quality matter more than quantity for SFT?"} back={"Self-check from: Self-Check: M2 --- Supervised Fine-Tuning\n\n(Answer from memory, then verify against the chapter text.)"} />
+
+<AnkiCard type="checkpoint" id="chapters-vol0-ch02-CHECKPOINT-SELFCHECK_M2_SUPERVISED_FINETUNING_Q3" los="" front={"Name three methods for curating high-quality SFT data."} back={"Self-check from: Self-Check: M2 --- Supervised Fine-Tuning\n\n(Answer from memory, then verify against the chapter text.)"} />
+
+<AnkiCard type="checkpoint" id="chapters-vol0-ch02-CHECKPOINT-SELFCHECK_M2_SUPERVISED_FINETUNING_Q4" los="" front={"What is the effective batch size if per-device batch is 2, you have\n 4 GPUs, and gradient accumulation is 8?"} back={"Self-check from: Self-Check: M2 --- Supervised Fine-Tuning\n\n(Answer from memory, then verify against the chapter text.)"} />
+
+<AnkiCard type="checkpoint" id="chapters-vol0-ch02-CHECKPOINT-SELFCHECK_M2_SUPERVISED_FINETUNING_Q5" los="" front={"Explain the LoRA trade-off: what do you gain and what do you lose\n compared to full fine-tuning?"} back={"Self-check from: Self-Check: M2 --- Supervised Fine-Tuning\n\n(Answer from memory, then verify against the chapter text.)"} />
+
+<AnkiCard type="checkpoint" id="chapters-vol0-ch02-CHECKPOINT-SELFCHECK_M2_SUPERVISED_FINETUNING_Q6" los="" front={"What is the role of the chat template in SFT data preparation?"} back={"Self-check from: Self-Check: M2 --- Supervised Fine-Tuning\n\n(Answer from memory, then verify against the chapter text.)"} />
+
+<AnkiCard type="checkpoint" id="chapters-vol0-ch02-CHECKPOINT-SELFCHECK_M2_SUPERVISED_FINETUNING_Q7" los="PTL-2.5" front={"identify Identify three data curation strategies for SFT: distillation, Best-of-K rejection sampling, and quality filtering."} back={"Self-check from: Self-Check: M2 --- Supervised Fine-Tuning\n\n(Answer from memory, then verify against the chapter text.)"} />
+
+### Keyconcept cards (3)
+
+<AnkiCard type="keyconcept" id="chapters-vol0-ch02-CONCEPT-RESPONSETOKENONLY_LOSS" los="PTL-2.1" front={"Key Concept: Response-Token-Only Loss"} back={"Core Insight: SFT masks prompt tokens from the loss and trains only on\nresponse tokens. The model learns to generate answers, not to memorize\nquestions. This is the single architectural distinction between pre-training and SFT:\nsame cross-entropy objective, different token mask.\n\nWhy It Matters: If you accidentally train on prompt tokens (e.g., wrong\nmasking configuration), the model wastes capacity learning to predict user queries\nrather than improving response quality. Always verify the loss mask in your training\ncode.\n\nWhen It Breaks: Multi-turn conversations require careful mask design—the\nassistant turns are response tokens, but prior assistant turns in context should also\nbe masked if they are treated as conditioning rather than training targets."} />
+
+<AnkiCard type="keyconcept" id="chapters-vol0-ch02-CONCEPT-THE_LIMA_PRINCIPLE" los="PTL-2.3" front={"Key Concept: The LIMA Principle"} back={"Core Insight: 1 000 high-quality, diverse SFT examples can outperform\n1 million mixed-quality examples. Because SFT imitates all data equally,\na single bad response forces the model to learn that bad pattern.\n\nWhy It Matters: Data curation effort has higher ROI than scaling data\nvolume. Invest in response quality and prompt diversity, not sheer quantity.\n\nWhen It Breaks: For complex domains (medical, legal), 1 000 examples\nmay not cover enough edge cases. The principle holds for general instruction\nfollowing but needs domain-specific augmentation for specialized tasks."} />
+
+<AnkiCard type="keyconcept" id="chapters-vol0-ch02-CONCEPT-EFFECTIVE_BATCH_SIZE_CALCULATION" los="PTL-2.4" front={"What is the Effective Batch Size Calculation? Show the formula and explain when to use it."} back={"Core Insight: The effective batch size is\n$\\text{per_device_batch} \\times \\text{num_GPUs} \\times \\text{gradient_accumulation_steps}$.\nGradient accumulation lets you simulate large batches without the memory cost of\nactually loading all samples simultaneously.\n\nWhy It Matters: Learning rate and batch size are coupled. Doubling\neffective batch size often requires increasing the learning rate proportionally.\nGetting this wrong causes training divergence or slow convergence.\n\nWhen It Breaks: Very large effective batch sizes can reduce generalization.\nFor SFT with $<$10K examples, batch sizes of 8–32 are typical."} />
+
+### Problem cards (4)
+
+<AnkiCard type="problem" id="chapters-vol0-ch02-PROB-CONSIDER_A_PROMPT_WHAT_IS_22_3_TOKENS_AND_RESPONSE" los="PTL-2.1" front={"Consider a prompt \"What is 2+2?\" (3 tokens) and response \"The answer is 4.\"\n(5 tokens). The full sequence is 8 tokens. On which tokens does the SFT loss\ncompute gradients? What would change if this were a pre-training loss?"} back={"Approach: SFT loss: Gradients are computed only on the 5 response tokens\n(\"The\", \"answer\", \"is\", \"4\", \".\"). The 3 prompt tokens (\"What\", \"is\",\n\"2+2?\") are used as conditioning context but do not contribute to the loss.\n\nPre-training loss: Gradients would be computed on all 8 tokens,\nincluding the prompt tokens. The model would be trained to predict every token,\nnot just the response.\n\nKey insight: The response-only mask is what makes SFT \"supervised\"—it\ntells the model which tokens to imitate. Training on prompt tokens would teach\nthe model to generate prompts, not responses.\n\nAnswer: SFT loss: Gradients are computed only on the 5 response tokens\n(\"The\", \"answer\", \"is\", \"4\", \".\")."} />
+
+<AnkiCard type="problem" id="chapters-vol0-ch02-PROB-YOU_HAVE_TWO_SFT_DATASETS_FOR_BUILDING_A_CUSTOMER_" los="PTL-2.3" front={"You have two SFT datasets for building a customer support chatbot:\n\n- Dataset A: 500 expert-written responses, each reviewed by a domain specialist\n\n- Dataset B: 50 000 responses generated by GPTL-4 with no filtering\n\nWhich dataset would you start with? What risk does each carry?"} back={"Approach: Start with Dataset A (500 expert responses). Per the LIMA principle,\nSFT imitates all data equally. A small number of high-quality, diverse examples\nproduces a more consistent model than a large noisy dataset.\n\nRisk of A: 500 examples may not cover all edge cases. The model may\nstruggle with out-of-distribution queries. Augment with targeted examples as\nfailure modes are discovered.\n\nRisk of B: GPTL-4 outputs without filtering will include hallucinations,\nverbose responses, and occasional errors. The SFT model will imitate these flaws.\nIf using B, apply quality filtering first: score responses with a reward\nmodel, filter to the top 5–10\n\nKey insight: The optimal path is often Dataset A for initial SFT, then\nDataset B (filtered) for continued training to expand coverage.\n\nAnswer: Start with Dataset A (500 expert responses)."} />
+
+<AnkiCard type="problem" id="chapters-vol0-ch02-PROB-YOU_ARE_FINETUNING_A_7B_INSTRUCT_MODEL_FOR_LEGAL_D" los="PTL-2.2" front={"You are fine-tuning a 7B instruct model for legal document summarization using LoRA.\nYou have 15 000 training examples and two GPU options: (A) a single A100-80GB that\ncan handle LoRA with rank $r=64$ or full fine-tuning at batch size 1, and (B) four\nA10-24GB GPUs that can handle LoRA with rank $r=16$ only. The legal domain requires\nsignificant behavioral change (new terminology, citation formats, structured output).\nWhich configuration do you choose? What rank would you start with and why?"} back={"Approach: Choose configuration A (single A100) with LoRA at $r=64$. Legal\nsummarization requires substantial behavioral change—new vocabulary patterns, citation\nformats, and structured outputs. Higher rank gives LoRA more expressiveness to learn\nthese domain-specific patterns.\n\nStep 1: Eliminate full fine-tuning. Although the A100 supports it, full\nfine-tuning on 15K examples risks catastrophic forgetting of the model's general\ncapabilities. LoRA preserves the base model's knowledge while adapting behavior.\n\nStep 2: Choose rank. Start with $r=32$ as a baseline. The expressiveness\nneeded for legal domain adaptation exceeds simple style changes ($r=8$–$16$) but\ndoes not require the full parameter space. If validation loss plateaus, increase to\n$r=64$. If the model overfits, reduce to $r=16$.\n\nKey Insight: Rank selection is a bias-variance tradeoff: higher rank\nlearns more but risks overfitting on 15K examples. The domain gap (general to legal)\nfavors higher rank, but the dataset size constrains it. $r=32$ balances both.\n\nAnswer: Configuration A with LoRA $r=32$, tuning up or down based on\nvalidation performance."} />
+
+<AnkiCard type="problem" id="chapters-vol0-ch02-PROB-5_MIN_SFTTRAINER_CONFIG_PHONE_SCREEN" los="PTL-2.4" front={"5 min SFTTrainer config Phone screen\n\nYou are fine-tuning Llama-3-8B-Instruct on a customer support dataset using\nTRL's SFTTrainer. After training, the model outputs garbled text with repeated\nspecial tokens like |eot_id| in the middle of responses. Training\nloss decreased normally.\n\n- What is the most likely cause of this behavior?\n\n- How does the chat template interact with SFTTrainer's\n dataset preparation, and where can the mismatch occur?\n\n- Write the corrected SFTTrainer configuration that avoids\n this issue."} back={"Approach: Trace the data pipeline from raw conversations through\nchat template formatting to tokenization, identifying where special tokens\ncan leak into training targets.\n\nPart 1: Most likely cause.\nThe training data was pre-formatted with one chat template (e.g., ChatML\nstyle with |im_start|/|im_end|), but the tokenizer\napplies Llama-3's native template on top, double-wrapping turns with\nconflicting special tokens. The model learns to predict these artifacts as\npart of the response.\n\nPart 2: Template interaction.\nSFTTrainer calls tokenizer.apply_chat_template() on each\nconversation when the dataset contains message lists. If the data is already\nformatted as strings with template markup, the trainer re-applies the\ntemplate, producing nested delimiters. The mismatch occurs when:\n\n- Data is pre-formatted strings but trainer expects message dicts\n\n- Data uses a different model's template than the tokenizer's default\n\n- Special tokens in the data are not in the tokenizer's vocabulary\n\nPart 3: Corrected configuration.\n\n```python\n\nfrom trl import SFTTrainer, SFTConfig\n\n# Option A: Pass message dicts, let trainer apply template\ntrainer = SFTTrainer(\n    model=model,\n    args=SFTConfig(\n        output_dir=\"./sft_output\",\n        per_device_train_batch_size=2,\n        gradient_accumulation_steps=8,\n        max_seq_length=2048,\n    ),\n    train_dataset=dataset,  # Each row: {\"messages\": [...]}\n    processing_class=tokenizer,  # Applies native template\n)\n\n# Option B: Pre-formatted strings, disable template\n# Set dataset_text_field=\"text\" and ensure data is\n# already formatted with the CORRECT model template\n\n```\n\nKey Insight: SFT pipelines have two formatting paths—message\ndicts (trainer applies template) and pre-formatted strings (trainer\npasses through). Mixing them produces double-wrapped special tokens that\nthe model faithfully learns to reproduce. Always verify the formatted\noutput of a single example before launching training.\n\nAnswer: Chat template double-application."} />
+
+### Interview cards (1)
+
+<AnkiCard type="interview" id="chapters-vol0-ch02-INT-SFT_DATA_PIPELINE_AND_LOSS_DESIGN" los="PTL-2.1" front={"Interview Q: the SFT loss\" in nearly every MLE alignment\n interview (L4+)"} back={"Why interviewers ask this: Meta FAIR, Anthropic, and Google\n DeepMind ask \"explain the SFT loss\" in nearly every MLE alignment\n interview (L4+). At OpenAI, the follow-up is \"what goes wrong if\n you train on prompt tokens?\" It gates basic post-training literacy.\n\n What they're really testing: Whether you understand that SFT\n and pre-training share the same cross-entropy objective but differ\n only in the token mask."} />
+
+{/* CARD-PLACEMENT-AUTOEND */}

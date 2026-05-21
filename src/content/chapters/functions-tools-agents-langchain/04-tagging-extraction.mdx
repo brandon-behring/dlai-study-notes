@@ -1,0 +1,820 @@
+---
+book: functions-tools-agents-langchain
+title: Tagging and Extraction
+chapter: 4
+description: Force structured output from unstructured text via function
+  calling—single-object tagging, multi-object extraction, and long-document
+  strategies
+learning_outcomes:
+  - id: FT-4.1
+    verb: compare
+    text: tagging (single structured object) and extraction (list of structured
+      objects) as two paradigms for converting unstructured text into structured
+      data via function calling
+  - id: FT-4.2
+    verb: apply
+    text: output parsers (`JsonOutputFunctionsParser`,
+      `JsonKeyOutputFunctionsParser`) to convert raw function-call responses
+      into clean Python dictionaries
+  - id: FT-4.3
+    verb: implement
+    text: an extraction pipeline for long documents using
+      `RecursiveCharacterTextSplitter`, LCEL `chain.map()`, and result
+      flattening
+  - id: FT-4.4
+    verb: design
+    text: prompt-engineering strategies for extraction tasks, including explicit "do
+      not guess" instructions and few-shot examples that reduce hallucinated
+      entities in model output
+  - id: FT-4.5
+    verb: analyze
+    text: how chunk size and overlap in `RecursiveCharacterTextSplitter` affect
+      extraction recall and duplication when processing documents that exceed
+      the context window
+  - id: FT-4.6
+    verb: evaluate
+    text: when to use tagging (single-pass metadata labelling) versus extraction
+      (multi-object parsing) for a given information-retrieval requirement,
+      considering output cardinality and post-processing cost
+sources: []
+tools_compared:
+  - AI Engineer / MLE --- All companies --- L4/L5
+last_verified: 2026-05-21
+volatility: architectural-pattern
+---
+
+{/* TODO: per-chapter polish pass — see plan decision Q1 round 3 */}
+
+&lt;!–MDXB-18-OPEN–&gt;
+
+Lesson 3 showed how LangChain wraps OpenAI function calling so that
+Pydantic models define the schema and LCEL chains manage the plumbing.
+But we only used function calling for *actions*—triggering side
+effects like weather lookups. This lesson pivots to a different use
+case entirely: using function calling as a *structured output
+mechanism*. By forcing the model to “call a function” whose schema
+matches our desired output, we get guaranteed JSON conforming to a
+Pydantic model—no regex parsing, no fragile string manipulation.
+Lesson 5 will then combine real tools with this structured-output
+technique to build routing logic.
+
+&lt;!–MDXB-18-CLOSE–&gt;
+
+# Tagging vs. Extraction
+
+&lt;!–MDXB-19-OPEN–&gt;
+
+**What**: Tagging produces a *single* structured object from a
+text (e.g., one sentiment label plus one language tag). Extraction produces
+a *list* of structured objects—each representing an entity or item
+found in the text (e.g., a list of research papers with titles, authors,
+and years).  
+**Why**: The distinction determines your Pydantic schema design:
+tagging uses a flat model, extraction wraps that model in a
+`List[...]`. Choosing the wrong paradigm causes either
+information loss (tagging when there are multiple entities) or
+unnecessary complexity (extraction when a single label suffices).
+
+&lt;!–MDXB-19-CLOSE–&gt;
+
+
+
+<Sidenote category="interview">"How do you get structured output from an LLM?" Name function calling as the mechanism, then distinguish tagging (single object) from extraction (list). Shows you know both patterns.</Sidenote>
+
+
+
+The function-calling API<Citation src="openai2023function" /> was designed for tool invocation, but nothing
+prevents us from defining a “function” that the model never actually
+executes. Instead, we treat the function’s argument schema as a
+contract: the model must produce JSON that conforms to it. This is
+the key insight behind both tagging and extraction.
+
+
+
+<Term name="Tagging" los="FT-4.1">
+  Using function calling to produce a single structured object from input text; the Pydantic model defines flat fields (e.g., `sentiment: str`, `language: str`) and the LLM fills them in a single function call
+</Term>
+<AnkiCard type="term" front={"Tagging"} back={"Using function calling to produce a single structured object from input text; the Pydantic model defines flat fields (e.g., `sentiment: str`, `language: str`) and the LLM fills them in a single function call"} los="FT-4.1" />
+
+
+
+
+
+<Term name="Extraction" los="FT-4.1">
+  Using function calling to produce a list of structured objects from input text; the outer Pydantic model wraps an inner entity model in `List[EntityModel]`, and the LLM populates one entry per entity found
+</Term>
+<AnkiCard type="term" front={"Extraction"} back={"Using function calling to produce a list of structured objects from input text; the outer Pydantic model wraps an inner entity model in `List[EntityModel]`, and the LLM populates one entry per entity found"} los="FT-4.1" />
+
+
+
+## Tagging: Single Object
+
+
+
+<Sidenote category="formula">Tagging schema: one Pydantic model with flat fields. No `List[...]` wrapper.</Sidenote>
+
+
+
+A tagging chain takes text and returns one structured object. The
+canonical example is sentiment analysis combined with language detection:
+
+
+
+```cypher
+from pydantic import BaseModel, Field
+
+class Tagging(BaseModel):
+    """Tag a passage with sentiment and language."""
+    sentiment: str = Field(
+        description="sentiment of text, one of: pos, neg, neutral"
+    )
+    language: str = Field(
+        description="language of text (ISO 639-1 code)"
+    )
+```
+
+
+
+The critical detail is the `Field(description=...)` annotations.
+The model reads these descriptions as part of the function schema, so
+vague descriptions produce vague outputs. Enumerating allowed values
+inside the description (“one of: pos, neg, neutral”) acts as a soft
+constraint, analogous to the “rails” concept from LLM-as-a-judge
+evaluation.
+
+
+
+<Sidenote category="warning">Always enumerate allowed values in `Field(description=...)`. Without enumeration, the model may invent labels like "somewhat positive."</Sidenote>
+
+
+
+## Extraction: List of Objects
+
+Extraction extends tagging to multiple entities. The outer model
+contains a single field that is a list of the inner entity model:
+
+
+
+```cypher
+from typing import List, Optional
+
+class Paper(BaseModel):
+    """Information about a research paper mentioned in text."""
+    title: str
+    author: Optional[str] = None
+    year: Optional[int] = None
+
+class ExtractionResult(BaseModel):
+    """Extraction result containing all papers found."""
+    papers: List[Paper]
+```
+
+
+
+
+
+<Sidenote category="pattern">Extraction pattern: inner entity model + outer wrapper with `List[InnerModel]`. Always use `Optional` for fields the text may not contain.</Sidenote>
+
+
+
+Using `Optional` for non-guaranteed fields prevents the model
+from hallucinating values. If the text mentions a paper title without
+an author, the model can return `null` rather than fabricating
+a name.
+
+
+
+<Term name="Forced function calling" los="FT-4.1">
+  Setting the `function_call` parameter to the specific function name (not "auto") so the model must produce a structured response conforming to the schema; guarantees output structure regardless of input content
+</Term>
+<AnkiCard type="term" front={"Forced function calling"} back={"Setting the `function_call` parameter to the specific function name (not \"auto\") so the model must produce a structured response conforming to the schema; guarantees output structure regardless of input content"} los="FT-4.1" />
+
+
+
+# Output Parsers
+
+&lt;!–MDXB-20-OPEN–&gt;
+
+**What**: Output parsers sit at the end of an LCEL chain and
+transform the raw `AIMessage` (which contains the function call
+arguments as a JSON string) into a Python dictionary or a specific key
+from that dictionary.  
+**Why**: Without a parser, you receive a full `AIMessage`
+object and must manually extract `.additional_kwargs ["function_call"]["arguments"]`, parse it from JSON, and handle errors.
+Parsers encapsulate this boilerplate into a single composable step.
+
+&lt;!–MDXB-20-CLOSE–&gt;
+
+LangChain<Citation src="langchain2024" /> provides two output parsers for function calling responses:
+
+
+
+```cypher
+from langchain.output_parsers.openai_functions import (
+    JsonOutputFunctionsParser,
+    JsonKeyOutputFunctionsParser,
+)
+
+# Full dictionary: {"sentiment": "pos", "language": "en"}
+full_parser = JsonOutputFunctionsParser()
+
+# Single key: ["pos"]  (extracts just the "sentiment" value)
+key_parser = JsonKeyOutputFunctionsParser(key_name="sentiment")
+```
+
+
+
+
+
+<Sidenote category="formula">`JsonOutputFunctionsParser`: full dict. `JsonKeyOutputFunctionsParser(key_name=...)`: single value.</Sidenote>
+
+
+
+The difference matters for downstream composition. If the next step in
+your LCEL chain expects a full dictionary (e.g., for database insertion),
+use the full parser. If it expects a single value (e.g., for conditional
+routing), use the key parser.
+
+## Composing the Chain
+
+The complete tagging chain connects four components via the LCEL pipe
+operator:
+
+
+
+```cypher
+from langchain.chat_models import ChatOpenAI  # freshness-ok: course original; use langchain_openai.ChatOpenAI
+from langchain.prompts import ChatPromptTemplate
+from langchain.utils.openai_functions import (
+    convert_pydantic_to_openai_function,
+)
+
+# 1. Define the prompt
+prompt = ChatPromptTemplate.from_messages([
+    ("system", "Extract the desired information from the passage."),
+    ("human", "{input}"),
+])
+
+# 2. Convert Pydantic model to OpenAI function schema
+tagging_fn = convert_pydantic_to_openai_function(Tagging)
+
+# 3. Bind function to model with forced calling
+model = ChatOpenAI(temperature=0).bind(
+    functions=[tagging_fn],
+    function_call={"name": "Tagging"},
+)
+
+# 4. Compose chain with output parser
+chain = prompt | model | JsonOutputFunctionsParser()
+
+result = chain.invoke({"input": "I love this product! Es fantastico."})
+# {"sentiment": "pos", "language": "es"}
+```
+
+
+
+
+
+<Sidenote category="interview">Walk through the 4-step chain composition: prompt $$ model.bind(functions) $$ parser. Shows LCEL fluency.</Sidenote>
+
+
+
+# Prompt Engineering for Extraction
+
+Extraction is more sensitive to prompt design than tagging because the
+model must decide both *what* to extract and *how many*
+entities exist. Two prompt engineering principles are essential:
+
+&lt;!–MDXB-23-OPEN–&gt;
+
+**Core Insight:** Telling the model what *not* to do is as
+important as telling it what to do. For extraction, the instruction
+“Do not extract the article itself as a paper” prevents the model from
+treating the input document as an entity to extract.
+
+**Why It Matters:** Without negative instructions, the model
+frequently “extracts” metadata about the input text itself, inflating
+entity counts and polluting downstream data.
+
+**When It Breaks:** Negative instructions can be over-applied.
+If you say “do not extract partial information,” the model may skip
+entities that lack optional fields rather than returning them with
+`null` values.
+
+&lt;!–MDXB-23-CLOSE–&gt;
+
+&lt;!–MDXB-25-OPEN–&gt;
+
+**Why interviewers ask this:** Google, Meta, and AI-native
+companies (Cohere, Mistral) ask “How do you get reliable structured
+output from an LLM?” in MLE and AI engineer screens. It gates
+whether you can build data pipelines downstream of LLM inference.
+
+**What they’re really testing:** Whether you know that forced
+function calling is a *structured output mechanism*, not just a
+tool invocation mechanism. The distinction between tagging (single
+object) and extraction (list of objects) reveals schema design
+maturity.
+
+**Expected depth by level:**
+
+- **IC3/IC4:** Explain forced function calling for
+  guaranteed JSON. Distinguish tagging from extraction. Know
+  that negative instructions (“Do not extract the article
+  itself”) prevent hallucinated entities.
+
+- **IC5+/Staff:** Design a long-document extraction
+  pipeline with chunking, parallel `.batch()`, overlap
+  strategy, and deduplication. Discuss confidence estimation
+  when forced calling always produces output.
+
+**Red flag:** Relying on regex or string parsing for structured
+LLM output, or being unaware that extraction requires a
+`List[Model]` wrapper to handle variable entity counts.
+
+&lt;!–MDXB-25-CLOSE–&gt;
+
+
+
+<Sidenote category="warning">Without "Do not extract the article itself," the model treats the input document as an entity. Always include negative instructions for extraction.</Sidenote>
+
+
+
+
+
+```cypher
+# Extraction prompt with negative instruction
+extraction_prompt = ChatPromptTemplate.from_messages([
+    ("system",
+     "Extract all research papers mentioned in the following text. "
+     "Do not extract the article itself as a paper. "
+     "If a field is not present, return null."),
+    ("human", "{input}"),
+])
+```
+
+
+
+The second principle is **explicit null handling**: instruct the
+model to return `null` for missing fields rather than guessing.
+This aligns with the `Optional` type hints in the Pydantic model.
+
+# Long-Document Extraction
+
+&lt;!–MDXB-21-OPEN–&gt;
+
+**What**: When a document exceeds the model’s context window (or
+when extraction quality degrades on long inputs), split the document into
+chunks, run the extraction chain on each chunk in parallel, and flatten
+the results into a single list.  
+**Why**: LLMs lose extraction recall on long documents—entities
+buried in the middle are frequently missed. Chunking ensures each
+segment is short enough for reliable extraction. LCEL’s
+`.batch()` parallelizes up to 5 calls by default, keeping
+latency manageable.
+
+&lt;!–MDXB-21-CLOSE–&gt;
+
+
+
+<Sidenote category="pattern">Long-doc extraction: split $$ map chain over chunks $$ flatten results. LCEL parallelizes up to 5 calls by default.</Sidenote>
+
+
+
+## Splitting
+
+
+
+```cypher
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+
+splitter = RecursiveCharacterTextSplitter(
+    chunk_size=1000,
+    chunk_overlap=200,  # overlap prevents entity splitting
+)
+chunks = splitter.split_text(long_document)
+```
+
+
+
+The `chunk_overlap` parameter is critical for extraction: an
+entity that spans a chunk boundary (e.g., a paper title that starts at
+the end of one chunk and continues into the next) would be lost without
+overlap. A 20% overlap ratio is a reasonable default.
+
+
+
+<Sidenote category="warning">Without chunk overlap, entities spanning chunk boundaries are silently dropped. Use 15–20% overlap for extraction pipelines.</Sidenote>
+
+
+
+## Mapping and Flattening
+
+The extraction chain runs on each chunk via `.batch()`, producing
+a list of lists. A simple flatten step merges them:
+
+
+
+```cypher
+from itertools import chain as iterchain
+
+# Run extraction on all chunks (LCEL parallelizes automatically)
+chunk_results = extraction_chain.batch(
+    [{"input": chunk} for chunk in chunks],
+    config={"max_concurrency": 5},
+)
+
+# Flatten: [[Paper, Paper], [Paper]] -> [Paper, Paper, Paper]
+all_papers = list(iterchain.from_iterable(
+    result.get("papers", []) for result in chunk_results
+))
+```
+
+
+
+
+
+<Sidenote category="formula">Total extraction time $  N_{chunks} / 5   t_{single}$ with default LCEL concurrency of 5.</Sidenote>
+
+
+
+&lt;!–MDXB-24-OPEN–&gt;
+
+**Core Insight:** LCEL’s `.batch()` method automatically
+parallelizes chain invocations up to a configurable concurrency limit
+(default 5). You do not need to write threading or async code.
+
+**Why It Matters:** A 50-chunk document with serial processing
+takes 50× the single-call latency. With default parallelism,
+it takes only 10×—an 80% reduction in wall-clock time.
+
+**When It Breaks:** Rate limits from the OpenAI API may trigger
+429 errors if concurrency is too high. Reduce
+`max_concurrency` or add retry logic.
+
+&lt;!–MDXB-24-CLOSE–&gt;
+
+## Deduplication
+
+Chunk overlap introduces a new problem: the same entity may be extracted
+from two overlapping chunks. A post-processing deduplication step is
+necessary:
+
+
+
+```cypher
+def deduplicate_papers(papers: list[dict]) -> list[dict]:
+    """Remove duplicate papers by title (case-insensitive)."""
+    seen = set()
+    unique = []
+    for p in papers:
+        key = p.get("title", "").strip().lower()
+        if key and key not in seen:
+            seen.add(key)
+            unique.append(p)
+    return unique
+```
+
+
+
+
+
+<Sidenote category="practice">Target: 5 min. Given a blog post URL, sketch the split $$ extract $$ flatten $$ dedup pipeline on a whiteboard.</Sidenote>
+
+
+
+# Vignette: Extraction Pipeline for a Compliance Team
+
+&lt;!–MDXB-32-OPEN–&gt;
+
+\[FT-4.3\]
+
+**Scenario:**
+A fintech company’s compliance team manually reviews 200 vendor
+contracts per quarter, extracting party names, effective dates,
+termination clauses, and liability caps. Each contract averages
+18,000 tokens. The team lead proposes using an LLM extraction
+pipeline to automate this, but the VP of Engineering is concerned about
+accuracy—a missed liability cap in a single contract could expose
+the company to millions in uninsured risk. Meanwhile, the compliance
+analysts worry that a fully automated pipeline will eliminate their
+roles, so they advocate for a human-in-the-loop design where the LLM
+extracts and a human verifies.
+
+**Data:**
+
+| Metric                                        | Value                     |
+|:----------------------------------------------|:--------------------------|
+| Contracts per quarter                         | 200                       |
+| Avg contract length                           | 18,000 tokens             |
+| Model context window                          | 8,192 tokens              |
+| Manual extraction time per contract           | 45 minutes                |
+| LLM extraction cost per contract (estimated)  | $0.85                     |
+| Manual review cost per contract               | $35 (analyst hourly rate) |
+| Target extraction recall (compliance minimum) | 99%                       |
+
+**Questions:**
+
+1.  The contracts exceed the model’s context window. Design the
+    chunking strategy using `RecursiveCharacterTextSplitter`.
+    Specify `chunk_size`, `chunk_overlap`, and explain
+    why overlap is especially important for legal entity extraction
+    where clauses span multiple paragraphs.
+
+2.  The pipeline extracts 4 entity types (party names, dates,
+    termination clauses, liability caps) from 200 contracts. After
+    flattening results across chunks, you find 12% duplicate entities.
+    Explain why this happens and design a deduplication strategy that
+    handles near-duplicates (e.g., “Acme Corp” vs. “Acme Corporation, Inc.”).
+
+3.  The compliance team requires 99% recall but the VP wants to
+    minimise cost. Design a two-pass architecture: the first pass
+    uses the LLM for bulk extraction, the second pass routes
+    low-confidence extractions to human review. How do you determine
+    which extractions are “low-confidence” when forced function
+    calling always produces output?
+
+&lt;!–MDXB-32-CLOSE–&gt;
+
+# Problems
+
+&lt;!–MDXB-26-OPEN–&gt;
+
+You receive customer support emails and need to: (a) classify each email
+by urgency (low, medium, high) and department (billing, technical,
+general), and (b) extract all product names and order IDs mentioned in
+the email body. Design the Pydantic models for both tasks. Explain why
+one task is tagging and the other is extraction. What happens if you use
+a tagging schema for task (b)?
+
+&lt;!–MDXB-26-CLOSE–&gt;
+
+&lt;!–MDXB-29-OPEN–&gt;
+
+**Approach:** **Task (a) — Tagging:**
+
+
+
+```cypher
+class EmailTag(BaseModel):
+    urgency: str = Field(
+        description="urgency level, one of: low, medium, high"
+    )
+    department: str = Field(
+        description="department, one of: billing, technical, general"
+    )
+```
+
+
+
+This is tagging because each email produces exactly one urgency label
+and one department label—a single flat object.
+
+**Task (b) — Extraction:**
+
+
+
+```cypher
+class ProductMention(BaseModel):
+    product_name: str
+    order_id: Optional[str] = None
+
+class EmailExtraction(BaseModel):
+    mentions: List[ProductMention]
+```
+
+
+
+This is extraction because an email may mention zero, one, or many
+products. A `List[...]` wrapper is required.
+
+**What if you use tagging for task (b)?** A flat schema with
+`product_name: str` can capture only the first product.
+Additional products are silently lost. The model might concatenate
+multiple names into one field (“Widget Pro, Gadget Max”), producing
+unparseable output.
+
+**Key Insight:** The “one or many” distinction drives the schema
+choice. One entity = tagging (flat model). Zero-to-many entities =
+extraction (`List[Model]` wrapper).
+
+**Answer:** **Task (a) — Tagging:**
+
+
+
+```cypher
+class EmailTag(BaseModel):
+    urgency: str = Field(
+        description="urgency level, one of: low, medium, high"
+    )
+    department: str = Field(
+        description="department, one of: billing, technical, general"
+    )
+```
+
+
+
+This is tagging because each email produces exactly one urgency label
+and one department label—a single flat object.
+
+**Task (b) — Extraction:**
+
+
+
+```cypher
+class ProductMention(BaseModel):
+    product_name: str
+    order_id: Optional[str] = None
+
+class EmailExtraction(BaseModel):
+    mentions: List[ProductMention]
+```
+
+
+
+This is extraction because an email may mention zero, one, or many
+products.
+
+&lt;!–MDXB-29-CLOSE–&gt;
+
+&lt;!–MDXB-27-OPEN–&gt;
+
+You run an extraction pipeline on a 15,000-token blog post using
+`RecursiveCharacterTextSplitter` with `chunk_size=1000`
+and `chunk_overlap=0`. The pipeline extracts 8 papers, but
+manual review finds 12. (a) Identify two likely causes of the missing
+4 papers. (b) Fix the pipeline configuration. (c) After adding
+`chunk_overlap=200`, you now extract 14 papers—2 more than
+expected. Explain why and propose a fix.
+
+&lt;!–MDXB-27-CLOSE–&gt;
+
+&lt;!–MDXB-30-OPEN–&gt;
+
+**Approach:** **(a) Two likely causes:**
+
+**Cause 1:** Entity boundary splitting. With zero overlap, papers
+mentioned across a chunk boundary are split between two chunks. Neither
+chunk contains the full entity, so neither extraction call returns it.
+
+**Cause 2:** Mid-document recall degradation. Even within a single
+chunk, if a paper mention falls at the very end of a 1,000-token
+segment, the model may fail to extract it due to attention decay.
+
+**(b) Configuration fix:**
+
+
+
+```cypher
+splitter = RecursiveCharacterTextSplitter(
+    chunk_size=1000,
+    chunk_overlap=200,  # 20% overlap prevents boundary splits
+)
+```
+
+
+
+**(c) Why 14 instead of 12:** The 200-token overlap creates
+regions where the same paper appears in two adjacent chunks. Both
+extraction calls return it, producing duplicates.
+
+**Fix:** Add a deduplication step after flattening:
+
+
+
+```cypher
+unique_papers = deduplicate_papers(all_papers)  # by title
+```
+
+
+
+**Key Insight:** Chunk overlap and deduplication are a matched
+pair. Adding overlap without deduplication inflates counts; removing
+overlap without understanding boundary effects drops entities.
+
+**Answer:**
+
+1.  **Two likely causes:** **Cause 1:** Entity boundary splitting.
+
+2.  **Configuration fix:** 
+
+```cypher
+splitter = RecursiveCharacterTextSplitter( chunk_size=1000, chunk_overlap=200, # 20% overlap prevents boundary splits )
+```
+
+
+
+3.  **Why 14 instead of 12:** The 200-token overlap creates regions where the same paper appears in two adjacent chunks.
+
+&lt;!–MDXB-30-CLOSE–&gt;
+
+&lt;!–MDXB-28-OPEN–&gt;
+
+You are building an LCEL chain that tags customer reviews with sentiment.
+The next step in the chain is a conditional router that sends positive
+reviews to a “thank you” template and negative reviews to an
+“escalation” template. (a) Which output parser should you use and
+why? (b) Write the complete LCEL chain from prompt to router dispatch.
+
+&lt;!–MDXB-28-CLOSE–&gt;
+
+&lt;!–MDXB-31-OPEN–&gt;
+
+**Approach:** **(a)** Use `JsonKeyOutputFunctionsParser(key_name= "sentiment")` because the router needs only the sentiment string, not
+the full dictionary. Using the full parser would require an extra
+extraction step to pull the sentiment value from the dict.
+
+**(b) Complete chain:**
+
+
+
+```cypher
+from langchain.output_parsers.openai_functions import (
+    JsonKeyOutputFunctionsParser,
+)
+from langchain.schema.runnable import RunnableLambda
+
+# Tagging chain that outputs just the sentiment string
+tag_chain = (
+    prompt
+    | model.bind(
+        functions=[tagging_fn],
+        function_call={"name": "Tagging"},
+    )
+    | JsonKeyOutputFunctionsParser(key_name="sentiment")
+)
+
+# Router dispatch
+def route_review(sentiment: str) -> str:
+    if sentiment == "pos":
+        return thank_you_template.invoke({})
+    else:
+        return escalation_template.invoke({})
+
+full_chain = tag_chain | RunnableLambda(route_review)
+```
+
+
+
+**Key Insight:** The key parser produces a single value that
+downstream components can consume directly, eliminating dictionary
+access boilerplate and making the chain more readable.
+
+**Answer:**
+
+&lt;!–MDXB-31-CLOSE–&gt;
+
+# Checkpoint Questions
+
+&lt;!–MDXB-22-OPEN–&gt;
+
+&lt;!–MDXB-22-CLOSE–&gt;
+
+{/* CARD-PLACEMENT-AUTOSTART */}
+
+## Review
+
+{/* CARD-PLACEMENT-TODO: polish pass should move these cards inline */}
+{/* near the concepts they test, per Q-R4.4 hybrid placement.       */}
+
+### Checkpoint cards (8)
+
+<AnkiCard type="checkpoint" id="chapters-vol0-ch04-CHECKPOINT-CHECKPOINT_L4_Q1" los="FT-4.1" front={"What is the structural difference between a tagging schema\n and an extraction schema in Pydantic?\n \\hfillFT-4.1"} back={"Self-check from: Checkpoint: L4\n\n(Answer from memory, then verify against the chapter text.)"} />
+
+<AnkiCard type="checkpoint" id="chapters-vol0-ch04-CHECKPOINT-CHECKPOINT_L4_Q2" los="FT-4.1" front={"Why must you set function_call={\"name\": \"...\"}\n rather than function_call=\"auto\" for structured output?\n \\hfillFT-4.1"} back={"Self-check from: Checkpoint: L4\n\n(Answer from memory, then verify against the chapter text.)"} />
+
+<AnkiCard type="checkpoint" id="chapters-vol0-ch04-CHECKPOINT-CHECKPOINT_L4_Q3" los="FT-4.2" front={"When would you use JsonKeyOutputFunctionsParser\n instead of JsonOutputFunctionsParser? Give a concrete\n scenario. \\hfillFT-4.2"} back={"Self-check from: Checkpoint: L4\n\n(Answer from memory, then verify against the chapter text.)"} />
+
+<AnkiCard type="checkpoint" id="chapters-vol0-ch04-CHECKPOINT-CHECKPOINT_L4_Q4" los="FT-4.3" front={"A 20,000-token document is split into 20 chunks with 200-token\n overlap. After extraction and flattening, you find duplicate\n entities. Explain the cause and the fix.\n \\hfillFT-4.3"} back={"Self-check from: Checkpoint: L4\n\n(Answer from memory, then verify against the chapter text.)"} />
+
+<AnkiCard type="checkpoint" id="chapters-vol0-ch04-CHECKPOINT-CHECKPOINT_L4_Q5" los="FT-4.2" front={"Why does the prompt \"Do not extract the article itself as a\n paper\" improve extraction quality?\n \\hfillFT-4.2"} back={"Self-check from: Checkpoint: L4\n\n(Answer from memory, then verify against the chapter text.)"} />
+
+<AnkiCard type="checkpoint" id="chapters-vol0-ch04-CHECKPOINT-CHECKPOINT_L4_Q6" los="FT-4.4" front={"Design prompt-engineering strategies for extraction tasks,\n including explicit \"do not guess\" instructions and few-shot examples\n that reduce hallucinated entities in model output."} back={"Self-check from: Checkpoint: L4\n\n(Answer from memory, then verify against the chapter text.)"} />
+
+<AnkiCard type="checkpoint" id="chapters-vol0-ch04-CHECKPOINT-CHECKPOINT_L4_Q7" los="FT-4.5" front={"Analyze how chunk size and overlap in\n RecursiveCharacterTextSplitter. Name the variable that drives the outcome, the boundary where conclusions flip, and why that boundary matters."} back={"Self-check from: Checkpoint: L4\n\n(Answer from memory, then verify against the chapter text.)"} />
+
+<AnkiCard type="checkpoint" id="chapters-vol0-ch04-CHECKPOINT-CHECKPOINT_L4_Q8" los="FT-4.6" front={"Evaluate when to use tagging (single-pass metadata labelling)\n versus extraction (multi-object parsing) for a given information-retrieval\n requirement, considering output cardinality and post-processing cost."} back={"Self-check from: Checkpoint: L4\n\n(Answer from memory, then verify against the chapter text.)"} />
+
+### Keyconcept cards (2)
+
+<AnkiCard type="keyconcept" id="chapters-vol0-ch04-CONCEPT-NEGATIVE_INSTRUCTIONS_PREVENT_HALLUCINATION" los="FT-4.2" front={"Key Concept: Negative Instructions Prevent Hallucination"} back={"Core Insight: Telling the model what not to do is as\nimportant as telling it what to do. For extraction, the instruction\n\"Do not extract the article itself as a paper\" prevents the model from\ntreating the input document as an entity to extract.\n\nWhy It Matters: Without negative instructions, the model\nfrequently \"extracts\" metadata about the input text itself, inflating\nentity counts and polluting downstream data.\n\nWhen It Breaks: Negative instructions can be over-applied.\nIf you say \"do not extract partial information,\" the model may skip\nentities that lack optional fields rather than returning them with\nnull values."} />
+
+<AnkiCard type="keyconcept" id="chapters-vol0-ch04-CONCEPT-LCEL_PARALLELISM_IS_AUTOMATIC" los="FT-4.3" front={"Key Concept: LCEL Parallelism Is Automatic"} back={"Core Insight: LCEL's.batch() method automatically\nparallelizes chain invocations up to a configurable concurrency limit\n(default 5). You do not need to write threading or async code.\n\nWhy It Matters: A 50-chunk document with serial processing\ntakes 50$\\times$ the single-call latency. With default parallelism,\nit takes only 10$\\times$—an 80\n\nWhen It Breaks: Rate limits from the OpenAI API may trigger\n429 errors if concurrency is too high. Reduce\nmax_concurrency or add retry logic."} />
+
+### Problem cards (3)
+
+<AnkiCard type="problem" id="chapters-vol0-ch04-PROB-YOU_RECEIVE_CUSTOMER_SUPPORT_EMAILS_AND_NEED_TO_A_" los="FT-4.1" front={"You receive customer support emails and need to: (a) classify each email\nby urgency (low, medium, high) and department (billing, technical,\ngeneral), and (b) extract all product names and order IDs mentioned in\nthe email body. Design the Pydantic models for both tasks. Explain why\none task is tagging and the other is extraction. What happens if you use\na tagging schema for task (b)?"} back={"Approach: Task (a) — Tagging:\n\n```python\nclass EmailTag(BaseModel):\n    urgency: str = Field(\n        description=\"urgency level, one of: low, medium, high\"\n    )\n    department: str = Field(\n        description=\"department, one of: billing, technical, general\"\n    )\n```\n\nThis is tagging because each email produces exactly one urgency label\nand one department label—a single flat object.\n\nTask (b) — Extraction:\n\n```python\nclass ProductMention(BaseModel):\n    product_name: str\n    order_id: Optional[str] = None\n\nclass EmailExtraction(BaseModel):\n    mentions: List[ProductMention]\n```\n\nThis is extraction because an email may mention zero, one, or many\nproducts. A List[...] wrapper is required.\n\nWhat if you use tagging for task (b)? A flat schema with\nproduct_name: str can capture only the first product.\nAdditional products are silently lost. The model might concatenate\nmultiple names into one field (\"Widget Pro, Gadget Max\"), producing\nunparseable output.\n\nKey Insight: The \"one or many\" distinction drives the schema\nchoice. One entity = tagging (flat model). Zero-to-many entities =\nextraction (List[Model] wrapper).\n\nAnswer: Task (a) — Tagging:\n\n```python\nclass EmailTag(BaseModel):\n    urgency: str = Field(\n        description=\"urgency level, one of: low, medium, high\"\n    )\n    department: str = Field(\n        description=\"department, one of: billing, technical, general\"\n    )\n```\n\nThis is tagging because each email produces exactly one urgency label\nand one department label—a single flat object.\n\nTask (b) — Extraction:\n\n```python\nclass ProductMention(BaseModel):\n    product_name: str\n    order_id: Optional[str] = None\n\nclass EmailExtraction(BaseModel):\n    mentions: List[ProductMention]\n```\n\nThis is extraction because an email may mention zero, one, or many\nproducts."} />
+
+<AnkiCard type="problem" id="chapters-vol0-ch04-PROB-YOU_RUN_AN_EXTRACTION_PIPELINE_ON_A_15000TOKEN_BLO" los="FT-4.3" front={"You run an extraction pipeline on a 15,000-token blog post using\nRecursiveCharacterTextSplitter with chunk_size=1000\nand chunk_overlap=0. The pipeline extracts 8 papers, but\nmanual review finds 12. (a) Identify two likely causes of the missing\n4 papers. (b) Fix the pipeline configuration. (c) After adding\nchunk_overlap=200, you now extract 14 papers—2 more than\nexpected. Explain why and propose a fix."} back={"Approach: (a) Two likely causes:\n\nCause 1: Entity boundary splitting. With zero overlap, papers\nmentioned across a chunk boundary are split between two chunks. Neither\nchunk contains the full entity, so neither extraction call returns it.\n\nCause 2: Mid-document recall degradation. Even within a single\nchunk, if a paper mention falls at the very end of a 1,000-token\nsegment, the model may fail to extract it due to attention decay.\n\n(b) Configuration fix:\n\n```python\nsplitter = RecursiveCharacterTextSplitter(\n    chunk_size=1000,\n    chunk_overlap=200,  # 20\n)\n```\n\n(c) Why 14 instead of 12: The 200-token overlap creates\nregions where the same paper appears in two adjacent chunks. Both\nextraction calls return it, producing duplicates.\n\nFix: Add a deduplication step after flattening:\n\n```python\nunique_papers = deduplicate_papers(all_papers)  # by title\n```\n\nKey Insight: Chunk overlap and deduplication are a matched\npair. Adding overlap without deduplication inflates counts; removing\noverlap without understanding boundary effects drops entities.\n\nAnswer:\n\n- Two likely causes: Cause 1: Entity boundary splitting.\n\n- Configuration fix: pycode splitter = RecursiveCharacterTextSplitter( chunk_size=1000, chunk_overlap=200, # 20\n\n- Why 14 instead of 12: The 200-token overlap creates regions where the same paper appears in two adjacent chunks."} />
+
+<AnkiCard type="problem" id="chapters-vol0-ch04-PROB-YOU_ARE_BUILDING_AN_LCEL_CHAIN_THAT_TAGS_CUSTOMER_" los="FT-4.2" front={"You are building an LCEL chain that tags customer reviews with sentiment.\nThe next step in the chain is a conditional router that sends positive\nreviews to a \"thank you\" template and negative reviews to an\n\"escalation\" template. (a) Which output parser should you use and\nwhy? (b) Write the complete LCEL chain from prompt to router dispatch."} back={"Approach: (a) Use JsonKeyOutputFunctionsParser(key_name=\n\"sentiment\") because the router needs only the sentiment string, not\nthe full dictionary. Using the full parser would require an extra\nextraction step to pull the sentiment value from the dict.\n\n(b) Complete chain:\n\n```python\nfrom langchain.output_parsers.openai_functions import (\n    JsonKeyOutputFunctionsParser,\n)\nfrom langchain.schema.runnable import RunnableLambda\n\n# Tagging chain that outputs just the sentiment string\ntag_chain = (\n    prompt\n    | model.bind(\n        functions=[tagging_fn],\n        function_call={\"name\": \"Tagging\"},\n    )\n    | JsonKeyOutputFunctionsParser(key_name=\"sentiment\")\n)\n\n# Router dispatch\ndef route_review(sentiment: str) -> str:\n    if sentiment == \"pos\":\n        return thank_you_template.invoke({})\n    else:\n        return escalation_template.invoke({})\n\nfull_chain = tag_chain | RunnableLambda(route_review)\n```\n\nKey Insight: The key parser produces a single value that\ndownstream components can consume directly, eliminating dictionary\naccess boilerplate and making the chain more readable.\n\nAnswer:\n\n- Use JsonKeyOutputFunctionsParser(key_name= \"sentiment\") because the router needs only the sentiment string, not the full dictionary.\n\n- Complete chain: pycode from langchain.output_parsers.openai_functions import ( JsonKeyOutputFunctionsParser, ) from langchain.schema.runnable import RunnableLambda # Tagging chain that outputs just the sentiment string tag_chain = ( prompt | model."} />
+
+### Vignette cards (1)
+
+<AnkiCard type="vignette" id="chapters-vol0-ch04-VIG-CONTRACT_ENTITY_EXTRACTION_AT_SCALE" los="FT-4.3" front={"Case Study: Contract Entity Extraction at Scale"} back={"Scenario:\nA fintech company's compliance team manually reviews 200 vendor\ncontracts per quarter, extracting party names, effective dates,\ntermination clauses, and liability caps. Each contract averages\n18,000 tokens. The team lead proposes using an LLM extraction\npipeline to automate this, but the VP of Engineering is concerned about\naccuracy—a missed liability cap in a single contract could expose\nthe company to millions in uninsured risk. Meanwhile, the compliance\nanalysts worry that a fully automated pipeline will eliminate their\nroles, so they advocate for a human-in-the-loop design where the LLM\nextracts and a human verifies.\n\nData:\n\nMetric | Value \n\nContracts per quarter | 200 \nAvg contract length | 18,000 tokens \nModel context window | 8,192 tokens \nManual extraction time per contract | 45 minutes \nLLM extraction cost per contract (estimated) | $0.85 \nManual review cost per contract | $35 (analyst hourly rate) \nTarget extraction recall (compliance minimum) | 99\n\nQuestions:\n\n- The contracts exceed the model's context window. Design the\n chunking strategy using RecursiveCharacterTextSplitter.\n Specify chunk_size, chunk_overlap, and explain\n why overlap is especially important for legal entity extraction\n where clauses span multiple paragraphs.\n\n- The pipeline extracts 4 entity types (party names, dates,\n termination clauses, liability caps) from 200 contracts. After\n flattening results across chunks, you find 12\n Explain why this happens and design a deduplication strategy that\n handles near-duplicates (e.g., \"Acme Corp\" vs. \"Acme Corporation, Inc.\").\n\n- The compliance team requires 99\n minimise cost. Design a two-pass architecture: the first pass\n uses the LLM for bulk extraction, the second pass routes\n low-confidence extractions to human review. How do you determine\n which extractions are \"low-confidence\" when forced function\n calling always produces output?\n\n---\n\n**Answer Rubric:**\nApproach: Task (a) — Tagging:\n\n```python\nclass EmailTag(BaseModel):\n    urgency: str = Field(\n        description=\"urgency level, one of: low, medium, high\"\n    )\n    department: str = Field(\n        description=\"department, one of: billing, technical, general\"\n    )\n```\n\nThis is tagging because each email produces exactly one urgency label\nand one department label—a single flat object.\n\nTask (b) — Extraction:\n\n```python\nclass ProductMention(BaseModel):\n    product_name: str\n    order_id: Optional[str] = None\n\nclass EmailExtraction(BaseModel):\n    mentions: List[ProductMention]\n```\n\nThis is extraction because an email may mention zero, one, or many\nproducts. A List[...] wrapper is required.\n\nWhat if you use tagging for task (b)? A flat schema with\nproduct_name: str can capture only the first product.\nAdditional products are silently lost. The model might concatenate\nmultiple names into one field (\"Widget Pro, Gadget Max\"), producing\nunparseable output.\n\nKey Insight: The \"one or many\" distinction drives the schema\nchoice. One entity = tagging (flat model). Zero-to-many entities =\nextraction (List[Model] wrapper).\n\nAnswer: Task (a) — Tagging:\n\n```python\nclass EmailTag(BaseModel):\n    urgency: str = Field(\n        description=\"urgency level, one of: low, medium, high\"\n    )\n    department: str = Field(\n        description=\"department, one of: billing, technical, general\"\n    )\n```\n\nThis is tagging because each email produces exactly one urgency label\nand one department label—a single flat object.\n\nTask (b) — Extraction:\n\n```python\nclass ProductMention(BaseModel):\n    product_name: str\n    order_id: Optional[str] = None\n\nclass EmailExtraction(BaseModel):\n    mentions: List[ProductMention]\n```\n\nThis is extraction because an email may mention zero, one, or many\nproducts."} />
+
+### Interview cards (1)
+
+<AnkiCard type="interview" id="chapters-vol0-ch04-INT-STRUCTURED_OUTPUT_VIA_FUNCTION_CALLING" los="FT-4.1" front={"Interview Q: forced function calling for\n guaranteed JSON"} back={"Why interviewers ask this: Google, Meta, and AI-native\n companies (Cohere, Mistral) ask \"How do you get reliable structured\n output from an LLM?\" in MLE and AI engineer screens. It gates\n whether you can build data pipelines downstream of LLM inference.\n\n What they're really testing: Whether you know that forced\n function calling is a structured output mechanism, not just a\n tool invocation mechanism."} />
+
+{/* CARD-PLACEMENT-AUTOEND */}

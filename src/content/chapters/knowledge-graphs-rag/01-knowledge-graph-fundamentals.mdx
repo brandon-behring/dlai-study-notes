@@ -3,14 +3,14 @@ book: knowledge-graphs-rag
 title: Knowledge Graph Fundamentals
 chapter: 1
 description: "Foundations of graph-based data modeling: nodes, relationships,
-  properties, and labels as the building blocks for Knowledge Graph--powered RAG
+  properties, and labels as the building blocks for Knowledge Graph–powered RAG
   systems."
 learning_outcomes:
   - id: KGR-1.1
     verb: define
-    text: the core components of a Knowledge Graph---nodes, relationships,
-      properties, and labels---and their formal equivalences to graph theory
-      terms (vertex, edge)
+    text: the core components of a Knowledge Graph—nodes, relationships, properties,
+      and labels—and their formal equivalences to graph theory terms (vertex,
+      edge)
   - id: KGR-1.2
     verb: explain
     text: why Knowledge Graphs enhance RAG systems by enabling traversal-based
@@ -38,13 +38,13 @@ tools_compared:
   - DS-Netflix
   - MLE-Amazon-L5
   - RSWE-Microsoft
-last_verified: 2026-05-19
+last_verified: 2026-05-21
 volatility: architectural-pattern
 ---
 
 {/* TODO: per-chapter polish pass — see plan decision Q1 round 3 */}
 
-<NarrativeBox title="Where We Are">
+&lt;!–MDXB-8-OPEN–&gt;
 
 You have built basic RAG systems that split documents into chunks, embed
 them as vectors, and retrieve by cosine similarity. This works—but it
@@ -55,7 +55,7 @@ strategies that follow relationships rather than relying solely on
 embedding distance. This chapter establishes the vocabulary and mental
 model you will use throughout the course.
 
-</NarrativeBox>
+&lt;!–MDXB-8-CLOSE–&gt;
 
 # Why Knowledge Graphs Matter for RAG
 
@@ -110,7 +110,7 @@ through typed relationships.
 
 
 
-<ConceptBox>
+&lt;!–MDXB-9-OPEN–&gt;
 
 **The Key Insight.**
 Vector search answers “what text is *similar* to my question?”
@@ -125,7 +125,7 @@ business description. Graph traversal from that chunk follows
 investment firms holding NetApp stock—information that no embedding
 similarity could retrieve.
 
-</ConceptBox>
+&lt;!–MDXB-9-CLOSE–&gt;
 
 
 
@@ -135,7 +135,7 @@ similarity could retrieve.
 
 # Graph Data Model Fundamentals
 
-<ConceptBox>
+&lt;!–MDXB-10-OPEN–&gt;
 
 **The Mental Model.**
 Think of a Knowledge Graph as a whiteboard diagram that is also a
@@ -143,7 +143,7 @@ database. Each circle is a **node** (an entity), each arrow is
 a **relationship** (a connection), and both can carry key-value
 **properties**. The diagram *is* the data.
 
-</ConceptBox>
+&lt;!–MDXB-10-CLOSE–&gt;
 
 ## Nodes as Data Records
 
@@ -173,9 +173,9 @@ entities, and zero or more **properties** stored as key-value pairs.
 
 
 <Term name="Property" los="KGR-1.1">
-  A key-value pair stored on a node or relationship. Keys are strings; values can be strings, numbers, booleans, or lists. Example: `\{name: "Andreas", born: 1975\`}.
+  A key-value pair stored on a node or relationship. Keys are strings; values can be strings, numbers, booleans, or lists. Example: `{name: "Andreas", born: 1975}`.
 </Term>
-<AnkiCard type="term" front={"Property"} back={"A key-value pair stored on a node or relationship. Keys are strings; values can be strings, numbers, booleans, or lists. Example: `\\{name: \"Andreas\", born: 1975\\`}."} los="KGR-1.1" />
+<AnkiCard type="term" front={"Property"} back={"A key-value pair stored on a node or relationship. Keys are strings; values can be strings, numbers, booleans, or lists. Example: `{name: \"Andreas\", born: 1975}`."} los="KGR-1.1" />
 
 
 
@@ -258,7 +258,7 @@ because he `INTRODUCES`. This pattern—*identity through
 relationships rather than explicit type labels*—is central to Knowledge
 Graph design.
 
-<KeyConcept title="Identity Through Relationships" los="KGR-1.3">
+&lt;!–MDXB-13-OPEN–&gt;
 
 In a Knowledge Graph, a node’s role is determined by its relationships,
 not by explicit labels or type fields. A `Person` node is an
@@ -272,9 +272,9 @@ that role (e.g., an actor’s `salary` per film vs. a director’s
 `budget`), relationship-only identity forces these onto the
 relationship itself, which can become unwieldy at scale.
 
-</KeyConcept>
+&lt;!–MDXB-13-CLOSE–&gt;
 
-<InterviewContext title="Knowledge Graph Fundamentals and Cypher Querying" los="KGR-1.1, KGR-1.3, KGR-2.1, KGR-2.2">
+&lt;!–MDXB-15-OPEN–&gt;
 
 Knowledge Graph design and Cypher querying appear frequently in system design
 rounds at companies with graph infrastructure (Neo4j, Amazon Neptune, Google).
@@ -293,7 +293,7 @@ traversal outperforms SQL self-JOINs for relationship-heavy data.
   traversal cost vs. *O*(*n*<sup>*d*</sup>) SQL JOINs; choose between graph and
   relational storage for a given workload.
 
-</InterviewContext>
+&lt;!–MDXB-15-CLOSE–&gt;
 
 # Graph Terminology Equivalences
 
@@ -314,7 +314,7 @@ The Knowledge Graph vocabulary maps directly to classic graph theory<Citation sr
 
 # Knowledge Graphs vs. Tabular Storage
 
-<DecisionTree title="Decision: Graph vs. Relational Database">
+&lt;!–MDXB-20-OPEN–&gt;
 
 - **Yes—entities relate to each other in complex, variable ways**  
 
@@ -328,7 +328,7 @@ The Knowledge Graph vocabulary maps directly to classic graph theory<Citation sr
 
 - **No—vector search is sufficient**  
 
-</DecisionTree>
+&lt;!–MDXB-20-CLOSE–&gt;
 
 | **Dimension**     |    **Relational DB**     |    **Knowledge Graph**     |
 |:------------------|:------------------------:|:--------------------------:|
@@ -380,7 +380,7 @@ queries self-documenting.
 
 # Real-World Applications
 
-<PipelineBox title="Pipeline: Knowledge Graph Applications">
+&lt;!–MDXB-11-OPEN–&gt;
 
 1.  **Web Search** *(Google, Bing)*  
     Knowledge cards (celebrity info, company facts) are powered by
@@ -401,7 +401,7 @@ queries self-documenting.
     Document chunks linked to teams, projects, and concepts enable
     context-aware retrieval that respects organisational structure.
 
-</PipelineBox>
+&lt;!–MDXB-11-CLOSE–&gt;
 
 
 
@@ -445,7 +445,7 @@ connected entities and documents.
 
 # Practice Problems
 
-<KeyConcept title="Schema-Optional Data Modelling" los="KGR-1.4">
+&lt;!–MDXB-14-OPEN–&gt;
 
 **Core Insight:** Knowledge Graphs are schema-optional: you can add new
 node labels and relationship types without schema migrations. This flexibility
@@ -460,9 +460,9 @@ demonstrates architectural judgment.
 conventions (naming standards, uniqueness constraints), the graph becomes a
 tangled mess. Production KGs need governance even without DDL enforcement.
 
-</KeyConcept>
+&lt;!–MDXB-14-CLOSE–&gt;
 
-<Problem title="Graph Data Model Design" los="KGR-1.1">
+&lt;!–MDXB-16-OPEN–&gt;
 
 You are designing a Knowledge Graph for a university course catalogue.
 The domain has the following entities and relationships:
@@ -487,9 +487,9 @@ The domain has the following entities and relationships:
 4.  Can a student’s role (TA vs. regular student) be modelled through
     relationships alone? Explain.
 
-</Problem>
+&lt;!–MDXB-16-CLOSE–&gt;
 
-<Solution>
+&lt;!–MDXB-18-OPEN–&gt;
 
 **Approach:** Apply the “identity through relationships” pattern from
 this chapter.
@@ -540,9 +540,9 @@ and avoids the “label explosion” anti-pattern.
 **Answer:** Apply the “identity through relationships” pattern from
 this chapter.
 
-</Solution>
+&lt;!–MDXB-18-CLOSE–&gt;
 
-<Problem title="KG vs. Relational Database Selection" los="KGR-1.4">
+&lt;!–MDXB-17-OPEN–&gt;
 
 Your team is building a customer support system. The data includes:
 
@@ -558,9 +558,9 @@ Should you use a Knowledge Graph or a relational database? Justify your answer
 along three dimensions: schema flexibility, relationship complexity, and
 query patterns.
 
-</Problem>
+&lt;!–MDXB-17-CLOSE–&gt;
 
-<Solution>
+&lt;!–MDXB-19-OPEN–&gt;
 
 **Approach:** Apply the KG vs. relational decision framework from
 this chapter.
@@ -590,9 +590,9 @@ data with simple foreign keys, relational databases are simpler and more
 battle-tested. The decision should be driven by relationship complexity,
 not technology novelty.
 
-</Solution>
+&lt;!–MDXB-19-CLOSE–&gt;
 
-<NarrativeBox title="Self-Check: M1 — Knowledge Graph Fundamentals">
+&lt;!–MDXB-12-OPEN–&gt;
 
 **Answer from memory before checking the chapter.**
 
@@ -626,7 +626,7 @@ not technology novelty.
     graph? Which module adds graph traversal for chunk windows?
     *(KGR-1.2)*
 
-</NarrativeBox>
+&lt;!–MDXB-12-CLOSE–&gt;
 
 {/* CARD-PLACEMENT-AUTOSTART */}
 
@@ -674,4 +674,3 @@ not technology novelty.
 <AnkiCard type="decisiontree" id="chapters-vol0-ch01-DECISION-DECISION_GRAPH_VS_RELATIONAL_DATABASE" los="" front={"Decision: Decision: Graph vs.\\ Relational Database"} back={"Is your data highly interconnected with many-to-many relationships?\n\n- Yes—entities relate to each other in complex, variable ways \n Knowledge Graph. JOINs become expensive in relational DBs\n as relationship depth increases; graph traversal stays constant-time\n per hop.\n\n- No—data fits neatly into rows and columns with few JOINs \n Relational database. Well-understood, battle-tested, and\n sufficient for tabular data with simple relationships.\n\n Do you need flexible schema evolution?\n\n- Yes—new entity types and relationship types appear frequently \n Knowledge Graph."} />
 
 {/* CARD-PLACEMENT-AUTOEND */}
-

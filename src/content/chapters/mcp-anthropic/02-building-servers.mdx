@@ -1,0 +1,537 @@
+---
+book: mcp-anthropic
+title: Building MCP Servers
+chapter: 2
+description: Create MCP servers using FastMCP that expose tools with
+  auto-generated schemas, then test them interactively with the MCP Inspector.
+learning_outcomes:
+  - id: MCP-2.1
+    verb: design
+    text: an MCP server using FastMCP with tool definitions, type hints, and stdio
+      transport
+  - id: MCP-2.2
+    verb: explain
+    text: how FastMCP uses decorators to auto-generate tool schemas from function
+      signatures
+  - id: MCP-2.3
+    verb: design
+    text: tool functions following the verb_noun naming pattern with validated
+      parameters
+  - id: MCP-2.4
+    verb: debug
+    text: MCP servers using the MCP Inspector browser-based sandbox
+  - id: MCP-2.5
+    verb: apply
+    text: uv-based Python project configuration for MCP server development
+sources: []
+tools_compared:
+  - AI Engineer --- All companies --- L4/L5
+last_verified: 2026-05-21
+volatility: architectural-pattern
+---
+
+{/* TODO: per-chapter polish pass — see plan decision Q1 round 3 */}
+
+# From Functions to MCP Tools
+
+
+
+<Sidenote category="interview">Live-coding task: scaffold an MCP server with one tool in under 10 min. Know the FastMCP import path and decorator pattern cold.</Sidenote>
+
+
+
+
+
+<Term name="FastMCP" los="MCP-2.1">
+  The high-level Python SDK<Citation src="mcp2024pythonsdk" /> for building MCP servers. Uses decorators (`@mcp.tool()`, `@mcp.resource()`, `@mcp.prompt()`) to auto-generate tool schemas from function signatures, type hints, and docstrings.
+</Term>
+<AnkiCard type="term" front={"FastMCP"} back={"The high-level Python SDK[mcp2024pythonsdk] for building MCP servers. Uses decorators (`@mcp.tool()`, `@mcp.resource()`, `@mcp.prompt()`) to auto-generate tool schemas from function signatures, type hints, and docstrings."} los="MCP-2.1" />
+
+
+
+The course builds an MCP server using the Python SDK (a TypeScript SDK<Citation src="mcp2024tssdk" /> is also available) by taking two existing functions—`search_papers`
+(querying arXiv) and `extract_info` (extracting paper details)—and wrapping them
+in an MCP server. The key insight: the functions themselves don’t change. Only the infrastructure
+around them does.
+
+**Before MCP:** Functions were defined inline, schemas were manually written, and tool
+execution was handled by the application code directly.
+
+**With MCP:** The same functions are decorated with `@mcp.tool()`, and the MCP SDK
+handles schema generation, protocol serialization, and transport.
+
+
+
+```cypher
+from mcp.server.fastmcp import FastMCP
+
+# Initialize server with a name
+mcp = FastMCP("research")
+
+@mcp.tool()
+def search_papers(topic: str, max_results: int = 5) -> str:
+    """Search arxiv for papers on a given topic.
+    Returns formatted paper titles and IDs."""
+    results = arxiv.Search(query=topic, max_results=max_results)
+    return format_results(results)
+
+@mcp.tool()
+def extract_info(paper_id: str) -> str:
+    """Extract detailed information from an arxiv paper by ID."""
+    paper = arxiv.Search(id_list=[paper_id]).results()
+    return format_paper_details(paper)
+
+if __name__ == "__main__":
+    mcp.run(transport="stdio")
+```
+
+
+
+&lt;!–MDXB-12-OPEN–&gt;
+
+**Core Insight:** FastMCP uses Python decorators to register capabilities. The decorator
+extracts the function name, docstring, type hints, and default values to automatically generate
+the tool schema. Good type hints and docstrings produce good tool descriptions—the LLM
+reads these to decide when and how to call the tool.
+
+**Why It Matters:** You write normal Python functions; the SDK handles protocol details.
+This separation means tool logic is testable independently of MCP infrastructure.
+
+**When It Breaks:** Functions without type hints or docstrings produce poor schemas.
+The LLM won’t know when or how to call a tool with a vague description.
+
+&lt;!–MDXB-12-CLOSE–&gt;
+
+
+
+<Sidenote category="warning">The function docstring becomes the tool description. A missing or vague docstring means the LLM won't know when to use the tool.</Sidenote>
+
+
+
+# Project Setup with uv
+
+
+
+<Sidenote category="practice">Target: from zero to running MCP server in under 10 min using uv init, uv venv, uv add.</Sidenote>
+
+
+
+The course uses `uv` (a fast Python package manager) instead of `pip`:
+
+
+
+```cypher
+# Initialize project and virtual environment
+uv init
+uv venv
+source .venv/bin/activate
+
+# Install dependencies
+uv add mcp arxiv
+```
+
+
+
+`uv` provides faster dependency resolution than pip and manages virtual environments
+in a single workflow. The resulting `pyproject.toml` tracks all dependencies.
+
+
+
+<Sidenote category="pattern">uv workflow: `uv init` $$ `uv venv` $$ `source .venv/bin/activate` $$ `uv add <deps>` $$ `uv run <script>`.</Sidenote>
+
+
+
+# Designing Effective Tools
+
+
+
+<Sidenote category="interview">Tool design determines agent reliability. Have principles ready: verb_noun names, "when to use" descriptions, typed params with validation.</Sidenote>
+
+
+
+The quality of tool *design* matters more than tool *implementation* for agent performance:
+
+**1. Specific names with verb\_noun pattern:**
+
+- Good: `search_papers`, `extract_info`, `create_issue`
+
+- Bad: `do_stuff`, `helper`, `process`
+
+**2. Descriptions that explain WHEN to use, not just WHAT:**
+
+
+```cypher
+# BAD: vague
+@mcp.tool()
+def query_db(sql: str) -> str:
+    """Gets data from the database."""
+    ...
+
+# GOOD: actionable
+@mcp.tool()
+def query_analytics_db(sql: str) -> str:
+    """Execute a read-only SQL query against the analytics database.
+    Use when the user asks about metrics, KPIs, or historical data.
+    Returns up to 100 rows in tabular format."""
+    ...
+```
+
+
+
+**3. Validated parameters with clear types:**
+
+
+```cypher
+from pydantic import Field
+from typing import Literal
+
+@mcp.tool()
+def search_docs(
+    query: str = Field(description="Search query text"),
+    section: Literal["api", "guides", "faq"] = Field(
+        default="guides",
+        description="Documentation section to search"),
+    max_results: int = Field(default=5, ge=1, le=20,
+        description="Number of results (1-20)")
+) -> list[dict]:
+    """Search documentation by section."""
+    ...
+```
+
+
+
+
+
+<Sidenote category="formula">Tool design checklist: (1) verb_noun name, (2) "when to use" description, (3) typed + validated params, (4) documented return type.</Sidenote>
+
+
+
+
+
+<Sidenote category="crossref">For Claude-specific skill framework built on MCP, see Agent Skills Anthropic Ch 2–3</Sidenote>
+
+
+
+# Testing with MCP Inspector
+
+
+
+<Sidenote category="practice">Always test with Inspector before building a client. Catches schema issues, parameter bugs, and return format problems early.</Sidenote>
+
+
+
+
+
+<Term name="MCP Inspector" los="MCP-2.4">
+  A browser-based sandbox<Citation src="mcp2024servers" /> for testing MCP servers without building a client. Supports all transports, capability browsing, interactive tool calling, and initialization visibility. The MCP equivalent of Postman for APIs.
+</Term>
+<AnkiCard type="term" front={"MCP Inspector"} back={"A browser-based sandbox[mcp2024servers] for testing MCP servers without building a client. Supports all transports, capability browsing, interactive tool calling, and initialization visibility. The MCP equivalent of Postman for APIs."} los="MCP-2.4" />
+
+
+
+The MCP Inspector is a browser-based sandbox for testing servers without building a client:
+
+
+
+```cypher
+# Launch Inspector connected to your server
+npx @modelcontextprotocol/inspector uv run research_server.py
+```
+
+
+
+The Inspector provides:
+
+- **Transport selection:** stdio, SSE, or Streamable HTTP
+
+- **Capability browsing:** View all tools, resources, and prompts exposed by the server
+
+- **Interactive testing:** Call tools with custom arguments and inspect results
+
+- **Initialization visibility:** See the handshake process (initialize request → response → notification)
+
+
+
+<Sidenote category="warning">The Inspector shows the `list_tools` request happening—this is the protocol-level discovery mechanism. Watch for it during debugging.</Sidenote>
+
+
+
+&lt;!–MDXB-13-OPEN–&gt;
+
+**Core Insight:** The Inspector decouples server development from client development.
+Build and test tools in isolation before integrating with any LLM application. This is the
+MCP equivalent of testing an API with Postman before building the frontend.
+
+**Why It Matters:** When a tool misbehaves in production, you can reproduce the issue
+in the Inspector without the LLM—isolating whether the bug is in the server or the client.
+
+**When It Breaks:** The Inspector cannot reproduce issues caused by LLM-specific
+behaviour (e.g., malformed arguments the model generates but a human would not).
+For those, you need production logging of actual tool call payloads.
+
+&lt;!–MDXB-13-CLOSE–&gt;
+
+&lt;!–MDXB-14-OPEN–&gt;
+
+**Design a File Management MCP Server**
+
+Create an MCP server with 4 tools for managing files in a project directory:
+
+- `list_files`: List files with optional glob pattern
+
+- `read_file`: Read a file’s contents by path
+
+- `search_contents`: Grep-like search across files
+
+- `get_file_metadata`: Return size, modified date, and type
+
+For each tool: define the function signature with type hints and a “when to use” description.
+Include a security check that prevents path traversal outside the project root.
+
+&lt;!–MDXB-14-CLOSE–&gt;
+
+&lt;!–MDXB-16-OPEN–&gt;
+
+**Approach:**
+**Key design decision—path validation:**
+
+
+
+```cypher
+from pathlib import Path
+
+PROJECT_ROOT = Path("/path/to/project")
+
+def safe_path(filepath: str) -> Path:
+    """Resolve and validate path is within project."""
+    resolved = (PROJECT_ROOT / filepath).resolve()
+    if not resolved.is_relative_to(PROJECT_ROOT):
+        raise ValueError(f"Path escapes project directory: {filepath}")
+    return resolved
+
+@mcp.tool()
+def list_files(
+    pattern: str = Field(default="**/*",
+        description="Glob pattern (e.g., '**/*.py')")
+) -> list[str]:
+    """List files matching a glob pattern within the project.
+    Use when the user wants to explore the directory structure."""
+    return [str(p.relative_to(PROJECT_ROOT))
+            for p in PROJECT_ROOT.glob(pattern) if p.is_file()]
+```
+
+
+
+**Key Insight:** MCP servers are security boundaries. Every input must be validated,
+even from a “trusted” LLM client. The LLM might be jailbroken, or the schema might
+be misinterpreted. Defense in depth is essential.
+
+**Answer:** MCP servers are security boundaries. Every input must be validated,
+even from a “trusted” LLM client.
+
+&lt;!–MDXB-16-CLOSE–&gt;
+
+&lt;!–MDXB-15-OPEN–&gt;
+
+A developer registers this FastMCP tool but Claude never calls it, even when
+the user explicitly asks to “search the codebase.” The server logs show the
+tool appears in the `list_tools` response. Identify the most likely cause
+and propose a fix.
+
+
+
+```cypher
+@mcp.tool()
+def search(q: str) -> str:
+    """Search."""
+    return run_grep(q)
+```
+
+
+
+&lt;!–MDXB-15-CLOSE–&gt;
+
+&lt;!–MDXB-17-OPEN–&gt;
+
+**Approach:**
+The tool description is too vague (“Search.”) for the LLM to match to the user’s intent.
+FastMCP auto-generates the schema from the docstring, so a one-word description produces
+a schema the model ignores in favor of more descriptive alternatives.
+
+**Fix:** Expand the docstring to include when and how to use the tool:
+
+
+```cypher
+@mcp.tool()
+def search_codebase(query: str, file_glob: str = "**/*.py") -> str:
+    """Search source files for a text pattern.
+    Use when the user asks to find code, grep, or locate definitions.
+    Returns matching lines with file paths and line numbers."""
+    return run_grep(query, file_glob)
+```
+
+
+
+**Key Insight:** The tool description is the LLM’s only signal for routing.
+Treat it like an API doc: state the action, the trigger, and the output format.
+
+**Answer:** The tool description is the LLM’s only signal for routing. Treat it like an API doc: state the action, the trigger, and the output format.
+
+&lt;!–MDXB-17-CLOSE–&gt;
+
+&lt;!–MDXB-19-OPEN–&gt;
+
+\[MCP-2.1, MCP-2.3, MCP-1.5\]
+MedAssist builds a patient intake assistant powered by Claude. A junior
+engineer builds an MCP server with 8 tools for the Electronic Health
+Records (EHR) system. During code review, the tech lead identifies three
+issues: (1) the tool `get_data` has a vague description (“Gets
+data from the system”) and no type hints, (2) the tool
+`update_patient_and_notify` both writes to the database and
+sends an email notification in a single function, and (3) four tools
+accept a raw SQL `WHERE` clause as a string parameter for
+“flexibility.” Meanwhile, the product manager asks whether MCP is
+even the right choice—there’s only one AI application (the intake bot)
+consuming these tools.
+
+**Question 1:** For each of the three issues, explain what will go
+wrong in production. How does FastMCP’s decorator-based schema generation
+make issue (1) particularly dangerous?
+
+**Question 2:** Redesign the `update_patient_and_notify`
+tool following the verb\_noun pattern. How many tools should it become,
+and what should each be named? Justify using the MCP primitive
+classification.
+
+**Question 3:** Address the product manager’s concern. With 8 tools
+and 1 application, does MCP add value over direct function calling? What
+changes in 6 months if MedAssist adds a clinician-facing dashboard and a
+billing agent?
+
+&lt;!–MDXB-19-CLOSE–&gt;
+
+&lt;!–MDXB-18-OPEN–&gt;
+
+**Approach:**
+**Question 1:**
+
+- Issue (1): FastMCP auto-generates the tool schema from the
+  function signature. Without type hints, all parameters become
+  untyped strings; the LLM has no constraints to guide its input.
+  The vague description means the LLM cannot distinguish
+  `get_data` from any other read tool—it will call it
+  for the wrong purpose or pass malformed parameters.
+
+- Issue (2): A combined write+notify tool violates atomicity.
+  If the email service is down, does the DB write roll back? If
+  not, the patient record updates silently without notification.
+  The LLM also cannot call “just update” or “just notify”
+  independently.
+
+- Issue (3): Raw SQL in parameters is a SQL injection vector.
+  An adversarial or hallucinated LLM input like
+  `1=1; DROP TABLE patients` would execute unvalidated.
+  In a health context, this is a HIPAA violation waiting to happen.
+
+**Question 2:** Split into two tools plus one resource:
+
+- `update_patient_record(patient_id, field, value)`
+  — Tool. Writes validated data to the EHR. Side effect: DB
+  mutation.
+
+- `send_patient_notification(patient_id, message_type)`
+  — Tool. Sends a templated notification. Side effect: email.
+
+- `notification_templates` — Resource. The set of
+  available message types (“appointment\_confirmation”,
+  “intake\_complete”) that the LLM needs as context.
+
+**Question 3:** With 1 app and 8 tools, MCP adds marginal value
+over function calling—the *N* × *M* reduction is 8 × 1 = 8
+either way. However, the process isolation and Inspector-based testing
+still justify MCP for a health application (security boundary matters
+more than integration math). In 6 months with 3 apps: function calling
+requires 8 × 3 = 24 integrations vs. MCP’s 8 + 3 = 11. The
+server code stays identical; only client configs change.
+
+**Key Insight:** MCP server design errors compound in production.
+Vague descriptions cause wrong tool selection, combined tools prevent
+atomic operations, and raw SQL parameters create injection
+vulnerabilities. The verb\_noun pattern + strict type hints + input
+validation are non-negotiable for any server handling sensitive data.
+
+**Answer:** MCP server design errors compound in production. Vague descriptions cause wrong tool selection, combined tools prevent
+atomic operations, and raw SQL parameters create injection
+vulnerabilities.
+
+&lt;!–MDXB-18-CLOSE–&gt;
+
+&lt;!–MDXB-11-OPEN–&gt;
+
+1.  Write a minimal FastMCP server with one tool that returns the current time.
+
+2.  What makes a good tool description? Give a bad example and fix it.
+
+3.  How does FastMCP generate tool schemas? What happens with missing type hints?
+
+4.  What command launches the MCP Inspector? What can you test with it?
+
+5.  Why should every file-access tool include path traversal prevention?
+
+6.  Explain the difference between `mcp.run(transport="stdio")` and SSE transport.
+
+7.  What naming pattern should tool functions follow, and why do
+    validated parameters matter for LLM tool use?
+
+8.  How do you use the MCP Inspector to debug a server, and what
+    issues can it reveal?
+
+9.  What steps are needed to configure a Python project with uv
+    for MCP server development?
+
+&lt;!–MDXB-11-CLOSE–&gt;
+
+{/* CARD-PLACEMENT-AUTOSTART */}
+
+## Review
+
+{/* CARD-PLACEMENT-TODO: polish pass should move these cards inline */}
+{/* near the concepts they test, per Q-R4.4 hybrid placement.       */}
+
+### Checkpoint cards (9)
+
+<AnkiCard type="checkpoint" id="chapters-vol0-ch02-CHECKPOINT-MODULE_2_CHECKPOINT_Q1" los="" front={"Write a minimal FastMCP server with one tool that returns the current time."} back={"Self-check from: Module 2 Checkpoint\n\n(Answer from memory, then verify against the chapter text.)"} />
+
+<AnkiCard type="checkpoint" id="chapters-vol0-ch02-CHECKPOINT-MODULE_2_CHECKPOINT_Q2" los="" front={"What makes a good tool description? Give a bad example and fix it."} back={"Self-check from: Module 2 Checkpoint\n\n(Answer from memory, then verify against the chapter text.)"} />
+
+<AnkiCard type="checkpoint" id="chapters-vol0-ch02-CHECKPOINT-MODULE_2_CHECKPOINT_Q3" los="" front={"How does FastMCP generate tool schemas? What happens with missing type hints?"} back={"Self-check from: Module 2 Checkpoint\n\n(Answer from memory, then verify against the chapter text.)"} />
+
+<AnkiCard type="checkpoint" id="chapters-vol0-ch02-CHECKPOINT-MODULE_2_CHECKPOINT_Q4" los="" front={"What command launches the MCP Inspector? What can you test with it?"} back={"Self-check from: Module 2 Checkpoint\n\n(Answer from memory, then verify against the chapter text.)"} />
+
+<AnkiCard type="checkpoint" id="chapters-vol0-ch02-CHECKPOINT-MODULE_2_CHECKPOINT_Q5" los="" front={"Why should every file-access tool include path traversal prevention?"} back={"Self-check from: Module 2 Checkpoint\n\n(Answer from memory, then verify against the chapter text.)"} />
+
+<AnkiCard type="checkpoint" id="chapters-vol0-ch02-CHECKPOINT-MODULE_2_CHECKPOINT_Q6" los="" front={"Explain the difference between mcp.run(transport=\"stdio\") and SSE transport."} back={"Self-check from: Module 2 Checkpoint\n\n(Answer from memory, then verify against the chapter text.)"} />
+
+<AnkiCard type="checkpoint" id="chapters-vol0-ch02-CHECKPOINT-MODULE_2_CHECKPOINT_Q7" los="MCP-2.3" front={"What naming pattern should tool functions follow, and why do\n validated parameters matter for LLM tool use?"} back={"Self-check from: Module 2 Checkpoint\n\n(Answer from memory, then verify against the chapter text.)"} />
+
+<AnkiCard type="checkpoint" id="chapters-vol0-ch02-CHECKPOINT-MODULE_2_CHECKPOINT_Q8" los="MCP-2.4" front={"How do you use the MCP Inspector to debug a server, and what\n issues can it reveal?"} back={"Self-check from: Module 2 Checkpoint\n\n(Answer from memory, then verify against the chapter text.)"} />
+
+<AnkiCard type="checkpoint" id="chapters-vol0-ch02-CHECKPOINT-MODULE_2_CHECKPOINT_Q9" los="MCP-2.5" front={"What steps are needed to configure a Python project with uv\n for MCP server development?"} back={"Self-check from: Module 2 Checkpoint\n\n(Answer from memory, then verify against the chapter text.)"} />
+
+### Keyconcept cards (2)
+
+<AnkiCard type="keyconcept" id="chapters-vol0-ch02-CONCEPT-THE_FASTMCP_DECORATOR_PATTERN" los="" front={"Key Concept: The FastMCP Decorator Pattern"} back={"Core Insight: FastMCP uses Python decorators to register capabilities. The decorator\nextracts the function name, docstring, type hints, and default values to automatically generate\nthe tool schema. Good type hints and docstrings produce good tool descriptions—the LLM\nreads these to decide when and how to call the tool.\n\nWhy It Matters: You write normal Python functions; the SDK handles protocol details.\nThis separation means tool logic is testable independently of MCP infrastructure.\n\nWhen It Breaks: Functions without type hints or docstrings produce poor schemas."} />
+
+<AnkiCard type="keyconcept" id="chapters-vol0-ch02-CONCEPT-INSPECTOR_AS_DEVELOPMENT_WORKFLOW" los="" front={"Key Concept: Inspector as Development Workflow"} back={"Core Insight: The Inspector decouples server development from client development.\nBuild and test tools in isolation before integrating with any LLM application. This is the\nMCP equivalent of testing an API with Postman before building the frontend.\n\nWhy It Matters: When a tool misbehaves in production, you can reproduce the issue\nin the Inspector without the LLM—isolating whether the bug is in the server or the client.\n\nWhen It Breaks: The Inspector cannot reproduce issues caused by LLM-specific\nbehaviour (e.g., malformed arguments the model generates but a human would not)."} />
+
+### Problem cards (2)
+
+<AnkiCard type="problem" id="chapters-vol0-ch02-PROB-DESIGN_A_FILE_MANAGEMENT_MCP_SERVER" los="MCP-2.1" front={"Design a File Management MCP Server\n\nCreate an MCP server with 4 tools for managing files in a project directory:\n\n- list_files: List files with optional glob pattern\n\n- read_file: Read a file's contents by path\n\n- search_contents: Grep-like search across files\n\n- get_file_metadata: Return size, modified date, and type\n\nFor each tool: define the function signature with type hints and a \"when to use\" description.\nInclude a security check that prevents path traversal outside the project root."} back={"Approach:\nKey design decision—path validation:\n\n```python\nfrom pathlib import Path\n\nPROJECT_ROOT = Path(\"/path/to/project\")\n\ndef safe_path(filepath: str) -> Path:\n    \"\"\"Resolve and validate path is within project.\"\"\"\n    resolved = (PROJECT_ROOT / filepath).resolve()\n    if not resolved.is_relative_to(PROJECT_ROOT):\n        raise ValueError(f\"Path escapes project directory: {filepath}\")\n    return resolved\n\n@mcp.tool()\ndef list_files(\n    pattern: str = Field(default=\"**/*\",\n        description=\"Glob pattern (e.g., '**/*.py')\")\n) -> list[str]:\n    \"\"\"List files matching a glob pattern within the project.\n    Use when the user wants to explore the directory structure.\"\"\"\n    return [str(p.relative_to(PROJECT_ROOT))\n            for p in PROJECT_ROOT.glob(pattern) if p.is_file()]\n```\n\nKey Insight: MCP servers are security boundaries. Every input must be validated,\neven from a \"trusted\" LLM client. The LLM might be jailbroken, or the schema might\nbe misinterpreted. Defense in depth is essential.\n\nAnswer: MCP servers are security boundaries. Every input must be validated,\neven from a \"trusted\" LLM client."} />
+
+<AnkiCard type="problem" id="chapters-vol0-ch02-PROB-A_DEVELOPER_REGISTERS_THIS_FASTMCP_TOOL_BUT_CLAUDE" los="MCP-2.2" front={"A developer registers this FastMCP tool but Claude never calls it, even when\nthe user explicitly asks to \"search the codebase.\" The server logs show the\ntool appears in the list_tools response. Identify the most likely cause\nand propose a fix.\n\n```python\n@mcp.tool()\ndef search(q: str) -> str:\n    \"\"\"Search.\"\"\"\n    return run_grep(q)\n```"} back={"Approach:\nThe tool description is too vague (\"Search.\") for the LLM to match to the user's intent.\nFastMCP auto-generates the schema from the docstring, so a one-word description produces\na schema the model ignores in favor of more descriptive alternatives.\n\nFix: Expand the docstring to include when and how to use the tool:\n\n```python\n@mcp.tool()\ndef search_codebase(query: str, file_glob: str = \"**/*.py\") -> str:\n    \"\"\"Search source files for a text pattern.\n    Use when the user asks to find code, grep, or locate definitions.\n    Returns matching lines with file paths and line numbers.\"\"\"\n    return run_grep(query, file_glob)\n```\n\nKey Insight: The tool description is the LLM's only signal for routing.\nTreat it like an API doc: state the action, the trigger, and the output format.\n\nAnswer: The tool description is the LLM's only signal for routing. Treat it like an API doc: state the action, the trigger, and the output format."} />
+
+### Vignette cards (1)
+
+<AnkiCard type="vignette" id="chapters-vol0-ch02-VIG-MCP_SERVER_DESIGN_REVIEW_AT_A_HEALTH_TECH_STARTUP" los="MCP-2.1, MCP-2.3, MCP-1.5" front={"Case Study: MCP Server Design Review at a Health Tech Startup\n\nMedAssist builds a patient intake assistant powered by Claude. A junior\nengineer builds an MCP server with 8 tools for the Electronic Health\nRecords (EHR) system. During code review, the tech lead identifies three\nissues: (1) the tool get_data has a vague description (\"Gets\ndata from the system\") and no type hints, (2) the tool\nupdate_patient_and_notify both writes to the database and\nsends an email notification in a single function, and (3) four tools\naccept a raw SQL WHERE clause as a string parameter for\n\"flexibility.\" Meanwhile, the product manager asks whether MCP is\neven the right choice—there's only one AI application (the intake bot)\nconsuming these tools."} back={"Question 1: For each of the three issues, explain what will go\nwrong in production. How does FastMCP's decorator-based schema generation\nmake issue (1) particularly dangerous?\n\nQuestion 2: Redesign the update_patient_and_notify\ntool following the verb_noun pattern. How many tools should it become,\nand what should each be named? Justify using the MCP primitive\nclassification.\n\nQuestion 3: Address the product manager's concern. With 8 tools\nand 1 application, does MCP add value over direct function calling? What\nchanges in 6 months if MedAssist adds a clinician-facing dashboard and a\nbilling agent?\n\n---\n\n**Answer Rubric:**\nApproach:\nQuestion 1:\n\n- Issue (1): FastMCP auto-generates the tool schema from the\n function signature. Without type hints, all parameters become\n untyped strings; the LLM has no constraints to guide its input.\n The vague description means the LLM cannot distinguish\n get_data from any other read tool—it will call it\n for the wrong purpose or pass malformed parameters.\n\n- Issue (2): A combined write+notify tool violates atomicity.\n If the email service is down, does the DB write roll back? If\n not, the patient record updates silently without notification.\n The LLM also cannot call \"just update\" or \"just notify\"\n independently.\n\n- Issue (3): Raw SQL in parameters is a SQL injection vector.\n An adversarial or hallucinated LLM input like\n 1=1; DROP TABLE patients would execute unvalidated.\n In a health context, this is a HIPAA violation waiting to happen.\n\nQuestion 2: Split into two tools plus one resource:\n\n- update_patient_record(patient_id, field, value)\n — Tool. Writes validated data to the EHR. Side effect: DB\n mutation.\n\n- send_patient_notification(patient_id, message_type)\n — Tool. Sends a templated notification. Side effect: email.\n\n- notification_templates — Resource. The set of\n available message types (\"appointment_confirmation\",\n \"intake_complete\") that the LLM needs as context.\n\nQuestion 3: With 1 app and 8 tools, MCP adds marginal value\nover function calling—the $N \\times M$ reduction is $8 \\times 1 = 8$\neither way. However, the process isolation and Inspector-based testing\nstill justify MCP for a health application (security boundary matters\nmore than integration math). In 6 months with 3 apps: function calling\nrequires $8 \\times 3 = 24$ integrations vs. MCP's $8 + 3 = 11$. The\nserver code stays identical; only client configs change.\n\nKey Insight: MCP server design errors compound in production.\nVague descriptions cause wrong tool selection, combined tools prevent\natomic operations, and raw SQL parameters create injection\nvulnerabilities. The verb_noun pattern + strict type hints + input\nvalidation are non-negotiable for any server handling sensitive data.\n\nAnswer: MCP server design errors compound in production. Vague descriptions cause wrong tool selection, combined tools prevent\natomic operations, and raw SQL parameters create injection\nvulnerabilities."} />
+
+{/* CARD-PLACEMENT-AUTOEND */}

@@ -1,0 +1,642 @@
+---
+book: finetuning-llms
+title: Practical Considerations and Advanced Techniques
+chapter: 4
+description: Fine-tuning succeeds or fails on practical decisions—model sizing,
+  parameter efficiency, and knowing when fine-tuning is the wrong tool entirely.
+learning_outcomes:
+  - id: FT-4.1
+    verb: explain
+    text: "the iterative fine-tuning workflow: task definition, data collection,
+      small-model baseline, evaluation, and scaling decisions"
+  - id: FT-4.2
+    verb: analyze
+    text: how task complexity (reading vs. writing, single vs. multi-task) maps to
+      model size requirements and compute budgets
+  - id: FT-4.3
+    verb: explain
+    text: the LoRA mechanism—frozen base weights, low-rank decomposition matrices,
+      rank selection, and inference-time merging—and why it reduces trainable
+      parameters by up to 10,000$$[hu2022lora]
+  - id: FT-4.4
+    verb: compare
+    text: fine-tuning, RAG, and hybrid approaches using a decision framework based
+      on task type, data availability, latency, and cost
+  - id: FT-4.5
+    verb: design
+    text: a multi-adapter LoRA deployment strategy serving multiple customers from a
+      single base model
+sources: []
+tools_compared:
+  - ML Engineer / AI Engineer --- All companies --- L4--L6
+last_verified: 2026-05-21
+volatility: architectural-pattern
+---
+
+{/* TODO: per-chapter polish pass — see plan decision Q1 round 3 */}
+
+&lt;!–MDXB-15-OPEN–&gt;
+
+Chapter 3 covered training mechanics and evaluation—you can now fine-tune
+a model and measure whether it improved. This chapter answers the questions
+that come *after* you know how: Which model size should I start with?
+How do I afford to fine-tune large models? When should I fine-tune at all
+versus using retrieval? These are the decisions that separate a successful
+deployment from an expensive experiment.
+
+&lt;!–MDXB-15-CLOSE–&gt;
+
+Before reading, consider:
+
+1.  If you had to fine-tune a model tomorrow with zero budget for GPU rental,
+    what is the largest model you could realistically train?
+
+2.  Why would updating only 0.01% of a model’s parameters still produce
+    meaningful behavior change?
+
+3.  A company has a great RAG system for product knowledge. A manager wants
+    to “also fine-tune” for better answers. What questions would you ask
+    before agreeing?
+
+# Getting Started — The Practical Workflow
+
+
+
+<Sidenote category="interview">Iterate small: start 400M–1B params, vary data volume, evaluate, then scale. Most candidates jump to 7B+ and waste weeks.</Sidenote>
+
+
+
+The course emphasizes a pragmatic workflow: resist the temptation to start
+large<Citation src="dlai-ft-course" />. Following these steps in order prevents the most
+common failure—over-investing in compute before understanding the data.
+
+1.  **Define your task.** Be specific: “classify tickets into 12 categories,”
+    not “customer support.”
+
+2.  **Collect and structure data.** Gather input–output pairs. If data
+    is insufficient, generate synthetic examples or use prompt templates.
+
+3.  **Fine-tune a small model first.** Start 400M–1B parameters. The goal
+    is understanding data influence, not production quality.
+
+4.  **Vary data volume.** Train with 100, 500, 1K, 5K examples. Plot loss
+    curves to find where more data stops helping.
+
+5.  **Evaluate.** Task-specific accuracy, human evaluation, benchmarks.
+    Identify failure modes.
+
+6.  **Fix data based on failures.** Targeted data collection is the
+    iterative loop that matters most.
+
+7.  **Scale up only when justified.** Increase model size only after you
+    understand the data–performance curve at smaller scale.
+
+
+
+<Sidenote category="pattern">Fine-tuning loop: define task $$ collect data $$ train small $$ evaluate $$ fix data $$ scale. Never skip to "scale."</Sidenote>
+
+
+
+# Task Complexity and Model Sizing
+
+
+
+<Sidenote category="interview">Reading tasks (extraction, classification) $$ small models. Writing tasks (chat, code gen) $$ larger models. Know the boundary.</Sidenote>
+
+
+
+Not all tasks require the same model capacity. The course draws a fundamental
+distinction between *reading* tasks and *writing* tasks that maps
+directly to model sizing decisions<Citation src="dlai-ft-course" />.
+
+**Reading tasks** (classification, NER, intent detection) produce few tokens
+with a constrained output space. Models in the 70M–300M range often suffice, and
+fine-tuning converges quickly<Citation src="biderman2023pythia" />.
+
+
+
+<Sidenote category="warning">"Writing" = more output tokens = harder. A chatbot producing 200-token replies needs far more capacity than a classifier producing one label.</Sidenote>
+
+
+
+**Writing tasks** (email, code generation, chat) produce many tokens and
+require maintaining coherence. Models below 1B rarely produce fluent extended
+text; 7B–13B is the practical starting point for production writing.
+
+**Combination tasks** (agents, multi-step reasoning) layer reading and writing.
+These typically require 7B+ parameters, with substantial gains from scaling to
+13B or 70B<Citation src="brown2020gpt3" />.
+
+| **Task Type**        | **Examples**                 | **Recommended Size** |
+|:---------------------|:-----------------------------|:---------------------|
+| Simple extraction    | NER, classification, routing | 70M–300M             |
+| Constrained writing  | Short-form QA, slot filling  | 300M–1B              |
+| Open-ended writing   | Chat, email, summarization   | 1B–7B                |
+| Multi-step reasoning | Code gen, agents, complex QA | 7B–70B               |
+
+Task complexity to model size mapping. These are starting points for
+fine-tuning; pre-trained model quality and data volume shift the boundaries.
+
+
+
+<Sidenote category="formula">GPU memory rule: inference $$ 2$$ params (fp16), training $$ 4–8$$ params (optimizer states + gradients).</Sidenote>
+
+
+
+## Compute Requirements
+
+Concrete hardware mapping: a V100 (16 GB) runs a 7B model for inference but can
+only *train* up to ∼1B parameters<Citation src="dlai-ft-course" />. Training needs
+4–8× more memory (gradients, Adam momentum buffers, activations). This
+inference-training memory gap motivates parameter-efficient methods: reduce
+trainable parameters by 10,000× and fine-tune models that otherwise need
+a GPU cluster.
+
+# Parameter-Efficient Fine-Tuning (PEFT/LoRA)
+
+
+
+<Sidenote category="interview">LoRA is the single most common PEFT interview topic. Know: freeze base, add low-rank matrices, merge at inference. 30-second explanation.</Sidenote>
+
+
+
+
+
+<Term name="LoRA (Low-Rank Adaptation)" los="FT-4.3">
+  A parameter-efficient fine-tuning method that freezes pre-trained model weights and injects trainable low-rank decomposition matrices into each transformer layer. For a weight matrix $W  R^{d  k}$, LoRA adds $ W = BA$ where $B  R^{d  r}$ and $A  R^{r  k}$ with rank $r  (d, k)$. At inference, the adapter merges into the base weights with zero latency overhead<Citation src="hu2022lora" />.
+</Term>
+<AnkiCard type="term" front={"LoRA (Low-Rank Adaptation)"} back={"A parameter-efficient fine-tuning method that freezes pre-trained model weights and injects trainable low-rank decomposition matrices into each transformer layer. For a weight matrix $W  R^{d  k}$, LoRA adds $ W = BA$ where $B  R^{d  r}$ and $A  R^{r  k}$ with rank $r  (d, k)$. At inference, the adapter merges into the base weights with zero latency overhead[hu2022lora]."} los="FT-4.3" />
+
+
+
+
+
+<Term name="PEFT (Parameter-Efficient Fine-Tuning)" los="FT-4.3">
+  A family of methods that adapt large pre-trained models by modifying only a small subset of parameters. Includes LoRA, prefix tuning, adapter layers, and prompt tuning. The Hugging Face `peft` library provides unified implementations. PEFT methods reduce memory, storage, and compute requirements while preserving most of the performance of full fine-tuning<Citation src="hu2022lora" />.
+</Term>
+<AnkiCard type="term" front={"PEFT (Parameter-Efficient Fine-Tuning)"} back={"A family of methods that adapt large pre-trained models by modifying only a small subset of parameters. Includes LoRA, prefix tuning, adapter layers, and prompt tuning. The Hugging Face `peft` library provides unified implementations. PEFT methods reduce memory, storage, and compute requirements while preserving most of the performance of full fine-tuning[hu2022lora]."} los="FT-4.3" />
+
+
+
+Full fine-tuning updates every parameter. For GPT-3 (175B parameters), this
+requires hundreds of gigabytes of GPU memory for gradients and optimizer states
+alone<Citation src="brown2020gpt3" />. LoRA solves this elegantly.
+
+## The LoRA Mechanism
+
+
+
+<Sidenote category="pattern">LoRA in one sentence: instead of updating $W$ directly, learn $ W = BA$ where $B$ and $A$ are thin matrices. Train $r  (d + k)$ params instead of $d  k$.</Sidenote>
+
+
+
+The key insight behind LoRA is that the weight updates during fine-tuning have
+low intrinsic rank—they can be well-approximated by the product of two much
+smaller matrices<Citation src="hu2022lora" />. For a pre-trained weight matrix
+*W*<sub>0</sub> ∈ ℝ<sup>*d* × *k*</sup>, the update is:
+
+*W* = *W*<sub>0</sub> + *Δ**W* = *W*<sub>0</sub> + *B**A*
+
+where *B* ∈ ℝ<sup>*d* × *r*</sup> and *A* ∈ ℝ<sup>*r* × *k*</sup>,
+with rank *r* typically between 4 and 64.
+
+**During training:** *W*<sub>0</sub> is frozen (no gradients, no optimizer states).
+Only *B* and *A* receive gradients: *r* × (*d* + *k*) trainable parameters per
+layer instead of *d* × *k*. Initialization sets *B* = 0, so *Δ**W* = 0 at
+the start—the model begins identical to the pre-trained version.
+
+**During inference:** Merge *W* = *W*<sub>0</sub> + *B**A* via a one-time matrix addition.
+The merged model has identical architecture and latency to the original. To revert,
+subtract *B**A*. To switch tasks, swap adapters.
+
+
+
+<Sidenote category="formula">Parameter reduction: $r(d+k)$ vs. $dk$. For $d=k=4096$, $r=8$: 65K vs. 16.7M params per layer. That is 256$$ fewer.</Sidenote>
+
+
+
+&lt;!–MDXB-17-OPEN–&gt;
+
+**Core Insight:** Fine-tuning weight updates are low-rank. LoRA exploits
+this by decomposing *Δ**W* into two thin matrices *B* and *A*, reducing
+trainable parameters by orders of magnitude while preserving the pre-trained
+model’s knowledge in the frozen weights.
+
+**Why It Matters:** For GPT-3, LoRA reduces trainable parameters by
+10,000× and GPU memory by 3×, making fine-tuning of large models
+feasible on commodity hardware. At inference, merged weights add zero latency.
+This is the method that made fine-tuning accessible to teams without GPU
+clusters<Citation src="hu2022lora" />.
+
+**When It Breaks:** LoRA assumes the fine-tuning task’s weight updates are
+low-rank. Tasks requiring fundamentally different representations from pre-training
+(e.g., adapting an English model to Chinese from scratch) may exceed what low-rank
+updates can capture. In such cases, higher rank *r* or full fine-tuning may be
+needed.
+
+&lt;!–MDXB-17-CLOSE–&gt;
+
+## Rank Selection
+
+
+
+<Sidenote category="warning">Rank too low = underfitting (can't capture task). Rank too high = overfitting + losing efficiency gains. Start $r=8$, adjust.</Sidenote>
+
+
+
+The rank *r* is the primary hyperparameter in LoRA, controlling adapter
+expressiveness: *r* = 1–4 for minimal adaptation (binary classification);
+*r* = 8–16 as the sweet spot for most tasks (the LoRA paper found *r* = 4–8
+sufficient for GPT-3<Citation src="hu2022lora" />); *r* = 32–64 for complex domain shifts;
+*r* = 128+ yields diminishing returns with growing overfitting risk.
+
+
+
+<Sidenote category="practice">Start $r=8$, double if validation loss plateaus. If $r=64$ still underperforms, the bottleneck is data, not rank.</Sidenote>
+
+
+
+The practical approach: start with *r* = 8, evaluate. Overfitting (training loss
+drops, validation plateaus) means reduce *r*. Both losses plateau means increase
+*r*. If *r* = 64 still underperforms, the problem is data, not adapter capacity.
+
+
+
+<Term name="Catastrophic Forgetting" los="FT-4.3">
+  The phenomenon where a neural network trained on a new task loses performance on previously learned tasks. Full fine-tuning is particularly susceptible because every weight is updated. LoRA mitigates catastrophic forgetting by keeping pre-trained weights frozen and confining adaptation to low-rank subspaces<Citation src="hu2022lora" />.
+</Term>
+<AnkiCard type="term" front={"Catastrophic Forgetting"} back={"The phenomenon where a neural network trained on a new task loses performance on previously learned tasks. Full fine-tuning is particularly susceptible because every weight is updated. LoRA mitigates catastrophic forgetting by keeping pre-trained weights frozen and confining adaptation to low-rank subspaces[hu2022lora]."} los="FT-4.3" />
+
+
+
+## Multi-Customer LoRA Deployment
+
+
+
+<Sidenote category="interview">Multi-adapter LoRA: one base model, N customer adapters swapped at inference. Storage = base + N $$ tiny adapter files. This is a system design question.</Sidenote>
+
+
+
+One of LoRA’s most powerful production applications<Citation src="dlai-ft-course" />: serve
+multiple customers from a single base model. Train Customer A’s adapter (*B*<sub>*A*</sub>, *A*<sub>*A*</sub>),
+Customer B’s adapter (*B*<sub>*B*</sub>, *A*<sub>*B*</sub>). At inference, load the base model once; merge
+*W*<sub>0</sub> + *B*<sub>*i*</sub>*A*<sub>*i*</sub> for whichever customer is active. Adapters are tens of MB vs. tens of GB for the full model—swapping is a matrix addition, not a model reload.
+
+
+
+<Sidenote category="pattern">LoRA adapters decouple *capability* (base model) from *customization* (adapter). This is the plugin architecture of ML.</Sidenote>
+
+
+
+Instead of hosting *N* separate fine-tuned models, host one base model and *N*
+lightweight adapters. Cost scales linearly in *storage* but remains constant
+in *GPU memory*.
+
+# Fine-Tuning vs RAG — Decision Framework
+
+
+
+<Sidenote category="interview">"When would you fine-tune vs. use RAG?" is the most common LLM systems design question. Have a crisp 2-minute framework ready.</Sidenote>
+
+
+
+Fine-tuning and RAG solve different problems, and confusing them is among the most
+expensive mistakes in LLM application design<Citation src="dlai-ft-course" />.
+
+**Fine-tuning changes how the model behaves**—output style, format,
+reasoning patterns. After fine-tuning, the model *intrinsically* produces
+different outputs with no external data at inference.
+
+**RAG changes what the model knows**—retrieves documents at inference and
+injects them into the prompt. Weights unchanged; the model simply has more context.
+
+| **Dimension** | **Fine-Tuning**              | **RAG**                     |
+|:--------------|:-----------------------------|:----------------------------|
+| Modifies      | Model weights (behavior)     | Prompt context (knowledge)  |
+| Best for      | Tone, format, reasoning      | Factual recall, freshness   |
+| Data needs    | 100–10,000+ labeled pairs    | Document corpus             |
+| Latency       | No overhead at inference     | Retrieval adds 100–500ms    |
+| Freshness     | Static after training        | Real-time document updates  |
+| Hallucination | Reduced for trained patterns | Reduced for retrieved facts |
+| Cost          | GPU hours for training       | Vector DB + retrieval infra |
+
+Fine-tuning vs. RAG across key decision dimensions.
+
+## When to Fine-Tune
+
+Fine-tune when the problem is *behavioral*: consistent output format (JSON,
+templates, brand voice), domain-specific reasoning patterns (medical, legal),
+instruction following that the base model lacks<Citation src="ouyang2022instructgpt" />,
+latency-critical paths (zero inference overhead), or constrained output tasks
+(classification, extraction, routing).
+
+## When to Use RAG
+
+Use RAG when the problem is *knowledge*: frequently changing information
+(catalogs, news), factual grounding with citations, large knowledge bases
+exceeding what any model can memorize, or rapid deployment without training.
+
+## When to Combine Both
+
+
+
+<Sidenote category="warning">Hybrid = fine-tune for behavior + RAG for knowledge. Most production LLM systems end up here. Build RAG first, add FT when behavior gaps appear.</Sidenote>
+
+
+
+Most production systems combine both: fine-tune for behavioral consistency (voice,
+schema, reasoning) and RAG for knowledge injection (product info, policies,
+customer history). Example: a support system fine-tuned on 5,000 transcripts
+for tone with RAG over the product knowledge base for accuracy.
+
+&lt;!–MDXB-18-OPEN–&gt;
+
+**Core Insight:** Fine-tuning changes behavior (how the model responds);
+RAG changes knowledge (what the model knows). They solve orthogonal problems.
+The question is never “fine-tune *or* RAG” but rather “what is the model
+getting wrong—its behavior or its knowledge?”
+
+**Decision Rule:**
+If the model says the right things in the wrong way → fine-tune.
+If the model says the wrong things in the right way → RAG.
+If both → hybrid (fine-tune first for behavior, add RAG for knowledge).
+
+**When It Breaks:** Extremely domain-specific tasks (e.g., radiology report
+generation) may require fine-tuning for both behavior *and* domain knowledge,
+because RAG alone cannot teach the model the reasoning patterns of a specialist.
+Conversely, if your “behavior problem” is really a prompt engineering problem,
+fine-tuning is overkill.
+
+&lt;!–MDXB-18-CLOSE–&gt;
+
+Interview question for ML/AI Engineering roles at L5+: “You have a base LLM and
+a customer wants it to respond in their specific brand voice, always output valid
+JSON, and answer questions about their 10,000-page product catalog. How would
+you architect this?”
+
+**Strong answer:** “Hybrid problem. Brand voice + JSON format = behavioral
+→ fine-tune with LoRA (*r* = 8–16) on 500–1K examples. Product catalog =
+knowledge → RAG over vector DB, retrieve top-*k* chunks. The fine-tuned model
+formats retrieved information correctly because it learned the output pattern. Build
+RAG first to validate retrieval, then add fine-tuning for behavior.”
+
+**Meta-signal:** Tests decomposing ambiguous requirements into behavior vs. knowledge components. Weak: “fine-tune everything” or “just use RAG.” Strong:
+identify the orthogonal axes and architect each component with the right tool.
+
+&lt;!–MDXB-19-OPEN–&gt;
+
+\[core\]\[full\]
+**Choose the Right LoRA Rank**
+
+You are fine-tuning a 7B parameter model for two tasks:
+
+1.  Binary sentiment classification on product reviews (positive/negative).
+
+2.  Open-ended customer email generation matching a specific brand voice.
+
+Your GPU has 24 GB of memory. For each task, recommend a LoRA rank *r*, estimate
+the number of trainable parameters (assume LoRA is applied to query and value
+projection matrices with *d* = 4096), and justify your choice.
+
+&lt;!–MDXB-19-CLOSE–&gt;
+
+&lt;!–MDXB-22-OPEN–&gt;
+
+**Step 1: Task (a) — Sentiment Classification.**
+Simple reading task, two-element output. Recommend *r* = 4.
+Params per layer: 4 × (4096 + 4096) = 32, 768. Across *Q*, *V* in 32 layers:
+32, 768 × 2 × 32 = 2.1M trainable params (0.03% of 7B).
+
+**Step 2: Task (b) — Email Generation.**
+Complex writing with style constraints. Recommend *r* = 16.
+Params per layer: 16 × 8192 = 131, 072. Total:
+131, 072 × 64 = 8.4M trainable params (0.12% of 7B).
+
+**Step 3: Memory.**
+7B in fp16 ≈ 14 GB. LoRA optimizer states add ∼50 MB even at
+*r* = 16. Both tasks fit comfortably in 24 GB.
+
+**Key Insight:** Rank should match task complexity, not model size. A simple
+task on a large model still needs low rank. The rank controls expressiveness of the
+*adaptation*, not the base capability.
+
+**Answer:** (a) *r* = 4, ∼2.1M trainable params. (b) *r* = 16,
+∼8.4M trainable params. Both fit in 24 GB.
+
+&lt;!–MDXB-22-CLOSE–&gt;
+
+&lt;!–MDXB-20-OPEN–&gt;
+
+\[applied\]\[full\]
+**Design an Adapter Strategy for 10 Clients**
+
+You manage an ML platform serving 10 enterprise clients. Each client wants the
+same base 13B model fine-tuned on their proprietary support transcripts (2,000–5,000
+examples each). Your infrastructure has 4 A100 GPUs (80 GB each).
+
+1.  Design the adapter strategy: training, storage, and serving architecture.
+
+2.  Calculate total storage for base model + 10 adapters at *r* = 8.
+
+3.  A new client arrives. How long before they are live?
+
+&lt;!–MDXB-20-CLOSE–&gt;
+
+&lt;!–MDXB-23-OPEN–&gt;
+
+**Step 1: Architecture Design.**
+
+**Training:** One LoRA adapter per client. Each run uses 1 A100 (13B + LoRA
+fits in ∼30 GB). Four clients train in parallel; 3 rounds for all 10.
+**Storage:** Base model once (∼26 GB fp16) + 10 adapter files.
+**Serving:** Load base model once. Swap client adapters via LRU cache at
+request time.
+
+**Step 2: Storage Calculation.**
+
+For 13B model with *d* = 5120 (typical for 13B), LoRA at *r* = 8 applied to
+*Q* and *V* across 40 layers:
+Params per adapter = 8 × (5120 + 5120) × 2 × 40 = 6, 553, 600 ≈ 6.6M
+At fp16: 6.6M × 2 bytes = 13.2 MB per adapter.
+
+Total: 26 GB (base) + 10 × 13.2 MB (adapters) = 26.13 GB.
+
+The 10 adapters add 0.5% to total storage.
+
+**Step 3: Time to Live for New Client.**
+Receive data (hours) → preprocess (hours) → train adapter (1–4 hrs on A100)
+→ evaluate (hours) → deploy adapter file (seconds). Total: 1–2 business
+days, dominated by data prep—not training.
+
+**Key Insight:** Multi-customer LoRA turns model fine-tuning from a per-client
+GPU cost into a per-client *storage* cost. The base model is a shared fixed
+cost; each additional client adds only megabytes of adapter weights.
+
+**Answer:** (a) One base model + per-client LoRA adapters with LRU adapter cache.
+(b) 26.13 GB total (adapters add 0.5%). (c) 1–2 days, bottlenecked by data prep.
+
+&lt;!–MDXB-23-CLOSE–&gt;
+
+&lt;!–MDXB-21-OPEN–&gt;
+
+\[core\]\[full\]
+**Recommend the Right Approach**
+
+For each scenario, recommend fine-tuning, RAG, or a hybrid approach. Justify
+with specific reasoning about what each method provides.
+
+1.  A legal firm wants an LLM that always outputs responses in a specific
+    5-section memo format and cites relevant case law.
+
+2.  A news aggregator wants an LLM that summarizes today’s articles accurately.
+
+3.  An e-commerce company wants an LLM that classifies customer complaints
+    into 20 internal categories.
+
+4.  A healthcare company wants an LLM that explains drug interactions in
+    patient-friendly language using current FDA data.
+
+&lt;!–MDXB-21-CLOSE–&gt;
+
+&lt;!–MDXB-24-OPEN–&gt;
+
+**(a) Legal Memo — Hybrid.** The 5-section format is behavioral →
+fine-tune. Citing current case law needs a changing corpus → RAG.
+
+**(b) News Summarization — RAG.** Content changes daily; fine-tuning
+would require daily retraining. RAG retrieves current articles; the base model
+summarizes. Add light fine-tuning only if summary style is poor.
+
+**(c) Complaint Classification — Fine-Tuning.** Pure reading task: input
+→ one of 20 fixed categories. Fine-tune a small model (300M–1B). No external
+knowledge to retrieve.
+
+**(d) Healthcare Drug Interactions — Hybrid.** Patient-friendly language
+→ fine-tune. Current FDA data → RAG. FT alone gives stale facts; RAG
+alone gives intimidating language.
+
+**Key Insight:** Decompose every requirement into “behavior change” (fine-tuning)
+and “knowledge access” (RAG). Most real-world systems have both dimensions.
+
+**Answer:** (a) Hybrid, (b) RAG, (c) Fine-tuning, (d) Hybrid.
+
+&lt;!–MDXB-24-CLOSE–&gt;
+
+&lt;!–MDXB-25-OPEN–&gt;
+
+\[FT-4.3, FT-4.4\]
+A healthcare startup fine-tuned a 7B model on 15,000 medical QA pairs. Benchmark
+accuracy: 78% on medical board questions. But in production, the model hallucinates
+drug interactions—two flagged cases of fabricated contraindications.
+
+The RAG team says: “Use a base model with RAG over the FDA drug database—every
+answer grounded in source.” The FT team counters: “The model needs medical
+*reasoning*, not just retrieval. RAG fails on complex multi-drug interactions.”
+CEO needs a decision by Friday. Budget: $50K/quarter.
+
+**Question 1:** Estimate the quarterly cost of each approach—pure fine-tuning
+(including retraining as the drug database updates), pure RAG (vector database +
+retrieval infrastructure), and a hybrid system. Which fits the $50K budget?
+
+**Question 2:** Design a hybrid architecture that addresses both teams’
+concerns. Specifically: what does fine-tuning handle, what does RAG handle, and
+how do you prevent hallucinated drug interactions?
+
+**Question 3:** The FDA requires that any AI system providing drug interaction
+information must be auditable—every claim must trace to a specific source.
+How does this regulatory requirement affect the architecture decision?
+
+&lt;!–MDXB-25-CLOSE–&gt;
+
+&lt;!–MDXB-26-OPEN–&gt;
+
+\[FT-4.1, FT-4.4\]
+An e-commerce company deployed RAG over its product knowledge base last month.
+CSAT improved from 3.2 to 3.8/5. But three complaints persist: (1) tone is
+“robotic,” (2) responses too long (agents want 2–3 sentences), (3) the system
+never escalates to humans.
+
+The ML team proposes fine-tuning on 50K support transcripts. The engineering
+manager pushes back: “Retraining every quarter when products change is expensive.
+And our best agents left—the transcripts include bad examples too.”
+
+**Question 1:** Which of the three complaints (tone, length, escalation)
+can fine-tuning address, and which require other solutions? Be specific about
+what the training data needs to contain for each.
+
+**Question 2:** The engineering manager is worried about retraining frequency.
+Analyze this concern: does the product catalog changing actually require
+retraining the fine-tuned model? What needs retraining vs. what needs re-indexing?
+
+**Question 3:** Design an A/B test to measure whether fine-tuning improves
+customer satisfaction above the RAG-only baseline. Specify: primary metric,
+sample size reasoning, guardrail metrics, and what a “successful” result
+looks like.
+
+&lt;!–MDXB-26-CLOSE–&gt;
+
+&lt;!–MDXB-27-OPEN–&gt;
+
+\[FT-4.3, FT-4.5\]
+A fintech company fine-tuned a 7B multilingual base model on 5,000 English
+support examples (LoRA *r* = 16): 92% format compliance, 4.1/5 tone. Now
+expanding to Japanese and Spanish. Three proposals:
+(A) machine-translate the 5K English examples and train per-language adapters;
+(B) hire native speakers to collect 2K examples per language from scratch;
+(C) fine-tune a single multilingual adapter on combined data.
+Budget: $10K. Timeline: 6 weeks. The team does not speak Japanese.
+
+**Question 1:** Rank Options A, B, and C by expected output quality for the
+Japanese market. Consider that Japanese business communication has distinct
+politeness levels (keigo) that machine translation frequently mishandles.
+
+**Question 2:** Given the $10K budget, estimate costs for Option B
+(native data collection). What is the minimum viable dataset size per language
+that would still produce usable results? Use the course’s data volume
+recommendations as a baseline.
+
+**Question 3:** The team does not speak Japanese. Design an evaluation
+strategy that can assess Japanese output quality without bilingual evaluators on
+staff. Consider: automated metrics, back-translation, native speaker spot-checks,
+and customer feedback loops.
+
+&lt;!–MDXB-27-CLOSE–&gt;
+
+&lt;!–MDXB-16-OPEN–&gt;
+
+1.  What model size range should you start with when fine-tuning for a new
+    task, and why?
+
+2.  Explain the difference between “reading tasks” and “writing tasks”
+    in terms of model capacity requirements.
+
+3.  In LoRA, what is frozen and what is trained? Why does this save memory?
+
+4.  What is rank *r* in LoRA, and what happens if you set it too low vs. too high?
+
+5.  How does LoRA achieve zero inference latency overhead?
+
+6.  Calculate the number of trainable parameters for LoRA with *r* = 8
+    applied to *Q* and *V* projections (*d* = 4096) across 32 transformer layers.
+
+7.  A company needs an LLM that formats all responses as bullet points
+    and retrieves current inventory data. Is this fine-tuning, RAG, or hybrid?
+    Justify.
+
+8.  You serve 5 clients with per-client LoRA adapters. Client 6 arrives.
+    What is the marginal cost of onboarding them?
+
+9.  What does “catastrophic forgetting” mean, and how does LoRA mitigate it?
+
+10. Give one scenario where fine-tuning is clearly wrong and RAG is clearly right,
+    and one where the reverse is true.
+
+11. analyze how task complexity (reading vs. writing, single vs. multi-task) maps to model size requirements and compute budgets.
+
+12. design a model sizing strategy that maps task complexity (simple
+    extraction, constrained writing, open-ended generation, multi-step
+    reasoning) to parameter count ranges and GPU memory budgets, starting
+    small (400M–1B) and scaling only after data–performance curves
+    justify the cost.
+
+&lt;!–MDXB-16-CLOSE–&gt;

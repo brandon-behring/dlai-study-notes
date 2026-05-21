@@ -48,7 +48,7 @@ volatility: architectural-pattern
 
 {/* TODO: per-chapter polish pass — see plan decision Q1 round 3 */}
 
-<NarrativeBox title="Where We Are">
+&lt;!–MDXB-7-OPEN–&gt;
 
 You have an LLM that can answer questions—but only from its pre-training
 knowledge. Users need answers grounded in *their* documents: internal
@@ -57,7 +57,7 @@ bridges this gap by fetching relevant context at query time and injecting it
 into the LLM prompt. This chapter builds the baseline pipeline and establishes
 the evaluation framework that will guide every improvement in Modules 2–4.
 
-</NarrativeBox>
+&lt;!–MDXB-7-CLOSE–&gt;
 
 # Why RAG Matters
 
@@ -116,7 +116,7 @@ The two advanced retrieval methods covered in this course are:
 
 # The Three-Stage RAG Pipeline
 
-<PipelineBox title="Pipeline: Basic RAG">
+&lt;!–MDXB-8-OPEN–&gt;
 
 1.  **Ingestion** *(offline, one-time)*  
     Load documents → split into text chunks → generate
@@ -130,7 +130,7 @@ The two advanced retrieval methods covered in this course are:
     Combine retrieved chunks with the user query into the LLM
     prompt window → generate the final response.
 
-</PipelineBox>
+&lt;!–MDXB-8-CLOSE–&gt;
 
 
 
@@ -146,7 +146,7 @@ The two advanced retrieval methods covered in this course are:
 
 
 
-<ConceptBox>
+&lt;!–MDXB-9-OPEN–&gt;
 
 **The Chunking Dilemma.**
 Embedding models work best on short, focused passages (128–512 tokens).
@@ -155,7 +155,7 @@ The basic pipeline uses the *same chunk* for both embedding and
 synthesis. This tension is the fundamental problem that advanced retrieval
 techniques solve.
 
-</ConceptBox>
+&lt;!–MDXB-9-CLOSE–&gt;
 
 
 
@@ -281,7 +281,7 @@ response = query_engine.query(
 
 # The RAG Triad of Metrics
 
-<KeyConcept title="The RAG Triad" los="BEA-1.3">
+&lt;!–MDXB-12-OPEN–&gt;
 
 Three evaluation metrics that together assess every critical step of a
 RAG pipeline’s execution. Each metric isolates a different failure mode:
@@ -303,9 +303,9 @@ reliable. A weak evaluator (e.g., GPT-3.5 scoring groundedness) can
 produce false positives, masking real failures. Always calibrate
 automated scores against manual review on 10–20 records.
 
-</KeyConcept>
+&lt;!–MDXB-12-CLOSE–&gt;
 
-<InterviewContext title="RAG Evaluation: The Triad Framework" los="BEA-1.3">
+&lt;!–MDXB-14-OPEN–&gt;
 
 **Why interviewers ask this:** Google, Amazon, and Notion all run
 production RAG systems and ask candidates to design evaluation pipelines
@@ -332,7 +332,7 @@ The meta-signal is *structured debugging*—can you pinpoint
 decomposing into retrieval and grounding metrics. This signals a
 candidate who cannot debug production failures systematically.
 
-</InterviewContext>
+&lt;!–MDXB-14-CLOSE–&gt;
 
 | **Metric** | **What It Measures** | **Failure Mode** |
 |:---|:---|:---|
@@ -433,7 +433,7 @@ for question in eval_questions:
 
 # Baseline Results and the Context Relevance Bottleneck
 
-<ConceptBox>
+&lt;!–MDXB-10-OPEN–&gt;
 
 **The Central Insight.**
 The baseline RAG pipeline shows decently high answer relevance and
@@ -441,7 +441,7 @@ groundedness, but **notably low context relevance**. This tells us
 the retrieval step is the primary bottleneck—the LLM is capable of
 generating good answers *if* it receives relevant context.
 
-</ConceptBox>
+&lt;!–MDXB-10-CLOSE–&gt;
 
 When context relevance is low, the LLM compensates by drawing on its
 pre-training knowledge. This produces plausible-sounding responses that
@@ -542,7 +542,7 @@ context windows and hierarchical merging, respectively. Experiment tracking
 with versioned app IDs enables systematic comparison across techniques,
 ensuring that every change is evaluated before promotion.
 
-<KeyConcept title="Context Relevance as the Primary Bottleneck" los="BEA-1.5">
+&lt;!–MDXB-13-OPEN–&gt;
 
 **Core Insight:** When retrieval fails to find relevant context, the LLM
 compensates using pre-training knowledge, producing plausible but *ungrounded*
@@ -557,17 +557,17 @@ retrieval first, then evaluate synthesis—is the standard RAG debugging workflo
 knowledge despite having the right context. There is an optimal retrieval
 granularity, not a monotonic more-is-better relationship.
 
-</KeyConcept>
+&lt;!–MDXB-13-CLOSE–&gt;
 
-<Problem title="RAG Triad Diagnosis" los="BEA-1.5">
+&lt;!–MDXB-15-OPEN–&gt;
 
 You evaluate a baseline RAG system on 10 questions. Results: Answer
 Relevance  = 0.82, Context Relevance  = 0.51, Groundedness  = 0.64.
 Rank the three metrics by priority for improvement and explain why.
 
-</Problem>
+&lt;!–MDXB-15-CLOSE–&gt;
 
-<Solution>
+&lt;!–MDXB-19-OPEN–&gt;
 
 **Approach:**
 **Priority:** Context Relevance (0.51) → Groundedness (0.64) →
@@ -587,18 +587,18 @@ would mask the underlying retrieval problem.
 improvement without changing the synthesis step. Fixing answer relevance first
 would mask the underlying retrieval problem.
 
-</Solution>
+&lt;!–MDXB-19-CLOSE–&gt;
 
-<Problem title="Document Merging for Advanced Retrieval" los="BEA-1.2">
+&lt;!–MDXB-16-OPEN–&gt;
 
 A 41-page PDF is ingested for a RAG system. Each page is loaded as a separate
 object. Explain why merging all pages into a single document
 before chunking is critical for sentence-window retrieval. What specific failure
 occurs without merging?
 
-</Problem>
+&lt;!–MDXB-16-CLOSE–&gt;
 
-<Solution>
+&lt;!–MDXB-20-OPEN–&gt;
 
 **Approach:** Sentence-window retrieval expands each retrieved sentence with
 its surrounding context (the “window”). If pages are stored as separate documents,
@@ -616,18 +616,18 @@ to span page boundaries seamlessly.
 sentence-window parser treats the entire PDF as continuous text, enabling windows
 to span page boundaries seamlessly.
 
-</Solution>
+&lt;!–MDXB-20-CLOSE–&gt;
 
-<Problem title="Experiment Tracking Design" los="BEA-1.7">
+&lt;!–MDXB-17-OPEN–&gt;
 
 Design a TruLens app ID naming scheme for comparing three RAG configurations:
 baseline, sentence-window with window sizes 3 and 5, and auto-merging with
 2-layer and 3-layer hierarchies. Include version tracking for iterative
 improvements.
 
-</Problem>
+&lt;!–MDXB-17-CLOSE–&gt;
 
-<Solution>
+&lt;!–MDXB-21-OPEN–&gt;
 
 **Approach:**
 **Naming scheme:**
@@ -652,7 +652,7 @@ results weeks later.
 (//), key hyperparameter
 (/), and iteration version (/).
 
-</Solution>
+&lt;!–MDXB-21-CLOSE–&gt;
 
 
 
@@ -660,7 +660,7 @@ results weeks later.
 
 
 
-<Problem title="Chunking Strategy Impact on RAG Triad" los="BEA-1.2">
+&lt;!–MDXB-18-OPEN–&gt;
 
 You ingest a 200-page technical manual using three chunking strategies:
 (A) 128-token chunks, (B) 512-token chunks, (C) 2048-token chunks. For
@@ -668,9 +668,9 @@ each, predict the relative RAG triad scores (high/medium/low) for the query
 “What is the maximum operating temperature?” where the answer is a single
 sentence on page 47. Explain your reasoning.
 
-</Problem>
+&lt;!–MDXB-18-CLOSE–&gt;
 
-<Solution>
+&lt;!–MDXB-22-OPEN–&gt;
 
 **Approach:**
 **Strategy A (128-token chunks):**
@@ -713,9 +713,9 @@ auto-merging) exist precisely to get Strategy A’s precision with Strategy C’
 **Answer:** This is the embedding–synthesis tension. Strategy B is the
 typical sweet spot for baseline RAG.
 
-</Solution>
+&lt;!–MDXB-22-CLOSE–&gt;
 
-<NarrativeBox title="Self-Check: M1 — Advanced RAG Pipeline">
+&lt;!–MDXB-11-OPEN–&gt;
 
 **Answer from memory before checking the chapter.**
 
@@ -743,7 +743,7 @@ typical sweet spot for baseline RAG.
 7.  Describe how TruLens app IDs enable experiment tracking.
     What naming convention would you adopt? *(BEA-1.7)*
 
-</NarrativeBox>
+&lt;!–MDXB-11-CLOSE–&gt;
 
 {/* CARD-PLACEMENT-AUTOSTART */}
 

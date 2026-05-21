@@ -54,7 +54,7 @@ volatility: architectural-pattern
 
 {/* TODO: per-chapter polish pass — see plan decision Q1 round 3 */}
 
-<NarrativeBox title="Where We Are">
+&lt;!–MDXB-8-OPEN–&gt;
 
 Module 2 gave us the evaluation toolkit. We identified context relevance
 as the primary bottleneck in the baseline pipeline. Now we apply the
@@ -62,7 +62,7 @@ first advanced retrieval technique: sentence-window retrieval. The key
 insight is simple—embed small, synthesise large—but the implementation
 details and hyperparameter tuning require careful attention.
 
-</NarrativeBox>
+&lt;!–MDXB-8-CLOSE–&gt;
 
 # The Embedding–Synthesis Tension
 
@@ -72,7 +72,7 @@ details and hyperparameter tuning require careful attention.
 
 
 
-<ConceptBox>
+&lt;!–MDXB-9-OPEN–&gt;
 
 **The Core Problem.**
 Standard RAG uses the *same text chunk* for both embedding and
@@ -88,7 +88,7 @@ synthesis. But the optimal sizes are different:
 Sentence-window retrieval **decouples** these two concerns,
 using small units for retrieval and large units for synthesis.
 
-</ConceptBox>
+&lt;!–MDXB-9-CLOSE–&gt;
 
 
 
@@ -107,7 +107,7 @@ using small units for retrieval and large units for synthesis.
 
 # How Sentence-Window Retrieval Works
 
-<PipelineBox title="Pipeline: Sentence-Window Retrieval">
+&lt;!–MDXB-10-OPEN–&gt;
 
 1.  **Parse** — Split the document into individual
     **sentences**. Each sentence becomes a node.
@@ -125,7 +125,7 @@ using small units for retrieval and large units for synthesis.
     retrieved sentence with its full surrounding window from
     the metadata, then feed the expanded context to the LLM.
 
-</PipelineBox>
+&lt;!–MDXB-10-CLOSE–&gt;
 
 
 
@@ -264,7 +264,7 @@ The workflow:
 
 2.  Re-rank and filter to **top-N** (smaller set, e.g., N=2)
 
-<ConceptBox>
+&lt;!–MDXB-11-OPEN–&gt;
 
 **Why Re-Ranking Matters.**
 Embedding similarity is fast but approximate—it compares query and
@@ -281,7 +281,7 @@ between query and document, producing more accurate relevance scores.
 - After re-ranking: “This is a dog” surfaced to top
   with a high relevance score
 
-</ConceptBox>
+&lt;!–MDXB-11-CLOSE–&gt;
 
 ## Complete Query Engine
 
@@ -345,7 +345,7 @@ Anupam Datta demonstrates the window-size tuning workflow:
 
 # Window Size 1: Why Small Windows Fail
 
-<NarrativeBox title="Failure Mode: Window Too Small">
+&lt;!–MDXB-12-OPEN–&gt;
 
 With window size 1, only one extra sentence is added before and after
 each retrieved sentence. On a representative question:
@@ -359,7 +359,7 @@ each retrieved sentence. On a representative question:
 **Root cause**: The context window is too narrow to contain the
 information needed for a complete, grounded answer.
 
-</NarrativeBox>
+&lt;!–MDXB-12-CLOSE–&gt;
 
 
 
@@ -377,7 +377,7 @@ subtle failure that the RAG triad reveals clearly.
 
 # Window Size 3: The Sweet Spot
 
-<KeyConcept title="Optimal Window Size" los="BEA-3.5">
+&lt;!–MDXB-15-OPEN–&gt;
 
 Switching to window size 3 for the same problematic question produces
 dramatic improvements:
@@ -398,11 +398,11 @@ Dense technical documents (patents, APIs) may peak at *w* = 1–2;
 verbose narrative (court opinions, essays) may need *w* = 5–7.
 Always tune empirically—there is no universal “best” window size.
 
-</KeyConcept>
+&lt;!–MDXB-15-CLOSE–&gt;
 
 # Window Size 5: When Bigger Is Not Better
 
-<NarrativeBox title="Failure Mode: Window Too Large">
+&lt;!–MDXB-13-OPEN–&gt;
 
 Increasing to window size 5:
 
@@ -418,7 +418,7 @@ Increasing to window size 5:
 **Root cause**: Excessive context dilutes the relevant information,
 and the LLM falls back on familiar patterns from pre-training.
 
-</NarrativeBox>
+&lt;!–MDXB-13-CLOSE–&gt;
 
 
 
@@ -549,7 +549,7 @@ too large overwhelms the LLM. For the course evaluation setup, window
 size 3 was optimal across all RAG triad metrics, producing a 33-percentage-point
 improvement in context relevance over window size 1.
 
-<KeyConcept title="Decoupling Embedding from Synthesis Granularity" los="BEA-3.1">
+&lt;!–MDXB-16-OPEN–&gt;
 
 **Core Insight:** Sentence-window retrieval resolves the fundamental RAG
 tradeoff by embedding individual sentences (small, precise for matching) but
@@ -566,9 +566,9 @@ capture relevant information scattered across distant sections. For documents wi
 non-adjacent relevant passages (e.g., contracts with clauses referencing
 appendices), auto-merging retrieval is more appropriate.
 
-</KeyConcept>
+&lt;!–MDXB-16-CLOSE–&gt;
 
-<InterviewContext title="Retrieval Granularity vs. Synthesis Granularity" los="BEA-3.1">
+&lt;!–MDXB-17-OPEN–&gt;
 
 **Why interviewers ask this:** Notion, Perplexity, and Google
 Search teams ask “How would you improve retrieval quality in a RAG
@@ -598,18 +598,18 @@ sentence windows break this coupling?
 recognizing the precision-context tradeoff, or being unable to
 explain why the same chunk should not serve both embedding and synthesis.
 
-</InterviewContext>
+&lt;!–MDXB-17-CLOSE–&gt;
 
-<Problem title="Window Metadata Calculation" los="BEA-3.3">
+&lt;!–MDXB-18-OPEN–&gt;
 
 A document has 100 sentences. You apply with
 . For sentence 1 (the first sentence) and sentence 50,
 describe what contains. How many total nodes are
 created?
 
-</Problem>
+&lt;!–MDXB-18-CLOSE–&gt;
 
-<Solution>
+&lt;!–MDXB-22-OPEN–&gt;
 
 **Approach:**
 **Total nodes:** 100 (one per sentence).
@@ -629,18 +629,18 @@ rather than content-dense.
 because document beginnings/endings are often metadata-heavy (titles, references)
 rather than content-dense.
 
-</Solution>
+&lt;!–MDXB-22-CLOSE–&gt;
 
-<Problem title="Non-Monotonic Window Size" los="BEA-3.5">
+&lt;!–MDXB-19-OPEN–&gt;
 
 You evaluate sentence-window RAG with window sizes 1, 3, 5, 7. Results:
 *w* = 1: CR=0.57; *w* = 3: CR=0.90; *w* = 5: CR=0.88; *w* = 7:
 CR=0.82. Explain the non-monotonic relationship. Why doesn’t larger always
 mean better?
 
-</Problem>
+&lt;!–MDXB-19-CLOSE–&gt;
 
-<Solution>
+&lt;!–MDXB-23-OPEN–&gt;
 
 **Approach:**
 ***w* = 1:** Too small—the LLM receives only the matched sentence, lacking
@@ -662,9 +662,9 @@ Always tune empirically using the RAG triad.
 **Answer:** Optimal window size depends on document density. Dense
 technical docs: *w* = 1–3.
 
-</Solution>
+&lt;!–MDXB-23-CLOSE–&gt;
 
-<Problem title="End-to-End Pipeline Design" los="BEA-3.8">
+&lt;!–MDXB-20-OPEN–&gt;
 
 Write pseudocode for a complete sentence-window pipeline that: (a) loads a
 PDF, (b) merges pages, (c) builds an index with ,
@@ -672,9 +672,9 @@ PDF, (b) merges pages, (c) builds an index with ,
 . Use for initial
 retrieval.
 
-</Problem>
+&lt;!–MDXB-20-CLOSE–&gt;
 
-<Solution>
+&lt;!–MDXB-24-OPEN–&gt;
 
 **Approach:**
 
@@ -715,9 +715,9 @@ window size first, then top-K/top-N together.
 (context expansion), (retrieval
 breadth), and (final precision).
 
-</Solution>
+&lt;!–MDXB-24-CLOSE–&gt;
 
-<Vignette title="Window Size Tuning Across Document Types">
+&lt;!–MDXB-27-OPEN–&gt;
 
 \[BEA-3.5, BEA-3.6\]
 A legal-tech company uses sentence-window RAG for two document types: (A) concise
@@ -735,9 +735,9 @@ would you validate the choice?
 **Question 3:** Beyond window size, name two other tuning levers that could
 improve court opinion retrieval.
 
-</Vignette>
+&lt;!–MDXB-27-CLOSE–&gt;
 
-<Solution>
+&lt;!–MDXB-25-OPEN–&gt;
 
 **Approach:**
 **Q1:** Patent claims are semantically dense—each sentence contains a
@@ -765,7 +765,7 @@ Compare *w* = 3 vs. *w* = 5 vs. *w* = 7 on the same 20 test querie
 
 **Answer:** Patents: small windows (3 sentences) due to semantic density. Court opinions: large windows (8–10 sentences) due to referential language. Tune window size per document type, not globally.
 
-</Solution>
+&lt;!–MDXB-25-CLOSE–&gt;
 
 
 
@@ -773,7 +773,7 @@ Compare *w* = 3 vs. *w* = 5 vs. *w* = 7 on the same 20 test querie
 
 
 
-<Problem title="Re-Ranker Impact on Sentence-Window Retrieval" los="BEA-3.4">
+&lt;!–MDXB-21-OPEN–&gt;
 
 A sentence-window pipeline with *w* = 3 retrieves top-K=6 sentence nodes,
 then re-ranks to top-N=2. Without the re-ranker, the 6 retrieved sentences
@@ -782,9 +782,9 @@ are expanded to 7-sentence windows. Explain: (a) why the re-ranker is
 especially important after metadata replacement, and (b) what happens if you
 skip re-ranking and send all 6 expanded windows to the LLM.
 
-</Problem>
+&lt;!–MDXB-21-CLOSE–&gt;
 
-<Solution>
+&lt;!–MDXB-26-OPEN–&gt;
 
 **Approach:**
 **(a) Why re-ranking is critical after metadata replacement:** After
@@ -814,9 +814,9 @@ from the semantic search course—the re-ranker bridges it at the window level.
 topics” to “relevant answers.” This is the same similarity-vs-relevance gap
 from the semantic search course—the re-ranker bridges it at the window level.
 
-</Solution>
+&lt;!–MDXB-26-CLOSE–&gt;
 
-<NarrativeBox title="Self-Check: M3 — Sentence-Window Retrieval">
+&lt;!–MDXB-14-OPEN–&gt;
 
 **Answer from memory before checking the chapter.**
 
@@ -850,7 +850,7 @@ from the semantic search course—the re-ranker bridges it at the window level.
     and `get_sentence_window_query_engine`. What are
     the key parameters? *(BEA-3.8)*
 
-</NarrativeBox>
+&lt;!–MDXB-14-CLOSE–&gt;
 
 {/* CARD-PLACEMENT-AUTOSTART */}
 

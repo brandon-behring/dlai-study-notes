@@ -41,13 +41,13 @@ tools_compared:
   - DS-Amazon-L5
   - MLE-Meta-IC4
   - SWE-Microsoft
-last_verified: 2026-05-19
+last_verified: 2026-05-21
 volatility: architectural-pattern
 ---
 
 {/* TODO: per-chapter polish pass — see plan decision Q1 round 3 */}
 
-<NarrativeBox title="Where We Are">
+&lt;!–MDXB-18-OPEN–&gt;
 
 Module 1 established the vocabulary—nodes, relationships, properties,
 labels. Now you need to *use* that vocabulary to ask questions of
@@ -56,7 +56,7 @@ into actionable answers. This module teaches you to read, write, and
 modify graph data through pattern matching, using a movie dataset as
 the training ground.
 
-</NarrativeBox>
+&lt;!–MDXB-18-CLOSE–&gt;
 
 # Setup and Environment
 
@@ -242,7 +242,7 @@ result = kg.query("""
 
 
 
-<ConceptBox>
+&lt;!–MDXB-19-OPEN–&gt;
 
 **Property Match vs. WHERE.**
 These two queries are equivalent:
@@ -254,7 +254,7 @@ These two queries are equivalent:
 Use property matching for simple equality checks and `WHERE`
 for ranges, boolean logic, or complex conditions.
 
-</ConceptBox>
+&lt;!–MDXB-19-CLOSE–&gt;
 
 # Relationship Queries
 
@@ -310,7 +310,7 @@ result = kg.query("""
 
 ## Multi-Hop Traversal: Co-Actors
 
-<KeyConcept title="Multi-Hop Traversal" los="KGR-2.2">
+&lt;!–MDXB-24-OPEN–&gt;
 
 The power of graph queries lies in following chains of relationships.
 To find all co-actors of Tom Hanks, traverse two `ACTED_IN`
@@ -328,7 +328,7 @@ high-degree nodes. A movie with 50 actors produces 50<sup>2</sup> co-actor pairs
 three hops through such nodes can return millions of rows. Always add
 `LIMIT` or filter by label/property to bound result sets.
 
-</KeyConcept>
+&lt;!–MDXB-24-CLOSE–&gt;
 
 
 
@@ -357,7 +357,7 @@ relationship from the co-actor to the shared movie node.
 
 # Modifying the Graph
 
-<ConceptBox>
+&lt;!–MDXB-20-OPEN–&gt;
 
 **Read vs. Write Operations.**
 `MATCH` + `RETURN` reads data. `CREATE`, `MERGE`,
@@ -365,7 +365,7 @@ and `DELETE` modify data. In production, read operations vastly
 outnumber writes, but understanding mutations is essential for graph
 construction pipelines (Modules 4–6).
 
-</ConceptBox>
+&lt;!–MDXB-20-CLOSE–&gt;
 
 ## Deleting Relationships
 
@@ -409,7 +409,7 @@ result = kg.query("""
 
 ## Creating Relationships with MERGE
 
-<RedFlag title="Duplicate Creation with CREATE">
+&lt;!–MDXB-30-OPEN–&gt;
 
 Using `CREATE` for relationships produces duplicates if the
 query runs multiple times. Always use `MERGE` for relationships
@@ -417,7 +417,7 @@ to ensure idempotency: if the relationship already exists, it will
 not be created again. This is critical for bulk-loading pipelines
 where retries are common.
 
-</RedFlag>
+&lt;!–MDXB-30-CLOSE–&gt;
 
 
 
@@ -466,7 +466,7 @@ result = kg.query("""
 
 
 
-<NarrativeBox title="When to Use CREATE vs. MERGE">
+&lt;!–MDXB-21-OPEN–&gt;
 
 1.  **Use CREATE** when you are certain the element does not
     exist and want the fastest insertion (no existence check).
@@ -479,13 +479,13 @@ result = kg.query("""
     only on first creation, preserving existing values on
     subsequent runs.
 
-</NarrativeBox>
+&lt;!–MDXB-21-CLOSE–&gt;
 
 # Query Execution Model
 
 Understanding how Cypher executes helps you write efficient queries:
 
-<PipelineBox title="Pipeline: Cypher Query Execution">
+&lt;!–MDXB-22-OPEN–&gt;
 
 1.  **Parse** *(syntax validation)*  
     The query string is parsed into an abstract syntax tree.
@@ -503,7 +503,7 @@ Understanding how Cypher executes helps you write efficient queries:
     Only the requested properties and aggregations are
     extracted and returned to the client.
 
-</PipelineBox>
+&lt;!–MDXB-22-CLOSE–&gt;
 
 
 
@@ -547,7 +547,7 @@ Knowledge Graph from SEC filings.
 
 # Practice Problems
 
-<KeyConcept title="MERGE as the Production Default" los="KGR-2.3">
+&lt;!–MDXB-25-OPEN–&gt;
 
 **Core Insight:** MERGE combines existence checking with creation in a
 single atomic operation. In production graph construction pipelines, data
@@ -565,9 +565,9 @@ changes each run, MERGE creates a *new* relationship every time.
 Solution: MERGE on the stable identifier, then use `ON MATCH SET`
 to update volatile properties.
 
-</KeyConcept>
+&lt;!–MDXB-25-CLOSE–&gt;
 
-<Problem title="Three-Hop Co-Director Discovery" los="KGR-2.2">
+&lt;!–MDXB-26-OPEN–&gt;
 
 Using the movie dataset, write a Cypher query to find all people who directed
 a movie that Tom Hanks acted in. Return the director names and movie titles.
@@ -575,9 +575,9 @@ a movie that Tom Hanks acted in. Return the director names and movie titles.
 **Hint:** This requires a two-relationship pattern: one `ACTED_IN`
 and one `DIRECTED`, both connecting to the same movie node.
 
-</Problem>
+&lt;!–MDXB-26-CLOSE–&gt;
 
-<Solution>
+&lt;!–MDXB-28-OPEN–&gt;
 
 **Approach:** Chain two relationship patterns through a shared movie node.
 
@@ -606,9 +606,9 @@ the graph equivalent of a SQL JOIN, but expressed as a visual pattern.
 **Answer:** Returns all directors of Tom Hanks movies (e.g., Robert
 Zemeckis for *Forrest Gump*, Steven Spielberg for *The Terminal*).
 
-</Solution>
+&lt;!–MDXB-28-CLOSE–&gt;
 
-<Problem title="Idempotent Graph Construction" los="KGR-2.3">
+&lt;!–MDXB-27-OPEN–&gt;
 
 You are building a pipeline that ingests social media posts into a Knowledge
 Graph. Each post has an `id`, `author`, `text`, and
@@ -624,9 +624,9 @@ failures.
 3.  Explain why using CREATE instead of MERGE would cause problems
     during batch retries.
 
-</Problem>
+&lt;!–MDXB-27-CLOSE–&gt;
 
-<Solution>
+&lt;!–MDXB-29-OPEN–&gt;
 
 **Approach:** **Step 1: Uniqueness Constraint**
 
@@ -670,9 +670,9 @@ runs. This is the production standard for all graph construction.
 CREATE SET for initial properties, ON MATCH SET for updates. Constraint
 provides both correctness and performance (implicit index).
 
-</Solution>
+&lt;!–MDXB-29-CLOSE–&gt;
 
-<NarrativeBox title="Self-Check: M2 — Querying Knowledge Graphs">
+&lt;!–MDXB-23-OPEN–&gt;
 
 **Answer from memory before checking the chapter.**
 
@@ -700,7 +700,7 @@ provides both correctness and performance (implicit index).
 8.  In the movie dataset, how is a person’s role (actor vs. director) determined? Write a query that finds all directors.
     *(KGR-2.2)*
 
-</NarrativeBox>
+&lt;!–MDXB-23-CLOSE–&gt;
 
 {/* CARD-PLACEMENT-AUTOSTART */}
 
@@ -744,4 +744,3 @@ provides both correctness and performance (implicit index).
 <AnkiCard type="redflag" id="chapters-vol0-ch02-RF-DUPLICATE_CREATION_WITH_CREATE" los="" front={"Warning: Duplicate Creation with CREATE"} back={"Using CREATE for relationships produces duplicates if the\n query runs multiple times. Always use MERGE for relationships\n to ensure idempotency: if the relationship already exists, it will\n not be created again. This is critical for bulk-loading pipelines\n where retries are common."} />
 
 {/* CARD-PLACEMENT-AUTOEND */}
-

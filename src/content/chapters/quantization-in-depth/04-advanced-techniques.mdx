@@ -1,0 +1,1020 @@
+---
+book: quantization-in-depth
+title: Advanced Techniques
+chapter: 4
+description: Weight packing and unpacking for sub-byte quantization, and
+  state-of-the-art LLM quantization methods (LLM.int8, SmoothQuant, AWQ, GPTQ)
+learning_outcomes:
+  - id: QD-4.1
+    verb: explain
+    text: Explain why weight packing is necessary for sub-byte (2-bit, 4-bit)
+      quantization in PyTorch
+  - id: QD-4.2
+    verb: implement
+    text: Implement a packing algorithm that stores four 2-bit values in a single
+      uint8 tensor using bitwise shifts and OR
+  - id: QD-4.3
+    verb: implement
+    text: Implement an unpacking algorithm that extracts 2-bit values from packed
+      uint8 using right-shifts and bitmask AND
+  - id: QD-4.4
+    verb: explain
+    text: Explain the emergent outlier feature problem in large language models and
+      why naive quantization fails at scale
+  - id: QD-4.5
+    verb: compare
+    text: Compare LLM.int8, SmoothQuant, AWQ, and GPTQ in terms of their approach to
+      handling outlier features
+  - id: QD-4.6
+    verb: evaluate
+    text: Evaluate when to use weight-only (W8A16) vs weight-and-activation (W8A8)
+      quantization schemes
+sources: []
+tools_compared:
+  - MLE / AI Infra --- Meta
+  - MIT Han Lab
+  - HuggingFace --- L5/Staff
+last_verified: 2026-05-21
+volatility: architectural-pattern
+---
+
+{/* TODO: per-chapter polish pass — see plan decision Q1 round 3 */}
+
+&lt;!–MDXB-7-OPEN–&gt;
+
+We have a working 8-bit quantizer from Chapter 3. But the frontier of
+model compression pushes below 8 bits—4-bit, 2-bit, even 1-bit. PyTorch
+has no native sub-byte dtypes, so we must *pack* multiple low-bit
+values into a single byte. This chapter implements packing and unpacking
+from scratch, then surveys the state-of-the-art methods that handle the
+*outlier features* problem that breaks naive quantization on large
+language models.
+
+&lt;!–MDXB-7-CLOSE–&gt;
+
+# Why Weight Packing Is Necessary
+
+&lt;!–MDXB-8-OPEN–&gt;
+
+**What**: PyTorch’s smallest integer dtype is (8 bits).
+To store 4-bit or 2-bit quantized weights, we must pack multiple values into
+a single 8-bit element. Four 2-bit values or two 4-bit values fit in one
+uint8 byte.  
+**Why**: Without packing, a “4-bit quantized” model still occupies
+8 bits per parameter—no actual memory savings. Packing makes the storage
+reflect the true quantization bit width.
+
+&lt;!–MDXB-8-CLOSE–&gt;
+
+
+
+<Sidenote category="interview">"How are 4-bit weights stored in practice?" Packed into uint8 tensors. Two 4-bit values per byte. GPTQ, AWQ, and bitsandbytes all use this approach.</Sidenote>
+
+
+
+Consider a tensor with four values quantized to 2-bit precision (values 0–3):
+
+- **Naive storage**: 4 uint8 elements  = 4 × 8 = 32 bits
+
+- **Packed storage**: 1 uint8 element  = 8 bits (4 values × 2 bits)
+
+- **Compression ratio**: 4×
+
+
+
+<Sidenote category="formula">Packing ratio: $8{b}$ values per uint8 byte, where $b$ is the quantized bit width. For 2-bit: 4 values/byte. For 4-bit: 2 values/byte.</Sidenote>
+
+
+
+The packed uint8 value for the tensor \[1, 0, 3, 2\] in 2-bit is computed
+by placing each value at its bit position:
+
+$$\underbrace{10}\_{\text{val 2}} \\
+\underbrace{11}\_{\text{val 3}} \\
+\underbrace{00}\_{\text{val 0}} \\
+\underbrace{01}\_{\text{val 1}}
+= 10110001\_2 = 177\_{10}$$
+
+
+
+<Sidenote category="warning">Packing uses torch.uint8, not torch.int8. Signed int8 reserves the MSB for sign, causing incorrect bit patterns when packing unsigned 2-bit values.</Sidenote>
+
+
+
+# Packing 2-Bit Weights
+
+&lt;!–MDXB-9-OPEN–&gt;
+
+**What**: For each packed output byte, iterate over the low-bit values
+that fit inside it. Left-shift each value to its target position, then
+bitwise-OR it into the accumulator byte.  
+**Why**: Bitwise operations are the natural tool for sub-byte
+manipulation. Left-shift positions the bits; OR merges them without
+disturbing previously placed bits.
+
+&lt;!–MDXB-9-CLOSE–&gt;
+
+
+
+<Sidenote category="pattern">Packing loop: for each output byte, loop $8/b$ times. Shift value left by $b  j$ bits, then OR into accumulator.</Sidenote>
+
+
+
+
+
+```cypher
+import torch
+
+def pack_weights(uint8_tensor, num_bits):
+    """Pack low-bit values stored in uint8 into packed uint8."""
+    num_values = uint8_tensor.shape[0]
+    if num_values % (8 // num_bits) != 0:
+        raise ValueError(
+            f"Input length {num_values} must be a multiple "
+            f"of {8 // num_bits}"
+        )
+
+    num_packed = num_values * num_bits // 8
+    num_steps = 8 // num_bits  # values per packed byte
+
+    packed = torch.zeros(num_packed, dtype=torch.uint8)
+    unpacked_idx = 0
+
+    for i in range(num_packed):
+        for j in range(num_steps):
+            packed[i] |= (uint8_tensor[unpacked_idx] << (num_bits * j))
+            unpacked_idx += 1
+
+    return packed
+
+# Test: pack [1, 0, 3, 2] in 2-bit -> should give 177
+unpacked = torch.tensor([1, 0, 3, 2], dtype=torch.uint8)
+packed = pack_weights(unpacked, num_bits=2)
+print(f"Packed: {packed}")      # tensor([177], dtype=torch.uint8)
+print(f"Binary: {bin(177)}")    # 0b10110001
+```
+
+
+
+Tracing the algorithm step by step for \[1, 0, 3, 2\] with 2-bit packing:
+
+1.  *j* = 0: value = 1, shift = 0. packed  = 00000001<sub>2</sub>
+
+2.  *j* = 1: value = 0, shift = 2. packed  = 00000001<sub>2</sub> (OR with 0)
+
+3.  *j* = 2: value = 3, shift = 4. packed  = 00110001<sub>2</sub>
+
+4.  *j* = 3: value = 2, shift = 6. packed  = 10110001<sub>2</sub> = 177
+
+
+
+<Sidenote category="practice">Drill: pack $[3, 3, 3, 3]$ in 2-bit by hand. Expected: $11111111_2 = 255$. Target: 2 minutes.</Sidenote>
+
+
+
+# Unpacking 2-Bit Weights
+
+&lt;!–MDXB-10-OPEN–&gt;
+
+**What**: For each packed byte, right-shift to bring the target bits to
+the LSB position, then apply a bitmask (2<sup>*b*</sup> − 1) to zero out higher bits.  
+**Why**: Right-shift is the inverse of left-shift; the bitmask removes
+the bits from neighboring packed values.
+
+&lt;!–MDXB-10-CLOSE–&gt;
+
+&lt;!–MDXB-14-OPEN–&gt;
+
+**Core Insight:** The mask 2<sup>*b*</sup> − 1 produces a binary number with
+exactly *b* ones in the least-significant positions. For 2-bit:
+2<sup>2</sup> − 1 = 3 = 11<sub>2</sub>. For 4-bit: 2<sup>4</sup> − 1 = 15 = 1111<sub>2</sub>. A bitwise
+AND with this mask isolates exactly the *b* bits we want.
+
+**Why It Matters:** This is the universal primitive for extracting
+sub-byte fields. It appears in CUDA kernels for GPTQ, AWQ, and GGUF
+unpacking.
+
+**When It Breaks:** The mask assumes unsigned values. If the packed
+tensor uses signed int8, the sign bit interferes. Always pack and unpack
+with .
+
+&lt;!–MDXB-14-CLOSE–&gt;
+
+
+
+```cypher
+def unpack_weights(packed_uint8, num_bits):
+    """Unpack uint8 tensor into individual low-bit values."""
+    num_packed = packed_uint8.shape[0]
+    num_values = num_packed * (8 // num_bits)
+    num_steps = 8 // num_bits
+    mask = (1 << num_bits) - 1  # e.g., 3 for 2-bit
+
+    unpacked = torch.zeros(num_values, dtype=torch.uint8)
+    unpacked_idx = 0
+
+    for i in range(num_packed):
+        for j in range(num_steps):
+            unpacked[unpacked_idx] = (
+                (packed_uint8[i] >> (num_bits * j)) & mask
+            )
+            unpacked_idx += 1
+
+    return unpacked
+
+# Round-trip test
+original = torch.tensor([1, 0, 3, 2], dtype=torch.uint8)
+packed = pack_weights(original, num_bits=2)
+recovered = unpack_weights(packed, num_bits=2)
+assert torch.equal(original, recovered), "Round-trip failed!"
+print(f"Original:  {original}")
+print(f"Recovered: {recovered}")
+```
+
+
+
+
+
+<Sidenote category="warning">Tensor length must be a multiple of $8/b$. If not, pad with zeros before packing and track the original length to strip padding after unpacking.</Sidenote>
+
+
+
+Tracing the unpack of 177 = 10110001<sub>2</sub> with 2-bit:
+
+1.  *j* = 0: shift = 0, 177 & 3 = 01<sub>2</sub> = 1
+
+2.  *j* = 1: shift = 2, (177 ≫ 2) & 3 = 00<sub>2</sub> = 0
+
+3.  *j* = 2: shift = 4, (177 ≫ 4) & 3 = 11<sub>2</sub> = 3
+
+4.  *j* = 3: shift = 6, (177 ≫ 6) & 3 = 10<sub>2</sub> = 2
+
+Result: \[1, 0, 3, 2\]—matches the original.
+
+# The Outlier Feature Problem
+
+&lt;!–MDXB-11-OPEN–&gt;
+
+**What**: Large language models (&gt;6B parameters) develop
+*emergent features*<Citation src="nagel2021whitepaper" />—hidden state dimensions with magnitudes 10–100x
+larger than typical values. These outliers break per-tensor and even
+per-channel quantization because one extreme value inflates the scale for
+the entire channel.  
+**Why**: At scale, a few outlier channels carry disproportionate
+information for the model’s predictions. Quantizing them with the same
+precision as normal channels destroys this information, leading to severe
+quality degradation.
+
+&lt;!–MDXB-11-CLOSE–&gt;
+
+
+
+<Sidenote category="interview">"What makes LLM quantization hard?" Emergent outlier features. Hidden states have a few channels with 100x larger magnitude. Naive quantization destroys these channels.</Sidenote>
+
+
+
+
+
+<Term name="Emergent Outlier Features" los="QD-4.4">
+  Hidden state dimensions in large LLMs ($>$6B params) with magnitudes 10–100x larger than typical values, which break naive per-tensor and per-channel quantization by inflating the scale.
+</Term>
+<AnkiCard type="term" front={"Emergent Outlier Features"} back={"Hidden state dimensions in large LLMs ($>$6B params) with magnitudes 10–100x larger than typical values, which break naive per-tensor and per-channel quantization by inflating the scale."} los="QD-4.4" />
+
+
+
+This problem motivated a wave of specialized quantization methods:
+
+1.  **LLM.int8()** — Mixed-precision decomposition
+
+2.  **SmoothQuant** — Activation smoothing
+
+3.  **AWQ** — Activation-aware weight scaling
+
+4.  **GPTQ** — Optimal weight rounding via Hessian<Citation src="dettmers2022gptq" />
+
+# State-of-the-Art Quantization Methods
+
+&lt;!–MDXB-15-OPEN–&gt;
+
+**Core Insight:** Decompose the matmul into two parts: outlier
+channels (magnitude  &gt; *τ*) computed in FP16, and non-outlier channels
+quantized to INT8. Combine the results after dequantization.
+
+**Why It Matters:** This was the first method to achieve
+*zero-degradation* INT8 quantization for models up to 175B parameters.
+It requires no calibration data and works out-of-the-box.
+
+**When It Breaks:** The FP16 fallback for outlier channels reduces the
+effective speedup. If many channels are outliers (&gt;1%), the method
+degrades to near-FP16 performance.
+
+&lt;!–MDXB-15-CLOSE–&gt;
+
+
+
+<Sidenote category="pattern">LLM quantization decision tree: no calibration data $$ LLM.int8(). Have calibration data + want W4 $$ GPTQ or AWQ. Need W8A8 $$ SmoothQuant.</Sidenote>
+
+
+
+**SmoothQuant** addresses the W8A8 case. It “smooths” the activation
+distribution by migrating quantization difficulty from activations to weights
+using a per-channel scaling factor:
+
+*Y* = (*X* ⋅ diag(*s*)<sup>−1</sup>) ⋅ (diag(*s*) ⋅ *W*) = *X̂* ⋅ *Ŵ*
+
+The smoothed activations *X̂* and weights *Ŵ* both have smaller
+dynamic ranges, enabling accurate INT8 quantization of both.
+
+
+
+<Sidenote category="formula">SmoothQuant scaling: $s_j = (|X_j|)^ / (|W_j|)^{1-}$. Typical $ = 0.5$ balances difficulty equally.</Sidenote>
+
+
+
+**AWQ** (Activation-Aware Weight Quantization) identifies
+*salient weights*—channels whose quantization loss most affects model
+output—by running a calibration dataset. It then scales these channels
+before quantization to preserve their precision.
+
+**GPTQ** takes a different approach: it frames quantization as an
+optimization problem, using the inverse Hessian of each weight matrix to
+find the optimal rounding direction for each weight. This enables accurate
+4-bit and even 3-bit quantization.
+
+
+
+<Sidenote category="crossref">For GPTQ implementation details and the auto-gptq library, see the HuggingFace Transformers quantization docs.</Sidenote>
+
+
+
+&lt;!–MDXB-16-OPEN–&gt;
+
+**Core Insight:** W8A16 (weight-only) dequantizes weights before FP16
+matmul—simple and hardware-universal. W8A8 quantizes both weights and
+activations for native INT8 matmul—faster but requires hardware support
+and calibration data to handle activation outliers.
+
+**Decision Rule:** Use W8A16 for quick deployment on any GPU. Use
+W8A8 (SmoothQuant) when you have calibration data and Tensor Core support,
+targeting maximum throughput.
+
+**When It Breaks:** W8A8 activation quantization adds dynamic overhead
+unless static calibration ranges are used; distribution shift at inference
+time can degrade quality.
+
+&lt;!–MDXB-16-CLOSE–&gt;
+
+&lt;!–MDXB-17-OPEN–&gt;
+
+**Why interviewers ask this:** NVIDIA TensorRT, Apple MLX, Google
+on-device ML, and Meta inference optimization teams (L5/L6) ask “How
+does LLM.int8() handle activation outliers?” or “Compare GPTQ vs. AWQ
+for 4-bit deployment.” These are senior-level questions that separate
+library users from engineers who can debug and extend quantization
+systems.
+
+**What they’re really testing:** Whether you understand the outlier
+problem (0.1% of activation channels have 100× larger magnitude)
+and the mixed-precision decomposition strategy. The meta-signal: can you
+reason about the interaction between weight quantization, activation
+distribution, and hardware compute primitives (INT8 Tensor Cores vs. FP16 fallback)?
+
+**Expected depth by level:**
+
+- **IC3/IC4:** Explain W8A16 vs. W8A8. Know that
+  LLM.int8() detects outlier channels and computes them in FP16.
+  State when to use GPTQ (4-bit, have calibration data) vs. bitsandbytes (quick deployment).
+
+- **IC5+/Staff:** Explain SmoothQuant’s channel-wise
+  difficulty transfer (*s*<sub>*j*</sub> = max \|*X*<sub>*j*</sub>\|<sup>*α*</sup>/max \|*W*<sub>*j*</sub>\|<sup>1 − *α*</sup>),
+  discuss weight packing for sub-byte storage (two INT4 values
+  in one INT8), and evaluate the accuracy–throughput Pareto
+  frontier across quantization methods.
+
+**Red flag:** Claiming “INT8 quantization always halves memory
+with no quality loss.” Activation outliers can cause catastrophic
+accuracy degradation without mixed-precision handling—this is the
+central challenge of quantization at scale.
+
+&lt;!–MDXB-17-CLOSE–&gt;
+
+&lt;!–MDXB-12-OPEN–&gt;
+
+- **Quick deployment, no calibration data**: LLM.int8() (W8A16)
+
+- **Maximum compression (4-bit), have calibration data**: GPTQ or AWQ
+
+- **Need fast INT8 inference on both weights and activations**: SmoothQuant (W8A8)
+
+- **CPU/edge deployment**: GGUF format via llama.cpp
+
+- **Fine-tuning a quantized model**: QLoRA<Citation src="dettmers2023qlora" /> (4-bit base + LoRA<Citation src="hu2022lora" /> adapters)
+
+&lt;!–MDXB-12-CLOSE–&gt;
+
+# Open Challenges
+
+
+
+<Sidenote category="interview">"What are the open problems in quantization?" (1) QAT at scale is underexplored, (2) limited hardware support for sub-8-bit ops, (3) calibration dataset choice affects quality.</Sidenote>
+
+
+
+Several challenges remain active research areas:
+
+1.  **Quantization-Aware Training (QAT)**: Training models that are
+    designed to be quantized from the start is still expensive and
+    underexplored for LLMs.
+
+2.  **Hardware support**: Native 4-bit and 2-bit matmul kernels are
+    available only on latest hardware (NVIDIA Ada/Hopper with FP8,
+    INT4 via Marlin kernels).
+
+3.  **Calibration sensitivity**: GPTQ and AWQ quality depends on the
+    calibration dataset. Distribution mismatch can degrade results.
+
+4.  **Activation quantization**: Dynamically quantizing activations
+    at inference time adds latency. Static calibration avoids this but
+    requires representative data.
+
+
+
+<Sidenote category="practice">Further reading: MIT Han Lab course on efficient ML, r/LocalLlama subreddit, HuggingFace Transformers quantization docs, llama.cpp repository discussions.</Sidenote>
+
+
+
+&lt;!–MDXB-18-OPEN–&gt;
+
+Given the 2-bit tensor \[2, 1, 3, 0, 1, 1, 0, 3\]:
+(a) Pack it into uint8 by hand.
+(b) Verify by unpacking your result.
+(c) What is the compression ratio compared to storing each value in uint8?
+
+&lt;!–MDXB-18-CLOSE–&gt;
+
+&lt;!–MDXB-26-OPEN–&gt;
+
+**Approach:**
+**(a) Packing:**
+
+First packed byte (values \[2, 1, 3, 0\]):
+0 ≪ 6 \| 3 ≪ 4 \| 1 ≪ 2 \| 2 ≪ 0 = 00110110<sub>2</sub> = 54
+
+Second packed byte (values \[1, 1, 0, 3\]):
+3 ≪ 6 \| 0 ≪ 4 \| 1 ≪ 2 \| 1 ≪ 0 = 11000101<sub>2</sub> = 197
+
+Packed result: \[54, 197\] (2 bytes).
+
+**(b) Unpacking** byte 54:
+54 & 3 = 2, (54 ≫ 2) & 3 = 1,
+(54 ≫ 4) & 3 = 3, (54 ≫ 6) & 3 = 0.
+ → \[2, 1, 3, 0\]. Correct.
+
+**(c) Compression ratio:**
+Naive: 8 bytes. Packed: 2 bytes. Ratio: 8/2 = 4×.
+
+**Key Insight:** The compression ratio for packing is always 8/*b*
+where *b* is the bit width. This is the theoretical maximum achievable
+by packing alone.
+
+**Answer:** The compression ratio for packing is always 8/*b*
+where *b* is the bit width. This is the theoretical maximum achievable
+by packing alone.
+
+&lt;!–MDXB-26-CLOSE–&gt;
+
+&lt;!–MDXB-19-OPEN–&gt;
+
+You are deploying a 13B-parameter LLM on a machine with 16 GB GPU RAM.
+The model in FP16 requires 26 GB. You have a representative calibration
+dataset of 128 samples. Which quantization method do you recommend and why?
+
+&lt;!–MDXB-19-CLOSE–&gt;
+
+&lt;!–MDXB-27-OPEN–&gt;
+
+**Approach:**
+**Analysis:**
+The model needs ≤16 GB → at most ∼1.2 bytes/param
+→ need ≤10-bit effective.
+
+**Option 1: LLM.int8()** → ∼13 GB (1 byte/param + overhead).
+Fits, but provides no room for KV cache during inference.
+
+**Option 2: GPTQ 4-bit (group\_size=128)** →
+∼7 GB (0.5 bytes/param + scales). Fits comfortably with room for
+KV cache and activations. Requires calibration data (available).
+
+**Option 3: AWQ 4-bit** → Similar size to GPTQ.
+Better quality for instruction-tuned models in some benchmarks.
+
+**Recommendation:** GPTQ or AWQ 4-bit. Both fit within budget and
+leverage the available calibration data for optimal weight rounding.
+
+**Key Insight:** The calibration dataset is the deciding factor.
+Without it, LLM.int8() would be the only zero-degradation option, but it
+barely fits. With calibration data, 4-bit methods are strictly better.
+
+**Answer:** The calibration dataset is the deciding factor. Without it, LLM.int8() would be the only zero-degradation option, but it
+barely fits.
+
+&lt;!–MDXB-27-CLOSE–&gt;
+
+&lt;!–MDXB-20-OPEN–&gt;
+
+**Case Study: Quantization Method Selection for Edge Deployment**
+
+A robotics company needs to deploy a 7B-parameter vision-language model on
+an NVIDIA Jetson Orin (8GB unified memory). The model in FP16 requires
+14GB. The model must run real-time inference (&lt;100ms per frame) on camera
+input. The team has a calibration dataset of 500 images from the target
+environment. They test three quantization approaches and measure quality
+on their benchmark.
+
+| **Method**         | **Model Size** | **Benchmark Accuracy**  |
+|:-------------------|:---------------|:------------------------|
+| LLM.int8() (W8A16) | 7.2GB          | 94.1% (baseline: 95.0%) |
+| GPTQ 4-bit (g128)  | 4.1GB          | 92.8%                   |
+| AWQ 4-bit          | 4.0GB          | 93.5%                   |
+
+1.  LLM.int8() fits in 8GB but leaves only 0.8GB for KV cache and
+    activations. Is this viable for real-time inference?
+
+2.  AWQ outperforms GPTQ here. What property of this workload
+    (vision-language on domain-specific images) explains this?
+
+3.  Design the deployment configuration. Which method, and what
+    additional optimizations are needed to hit &lt;100ms?
+
+&lt;!–MDXB-20-CLOSE–&gt;
+
+&lt;!–MDXB-28-OPEN–&gt;
+
+**Approach:**
+**1.** Not viable. Vision-language models process image tokens
+(typically 256–576 tokens per image) plus text tokens. KV cache for a
+single inference pass on a 7B model with 576 image tokens requires
+∼1–2GB depending on sequence length. With only 0.8GB free,
+inference will either OOM or require aggressive KV cache quantization,
+adding latency.
+
+**2.** AWQ identifies *salient weights* by running a
+calibration dataset and measuring activation magnitudes. When the
+calibration dataset (500 domain-specific images) closely matches the
+deployment distribution, AWQ’s saliency detection is highly accurate.
+GPTQ’s Hessian-based rounding is calibration-dependent too, but AWQ’s
+per-channel scaling better preserves the few channels that matter most
+for visual features.
+
+**3.** Deploy AWQ 4-bit (4.0GB model, leaving 4GB for KV cache,
+activations, and framework overhead). Additional optimizations:
+(a) Use Marlin kernels for 4-bit matmul (2x faster than generic
+dequantize-then-matmul). (b) KV cache quantization to INT8 (halves
+cache memory). (c) Flash Attention for memory-efficient attention.
+(d) Benchmark on Jetson: AWQ 4-bit + Marlin + FlashAttention typically
+achieves 50–80ms per frame on 7B models.
+
+**Key Insight:** Edge deployment is memory-budgeted. The method that
+leaves the most headroom for KV cache and activations wins, even if it is
+not the highest-accuracy option. AWQ 4-bit at 93.5% with 4GB headroom
+beats LLM.int8() at 94.1% with 0.8GB headroom.
+
+**Answer:** Edge deployment is memory-budgeted. The method that
+leaves the most headroom for KV cache and activations wins, even if it is
+not the highest-accuracy option.
+
+&lt;!–MDXB-28-CLOSE–&gt;
+
+&lt;!–MDXB-21-OPEN–&gt;
+
+**Case Study: Quantization Regression in Production**
+
+A startup deploys a 13B chat model quantized with GPTQ 4-bit. The
+calibration dataset was 128 samples from the Wikitext-2 benchmark.
+In production, the model handles customer support queries. After one week,
+users report that the model frequently hallucinates product features that
+do not exist. A/B testing against the FP16 model shows the quantized model
+hallucinates 3x more on domain-specific queries but performs identically on
+general knowledge.
+
+| **Query Type**    | **FP16 Hallucination Rate** | **GPTQ 4-bit Rate** |
+|:------------------|:----------------------------|:--------------------|
+| General knowledge | 5%                          | 6%                  |
+| Product-specific  | 8%                          | 24%                 |
+| Technical support | 10%                         | 31%                 |
+
+1.  Why does GPTQ produce higher hallucination rates on
+    domain-specific queries but not general knowledge?
+
+2.  How would changing the calibration dataset fix this?
+
+3.  Design a quantization validation pipeline that catches this
+    before production deployment.
+
+&lt;!–MDXB-21-CLOSE–&gt;
+
+&lt;!–MDXB-29-OPEN–&gt;
+
+**Approach:**
+**1.** GPTQ’s optimal rounding decisions depend on the calibration
+dataset. Wikitext-2 (Wikipedia text) activates general knowledge pathways
+heavily. GPTQ optimizes rounding for those activations. Domain-specific
+pathways (product knowledge, technical specifications) are underrepresented
+in Wikitext-2, so their weights are rounded suboptimally. The result:
+general knowledge is preserved (well-calibrated), but domain knowledge
+degrades (poorly calibrated).
+
+**2.** Replace Wikitext-2 with a calibration dataset drawn from
+production data: 64 samples of customer support queries + 32 samples of
+product documentation + 32 samples of general text. This ensures GPTQ
+optimizes rounding for the actual activation distribution. The 128-sample
+budget is the same; only the distribution changes.
+
+**3.** Validation pipeline: (a) Create a domain-specific eval set
+(50+ product queries with known-correct answers). (b) Run FP16 model on
+eval set as baseline. (c) Run quantized model on same eval set. (d) Compare
+hallucination rate, factual accuracy, and perplexity. (e) Acceptance
+criteria: domain-specific hallucination rate ≤ 1.5× FP16
+baseline. (f) If criteria fail, re-quantize with domain-specific
+calibration data.
+
+**Key Insight:** Calibration dataset distribution mismatch is the
+\#1 cause of quantization regression in production. The calibration
+dataset must match the deployment distribution, not a generic benchmark.
+
+**Answer:** Calibration dataset distribution mismatch is the
+\#1 cause of quantization regression in production. The calibration
+dataset must match the deployment distribution, not a generic benchmark.
+
+&lt;!–MDXB-29-CLOSE–&gt;
+
+&lt;!–MDXB-22-OPEN–&gt;
+
+**Case Study: Mixed-Precision Latency Surprise**
+
+A team deploys LLM.int8() on an A100 GPU for a 70B model. They expect 2x
+speedup over FP16 because INT8 matmul is 2x faster. In practice, they
+observe only 1.1x speedup. Profiling reveals that 6% of hidden state
+channels are classified as outliers (magnitude  &gt; 6.0), causing 6% of
+computation to fall back to FP16.
+
+| **Metric**            | **Expected**            | **Actual** |
+|:----------------------|:------------------------|:-----------|
+| Speedup vs. FP16      | 2.0x                    | 1.1x       |
+| Outlier channels      | &lt;1% | 6%         |
+| FP16 fallback compute | &lt;1% | 6%         |
+| Memory savings        | 50%                     | 47%        |
+
+1.  Why does 6% outlier compute cause only 1.1x speedup instead of
+    the expected 2.0x?
+
+2.  Would lowering the outlier threshold from 6.0 to 8.0 help?
+    What is the trade-off?
+
+3.  Recommend an alternative method that avoids the FP16 fallback
+    entirely.
+
+&lt;!–MDXB-22-CLOSE–&gt;
+
+&lt;!–MDXB-30-OPEN–&gt;
+
+**Approach:**
+**1.** Three compounding factors: (a) The FP16 fallback is not just
+6% of compute—it requires decomposing the matmul into two parts,
+computing each separately, and recombining. The decomposition and
+recombination overhead adds latency beyond the raw 6% FP16 compute.
+(b) Memory bandwidth: transferring outlier columns to a separate FP16
+buffer creates additional memory traffic. (c) GPU kernel launch overhead:
+two kernels (INT8 + FP16) instead of one, plus a reduction kernel to
+combine results.
+
+**2.** Raising the threshold from 6.0 to 8.0 reduces the number of
+outlier channels (perhaps to 2%), improving speedup. Trade-off: channels
+with magnitude 6.0–8.0 are now quantized to INT8 instead of kept in
+FP16. If these channels carry significant information, model quality
+degrades. Need to measure perplexity at different thresholds.
+
+**3.** SmoothQuant (W8A8): migrates quantization difficulty from
+activations to weights using per-channel scaling. No FP16 fallback needed
+because the smoothed activations have no outliers. All computation is
+INT8. Requires calibration data but eliminates the decomposition overhead
+entirely. Expected speedup: 1.7–1.9x on A100.
+
+**Key Insight:** LLM.int8()’s mixed-precision decomposition trades
+compute for quality. At high outlier rates (&gt;3%), the overhead
+dominates. SmoothQuant avoids this by solving the outlier problem before
+quantization, not during inference.
+
+**Answer:** LLM.int8()’s mixed-precision decomposition trades
+compute for quality. At high outlier rates (&gt;3%), the overhead
+dominates.
+
+&lt;!–MDXB-30-CLOSE–&gt;
+
+&lt;!–MDXB-23-OPEN–&gt;
+
+Given the 4-bit tensor \[5, 12, 3, 9, 15, 0\]:
+(a) Pack into uint8 by hand.
+(b) Verify by unpacking.
+(c) What happens if a value exceeds the 4-bit range (i.e., value  &gt; 15)?
+
+&lt;!–MDXB-23-CLOSE–&gt;
+
+&lt;!–MDXB-31-OPEN–&gt;
+
+**Approach:**
+**(a) Packing:** 4-bit = 2 values per byte.
+
+Byte 0: values \[5, 12\]. 12 ≪ 4 \| 5 = 11000101<sub>2</sub> = 197.
+
+Byte 1: values \[3, 9\]. 9 ≪ 4 \| 3 = 10010011<sub>2</sub> = 147.
+
+Byte 2: values \[15, 0\]. 0 ≪ 4 \| 15 = 00001111<sub>2</sub> = 15.
+
+Packed: \[197, 147, 15\].
+
+**(b) Unpacking** byte 197: 197 & 15 = 5,
+(197 ≫ 4) & 15 = 12. Correct.
+
+**(c)** If a value exceeds 15 (e.g., 18 = 10010<sub>2</sub>), the upper bits
+are truncated during the shift-and-OR. Only the lowest 4 bits survive:
+18 & 15 = 2. Silent data corruption. Prevention: clamp all
+values to \[0, 2<sup>*b*</sup> − 1\] before packing.
+
+**Key Insight:** Packing has no overflow detection. Values exceeding
+2<sup>*b*</sup> − 1 are silently truncated. Always validate the quantized range
+before packing.
+
+**Answer:** Packing has no overflow detection. Values exceeding
+2<sup>*b*</sup> − 1 are silently truncated.
+
+&lt;!–MDXB-31-CLOSE–&gt;
+
+&lt;!–MDXB-24-OPEN–&gt;
+
+A weight matrix *W* has per-channel max magnitudes \[2.0, 4.0, 1.0\].
+The corresponding activation channels have max magnitudes \[100.0, 5.0, 50.0\]. Compute the SmoothQuant scaling factors *s*<sub>*j*</sub> with *α* = 0.5.
+Then compute the smoothed activation and weight magnitudes.
+
+&lt;!–MDXB-24-CLOSE–&gt;
+
+&lt;!–MDXB-32-OPEN–&gt;
+
+**Approach:**
+**Formula:** $s\_j = \frac{\max(\|X\_j\|)^\alpha}{\max(\|W\_j\|)^{1-\alpha}}$
+
+**Channel 0:** $s\_0 = \frac{100^{0.5}}{2.0^{0.5}} = \frac{10}{1.414} = 7.07$
+
+**Channel 1:** $s\_1 = \frac{5^{0.5}}{4.0^{0.5}} = \frac{2.236}{2.0} = 1.118$
+
+**Channel 2:** $s\_2 = \frac{50^{0.5}}{1.0^{0.5}} = \frac{7.07}{1.0} = 7.07$
+
+**Smoothed magnitudes:**
+
+- Activation: *X̂*<sub>*j*</sub> = *X*<sub>*j*</sub>/*s*<sub>*j*</sub>: \[100/7.07, 5/1.118, 50/7.07\] = \[14.14, 4.47, 7.07\]
+
+- Weight: *Ŵ*<sub>*j*</sub> = *W*<sub>*j*</sub> × *s*<sub>*j*</sub>: \[2.0 × 7.07, 4.0 × 1.118, 1.0 × 7.07\] = \[14.14, 4.47, 7.07\]
+
+**Result:** With *α* = 0.5, smoothed activations and weights have
+*equal* max magnitudes per channel. The dynamic range is perfectly
+balanced, making both equally easy to quantize.
+
+**Key Insight:** *α* = 0.5 is the “equal difficulty” point.
+Channel 0’s activation outlier (100x vs. weight’s 2.0) is redistributed
+so both sides have magnitude 14.14. The 50x imbalance becomes a 1:1
+balance.
+
+**Answer:** *α* = 0.5 is the “equal difficulty” point. Channel 0’s activation outlier (100x vs. weight’s 2.0) is redistributed
+so both sides have magnitude 14.14.
+
+&lt;!–MDXB-32-CLOSE–&gt;
+
+&lt;!–MDXB-25-OPEN–&gt;
+
+You have a 16GB GPU and need to serve a 30B-parameter model with a
+maximum batch size of 4 and sequence length of 2048. The model has 48
+layers, 48 heads, and head dimension 128.
+
+(a) Calculate the KV cache size at full precision (FP16).
+(b) Calculate total memory needed (model + KV cache) for FP16, INT8, and
+4-bit model weights.
+(c) Which is the minimum quantization level that fits?
+
+&lt;!–MDXB-25-CLOSE–&gt;
+
+&lt;!–MDXB-33-OPEN–&gt;
+
+**Approach:**
+**(a) KV cache:** Per layer: 2 × batch × heads × seq\_len × head\_dim × 2
+bytes (FP16).
+
+ = 2 × 4 × 48 × 2048 × 128 × 2 = 201, 326, 592 bytes per layer.
+
+Total: 48 × 201, 326, 592 ≈ 9.66 GB.
+
+**(b) Model + KV cache:**
+
+- FP16 model: 30B × 2 = 60 GB. Total: 60 + 9.66 = 69.66 GB. Does not fit.
+
+- INT8 model: 30B × 1 = 30 GB. Total: 30 + 9.66 = 39.66 GB. Does not fit.
+
+- 4-bit model: 30B × 0.5 = 15 GB. Total: 15 + 9.66 = 24.66 GB. Does not fit.
+
+**(c)** Even 4-bit model weights (15GB) + KV cache (9.66GB) = 24.66GB
+exceeds 16GB. Solution: 4-bit model weights + INT8 KV cache (9.66/2 = 4.83 GB) = 15 + 4.83 = 19.83 GB. Still over. Need 4-bit weights +
+INT4 KV cache (9.66/4 = 2.4 GB) = 15 + 2.4 = 17.4 GB. Still tight.
+Reduce batch size to 2: KV cache halves to 1.2GB. Total: 15 + 1.2 = 16.2 GB. Barely fits with batch=2 + 4-bit model + INT4 KV cache.
+
+**Key Insight:** KV cache dominates memory for long sequences and
+batched inference<Citation src="kwon2023vllm" />. Model quantization alone is insufficient—KV cache
+quantization and batch size tuning are equally important levers.
+
+**Answer:** KV cache dominates memory for long sequences and
+batched inference. Model quantization alone is insufficient—KV cache
+quantization and batch size tuning are equally important levers.
+
+&lt;!–MDXB-33-CLOSE–&gt;
+
+&lt;!–MDXB-35-OPEN–&gt;
+
+\[QD-4.4, QD-4.5, QD-4.6\]
+LinguaServe deploys a 30B-parameter language model for real-time
+translation. To fit on two A10G GPUs (24GB each, 48GB total), the team
+applies GPTQ 4-bit quantization, reducing the model from 60GB (FP16)
+to 15GB. Initial benchmarks show BLEU scores within 1 point of the FP16
+baseline. After two weeks in production, the quality team reports that
+translations involving rare languages (Swahili, Bengali, Tagalog) have
+degraded severely—BLEU drops by 8 points for these languages while
+high-resource languages (English, Spanish, Mandarin) remain unaffected.
+An engineer hypothesizes that the problem is outlier features: the rare
+language embeddings have activation magnitudes 50× larger than
+the per-channel average, concentrated in 12 of 4,096 hidden dimensions.
+
+**Question 1:** Explain why GPTQ 4-bit quantization would affect
+rare languages more than common languages. What role do outlier features
+play in this degradation?
+
+**Question 2:** Compare LLM.int8() and SmoothQuant as potential
+fixes. For each, explain how it handles the outlier channels and whether
+it would fit within the 48GB VRAM budget.
+
+**Question 3:** The CTO proposes a hybrid strategy: GPTQ 4-bit
+for the first 20 layers and FP16 for the last 10 layers (where outlier
+features are most concentrated). Calculate the VRAM requirement and
+evaluate whether this is a viable compromise.
+
+&lt;!–MDXB-35-CLOSE–&gt;
+
+&lt;!–MDXB-34-OPEN–&gt;
+
+**Approach:**
+**Question 1:** GPTQ calibrates its quantization parameters on a
+calibration dataset that is dominated by high-resource languages. The
+scale and zero-point for each weight group are optimized to minimize
+reconstruction error on *common* activation patterns. Rare language
+embeddings activate different weight regions with different magnitude
+distributions. The 12 outlier channels with 50× magnitudes are
+critical for encoding rare language distinctions—when GPTQ quantizes
+these channels to 4 bits using scale factors calibrated on common
+languages, the large activations clip or lose precision, destroying the
+information that differentiates rare language tokens. Common languages
+are unaffected because their activations fall within the range the
+calibration set optimized for.
+
+**Question 2:**
+
+- **LLM.int8():** Decomposes each matrix multiply into two
+  paths—the 12 outlier channels are processed in FP16, the
+  remaining 4,084 channels in INT8. This preserves rare language
+  information in the outlier channels. VRAM: 30B × 1 byte (INT8) + small FP16 overhead for 0.3%of
+   channels ≈ 30.2 GB. Fits in 48GB. However,
+  LLM.int8() is W8A8 (weight-and-activation quantization), which
+  uses more VRAM than 4-bit but less than FP16.
+
+- **SmoothQuant:** Migrates the outlier magnitude from
+  activations to weights using a per-channel scaling factor *s*<sub>*j*</sub>.
+  After smoothing, both weights and activations have similar
+  magnitude ranges, enabling uniform INT8 quantization without
+  mixed-precision decomposition. VRAM: same as LLM.int8()
+  (≈30GB). SmoothQuant is simpler at inference time (no
+  branching) but requires a calibration step to find the optimal
+  smoothing factor *α*.
+
+Both fit in 48GB. SmoothQuant is preferred for throughput (no
+mixed-precision overhead); LLM.int8() is preferred for zero-calibration
+deployment.
+
+**Question 3:** Hybrid VRAM calculation:
+
+- First 20 layers at 4-bit: 20/30 × 30B = 20B
+   params × 0.5 bytes = 10 GB.
+
+- Last 10 layers at FP16: 10/30 × 30B = 10B
+   params × 2 bytes = 20 GB.
+
+- Total: 10 + 20 = 30 GB. Fits in 48GB with 18GB
+  headroom for KV cache.
+
+This is viable as a short-term fix but suboptimal. It assumes outlier
+features are concentrated in the last 10 layers, which is often true
+(emergent features intensify in later layers) but not guaranteed.
+A more principled approach: profile the actual outlier distribution per
+layer using a multilingual calibration set, then apply SmoothQuant
+*only* to layers with outlier magnitudes exceeding 6× the
+channel mean, and GPTQ 4-bit to the rest.
+
+**Key Insight:** Quantization calibration datasets create an
+implicit bias: the model works well for distributions similar to the
+calibration data and degrades on underrepresented distributions. For
+multilingual or multi-domain models, outlier-aware methods (LLM.int8(),
+SmoothQuant, AWQ) are essential because outlier features carry
+disproportionate information about rare inputs.
+
+**Answer:** Quantization calibration datasets create an
+implicit bias: the model works well for distributions similar to the
+calibration data and degrades on underrepresented distributions.
+
+&lt;!–MDXB-34-CLOSE–&gt;
+
+&lt;!–MDXB-13-OPEN–&gt;
+
+1.  Why can’t PyTorch store 4-bit tensors natively? What is the workaround?
+
+2.  Trace the packing of \[3, 1\] in 4-bit into a single uint8 by hand.
+
+3.  What bitmask do you use to extract a 4-bit value from a packed byte?
+
+4.  Define “emergent features” and explain why they break per-channel quantization.
+
+5.  How does LLM.int8() handle outlier channels differently from normal channels?
+
+6.  When would you choose SmoothQuant over GPTQ?
+
+7.  Why is weight packing necessary for sub-byte quantization
+    (2-bit, 4-bit) in PyTorch, which lacks native sub-byte dtypes?
+
+8.  Write the unpacking algorithm: given a packed uint8 with four
+    2-bit values, how do you extract each using right-shifts and bitmask AND?
+
+&lt;!–MDXB-13-CLOSE–&gt;
+
+{/* CARD-PLACEMENT-AUTOSTART */}
+
+## Review
+
+{/* CARD-PLACEMENT-TODO: polish pass should move these cards inline */}
+{/* near the concepts they test, per Q-R4.4 hybrid placement.       */}
+
+### Checkpoint cards (8)
+
+<AnkiCard type="checkpoint" id="chapters-vol0-ch04-CHECKPOINT-SELFCHECK_M4_ADVANCED_TECHNIQUES_Q1" los="" front={"Why can't PyTorch store 4-bit tensors natively? What is the workaround?"} back={"Self-check from: Self-Check: M4 --- Advanced Techniques\n\n(Answer from memory, then verify against the chapter text.)"} />
+
+<AnkiCard type="checkpoint" id="chapters-vol0-ch04-CHECKPOINT-SELFCHECK_M4_ADVANCED_TECHNIQUES_Q2" los="" front={"Trace the packing of $[3, 1]$ in 4-bit into a single uint8 by hand."} back={"Self-check from: Self-Check: M4 --- Advanced Techniques\n\n(Answer from memory, then verify against the chapter text.)"} />
+
+<AnkiCard type="checkpoint" id="chapters-vol0-ch04-CHECKPOINT-SELFCHECK_M4_ADVANCED_TECHNIQUES_Q3" los="" front={"What bitmask do you use to extract a 4-bit value from a packed byte?"} back={"Self-check from: Self-Check: M4 --- Advanced Techniques\n\n(Answer from memory, then verify against the chapter text.)"} />
+
+<AnkiCard type="checkpoint" id="chapters-vol0-ch04-CHECKPOINT-SELFCHECK_M4_ADVANCED_TECHNIQUES_Q4" los="" front={"Define \"emergent features\" and explain why they break per-channel quantization."} back={"Self-check from: Self-Check: M4 --- Advanced Techniques\n\n(Answer from memory, then verify against the chapter text.)"} />
+
+<AnkiCard type="checkpoint" id="chapters-vol0-ch04-CHECKPOINT-SELFCHECK_M4_ADVANCED_TECHNIQUES_Q5" los="" front={"How does LLM.int8() handle outlier channels differently from normal channels?"} back={"Self-check from: Self-Check: M4 --- Advanced Techniques\n\n(Answer from memory, then verify against the chapter text.)"} />
+
+<AnkiCard type="checkpoint" id="chapters-vol0-ch04-CHECKPOINT-SELFCHECK_M4_ADVANCED_TECHNIQUES_Q6" los="" front={"When would you choose SmoothQuant over GPTQ?"} back={"Self-check from: Self-Check: M4 --- Advanced Techniques\n\n(Answer from memory, then verify against the chapter text.)"} />
+
+<AnkiCard type="checkpoint" id="chapters-vol0-ch04-CHECKPOINT-SELFCHECK_M4_ADVANCED_TECHNIQUES_Q7" los="QD-4.1" front={"Why is weight packing necessary for sub-byte quantization\n (2-bit, 4-bit) in PyTorch, which lacks native sub-byte dtypes?"} back={"Self-check from: Self-Check: M4 --- Advanced Techniques\n\n(Answer from memory, then verify against the chapter text.)"} />
+
+<AnkiCard type="checkpoint" id="chapters-vol0-ch04-CHECKPOINT-SELFCHECK_M4_ADVANCED_TECHNIQUES_Q8" los="QD-4.3" front={"Write the unpacking algorithm: given a packed uint8 with four\n 2-bit values, how do you extract each using right-shifts and bitmask AND?"} back={"Self-check from: Self-Check: M4 --- Advanced Techniques\n\n(Answer from memory, then verify against the chapter text.)"} />
+
+### Keyconcept cards (3)
+
+<AnkiCard type="keyconcept" id="chapters-vol0-ch04-CONCEPT-THE_BITMASK_FORMULA" los="QD-4.3" front={"What is the The Bitmask Formula? Show the formula and explain when to use it."} back={"Core Insight: The mask $2^b - 1$ produces a binary number with\nexactly $b$ ones in the least-significant positions. For 2-bit:\n$2^2 - 1 = 3 = 11_2$. For 4-bit: $2^4 - 1 = 15 = 1111_2$. A bitwise\nAND with this mask isolates exactly the $b$ bits we want.\n\nWhy It Matters: This is the universal primitive for extracting\nsub-byte fields. It appears in CUDA kernels for GPTQ, AWQ, and GGUF\nunpacking.\n\nWhen It Breaks: The mask assumes unsigned values. If the packed\ntensor uses signed int8, the sign bit interferes. Always pack and unpack\nwith torch.uint8."} />
+
+<AnkiCard type="keyconcept" id="chapters-vol0-ch04-CONCEPT-LLMINT8_MIXEDPRECISION_DECOMPOSITION" los="QD-4.5" front={"Key Concept: LLM.int8() Mixed-Precision Decomposition"} back={"Core Insight: Decompose the matmul into two parts: outlier\nchannels (magnitude $> \\tau$) computed in FP16, and non-outlier channels\nquantized to INT8. Combine the results after dequantization.\n\nWhy It Matters: This was the first method to achieve\nzero-degradation INT8 quantization for models up to 175B parameters.\nIt requires no calibration data and works out-of-the-box.\n\nWhen It Breaks: The FP16 fallback for outlier channels reduces the\neffective speedup. If many channels are outliers ($>$1\ndegrades to near-FP16 performance."} />
+
+<AnkiCard type="keyconcept" id="chapters-vol0-ch04-CONCEPT-WEIGHTONLY_VS_WEIGHTANDACTIVATION_QUANTIZATION" los="QD-4.6" front={"Compare and contrast: Weight-Only vs Weight-and-Activation Quantization. What are the key differences?"} back={"Core Insight: W8A16 (weight-only) dequantizes weights before FP16\nmatmul—simple and hardware-universal. W8A8 quantizes both weights and\nactivations for native INT8 matmul—faster but requires hardware support\nand calibration data to handle activation outliers.\n\nDecision Rule: Use W8A16 for quick deployment on any GPU. Use\nW8A8 (SmoothQuant) when you have calibration data and Tensor Core support,\ntargeting maximum throughput.\n\nWhen It Breaks: W8A8 activation quantization adds dynamic overhead\nunless static calibration ranges are used; distribution shift at inference\ntime can degrade quality."} />
+
+### Problem cards (8)
+
+<AnkiCard type="problem" id="chapters-vol0-ch04-PROB-GIVEN_THE_2BIT_TENSOR_2_1_3_0_1_1_0_3" los="QD-4.2" front={"Given the 2-bit tensor $[2, 1, 3, 0, 1, 1, 0, 3]$:\n(a) Pack it into uint8 by hand.\n(b) Verify by unpacking your result.\n(c) What is the compression ratio compared to storing each value in uint8?"} back={"Approach:\n(a) Packing:\n\nFirst packed byte (values $[2, 1, 3, 0]$):\n$0 \\ll 6 \\;|\\; 3 \\ll 4 \\;|\\; 1 \\ll 2 \\;|\\; 2 \\ll 0\n= 00110110_2 = 54$\n\nSecond packed byte (values $[1, 1, 0, 3]$):\n$3 \\ll 6 \\;|\\; 0 \\ll 4 \\;|\\; 1 \\ll 2 \\;|\\; 1 \\ll 0\n= 11000101_2 = 197$\n\nPacked result: $[54, 197]$ (2 bytes).\n\n(b) Unpacking byte 54:\n$54 \\mathbin{&} 3 = 2$, $(54 \\gg 2) \\mathbin{&} 3 = 1$,\n$(54 \\gg 4) \\mathbin{&} 3 = 3$, $(54 \\gg 6) \\mathbin{&} 3 = 0$.\n$\\rightarrow [2, 1, 3, 0]$. Correct.\n\n(c) Compression ratio:\nNaive: 8 bytes. Packed: 2 bytes. Ratio: $8/2 = 4\\times$.\n\nKey Insight: The compression ratio for packing is always $8/b$\nwhere $b$ is the bit width. This is the theoretical maximum achievable\nby packing alone.\n\nAnswer: The compression ratio for packing is always $8/b$\nwhere $b$ is the bit width. This is the theoretical maximum achievable\nby packing alone."} />
+
+<AnkiCard type="problem" id="chapters-vol0-ch04-PROB-YOU_ARE_DEPLOYING_A_13BPARAMETER_LLM_ON_A_MACHINE_" los="QD-4.5" front={"You are deploying a 13B-parameter LLM on a machine with 16 GB GPU RAM.\nThe model in FP16 requires 26 GB. You have a representative calibration\ndataset of 128 samples. Which quantization method do you recommend and why?"} back={"Approach:\nAnalysis:\nThe model needs $\\leq$16 GB $\\rightarrow$ at most $\\sim$1.2 bytes/param\n$\\rightarrow$ need $\\leq$10-bit effective.\n\nOption 1: LLM.int8() $\\rightarrow$ $\\sim$13 GB (1 byte/param + overhead).\nFits, but provides no room for KV cache during inference.\n\nOption 2: GPTQ 4-bit (group_size=128) $\\rightarrow$\n$\\sim$7 GB (0.5 bytes/param + scales). Fits comfortably with room for\nKV cache and activations. Requires calibration data (available).\n\nOption 3: AWQ 4-bit $\\rightarrow$ Similar size to GPTQ.\nBetter quality for instruction-tuned models in some benchmarks.\n\nRecommendation: GPTQ or AWQ 4-bit. Both fit within budget and\nleverage the available calibration data for optimal weight rounding.\n\nKey Insight: The calibration dataset is the deciding factor.\nWithout it, LLM.int8() would be the only zero-degradation option, but it\nbarely fits. With calibration data, 4-bit methods are strictly better.\n\nAnswer: The calibration dataset is the deciding factor. Without it, LLM.int8() would be the only zero-degradation option, but it\nbarely fits."} />
+
+<AnkiCard type="problem" id="chapters-vol0-ch04-PROB-CASE_STUDY_QUANTIZATION_METHOD_SELECTION_FOR_EDGE_" los="QD-4.5" front={"Case Study: Quantization Method Selection for Edge Deployment\n\nA robotics company needs to deploy a 7B-parameter vision-language model on\nan NVIDIA Jetson Orin (8GB unified memory). The model in FP16 requires\n14GB. The model must run real-time inference ($<$100ms per frame) on camera\ninput. The team has a calibration dataset of 500 images from the target\nenvironment. They test three quantization approaches and measure quality\non their benchmark.\n\ncompacttable\n\nMethod | Model Size | Benchmark Accuracy \n\nLLM.int8() (W8A16) | 7.2GB | 94.1\nGPTQ 4-bit (g128) | 4.1GB | 92.8\nAWQ 4-bit | 4.0GB | 93.5\n\ncompacttable\n\n- LLM.int8() fits in 8GB but leaves only 0.8GB for KV cache and\n activations. Is this viable for real-time inference?\n\n- AWQ outperforms GPTQ here."} back={"Approach:\n1. Not viable. Vision-language models process image tokens\n(typically 256–576 tokens per image) plus text tokens. KV cache for a\nsingle inference pass on a 7B model with 576 image tokens requires\n$\\sim$1–2GB depending on sequence length. With only 0.8GB free,\ninference will either OOM or require aggressive KV cache quantization,\nadding latency.\n\n2. AWQ identifies salient weights by running a\ncalibration dataset and measuring activation magnitudes. When the\ncalibration dataset (500 domain-specific images) closely matches the\ndeployment distribution, AWQ's saliency detection is highly accurate.\nGPTQ's Hessian-based rounding is calibration-dependent too, but AWQ's\nper-channel scaling better preserves the few channels that matter most\nfor visual features.\n\n3. Deploy AWQ 4-bit (4.0GB model, leaving 4GB for KV cache,\nactivations, and framework overhead). Additional optimizations:\n(a) Use Marlin kernels for 4-bit matmul (2x faster than generic\ndequantize-then-matmul). (b) KV cache quantization to INT8 (halves\ncache memory). (c) Flash Attention for memory-efficient attention.\n(d) Benchmark on Jetson: AWQ 4-bit + Marlin + FlashAttention typically\nachieves 50–80ms per frame on 7B models.\n\nKey Insight: Edge deployment is memory-budgeted. The method that\nleaves the most headroom for KV cache and activations wins, even if it is\nnot the highest-accuracy option. AWQ 4-bit at 93.5\nbeats LLM.int8() at 94.1\n\nAnswer: Edge deployment is memory-budgeted. The method that\nleaves the most headroom for KV cache and activations wins, even if it is\nnot the highest-accuracy option."} />
+
+<AnkiCard type="problem" id="chapters-vol0-ch04-PROB-CASE_STUDY_QUANTIZATION_REGRESSION_IN_PRODUCTION" los="QD-4.6" front={"Case Study: Quantization Regression in Production\n\nA startup deploys a 13B chat model quantized with GPTQ 4-bit. The\ncalibration dataset was 128 samples from the Wikitext-2 benchmark.\nIn production, the model handles customer support queries. After one week,\nusers report that the model frequently hallucinates product features that\ndo not exist."} back={"Approach:\n1. GPTQ's optimal rounding decisions depend on the calibration\ndataset. Wikitext-2 (Wikipedia text) activates general knowledge pathways\nheavily. GPTQ optimizes rounding for those activations. Domain-specific\npathways (product knowledge, technical specifications) are underrepresented\nin Wikitext-2, so their weights are rounded suboptimally. The result:\ngeneral knowledge is preserved (well-calibrated), but domain knowledge\ndegrades (poorly calibrated).\n\n2. Replace Wikitext-2 with a calibration dataset drawn from\nproduction data: 64 samples of customer support queries + 32 samples of\nproduct documentation + 32 samples of general text. This ensures GPTQ\noptimizes rounding for the actual activation distribution. The 128-sample\nbudget is the same; only the distribution changes.\n\n3. Validation pipeline: (a) Create a domain-specific eval set\n(50+ product queries with known-correct answers). (b) Run FP16 model on\neval set as baseline. (c) Run quantized model on same eval set. (d) Compare\nhallucination rate, factual accuracy, and perplexity. (e) Acceptance\ncriteria: domain-specific hallucination rate $\\leq$ 1.5$\\times$ FP16\nbaseline. (f) If criteria fail, re-quantize with domain-specific\ncalibration data.\n\nKey Insight: Calibration dataset distribution mismatch is the\n#1 cause of quantization regression in production. The calibration\ndataset must match the deployment distribution, not a generic benchmark.\n\nAnswer: Calibration dataset distribution mismatch is the\n#1 cause of quantization regression in production. The calibration\ndataset must match the deployment distribution, not a generic benchmark."} />
+
+<AnkiCard type="problem" id="chapters-vol0-ch04-PROB-CASE_STUDY_MIXEDPRECISION_LATENCY_SURPRISE" los="QD-4.4" front={"Case Study: Mixed-Precision Latency Surprise\n\nA team deploys LLM.int8() on an A100 GPU for a 70B model. They expect 2x\nspeedup over FP16 because INT8 matmul is 2x faster. In practice, they\nobserve only 1.1x speedup. Profiling reveals that 6\nchannels are classified as outliers (magnitude $> 6.0$), causing 6\ncomputation to fall back to FP16.\n\ncompacttable\n\nMetric | Expected | Actual \n\nSpeedup vs. FP16 | 2.0x | 1.1x \nOutlier channels | $<$1\nFP16 fallback compute | $<$1\nMemory savings | 50\n\ncompacttable\n\n- Why does 6\n the expected 2.0x?\n\n- Would lowering the outlier threshold from 6.0 to 8.0 help?\n What is the trade-off?\n\n- Recommend an alternative method that avoids the FP16 fallback\n entirely."} back={"Approach:\n1. Three compounding factors: (a) The FP16 fallback is not just\n6\ncomputing each separately, and recombining. The decomposition and\nrecombination overhead adds latency beyond the raw 6\n(b) Memory bandwidth: transferring outlier columns to a separate FP16\nbuffer creates additional memory traffic. (c) GPU kernel launch overhead:\ntwo kernels (INT8 + FP16) instead of one, plus a reduction kernel to\ncombine results.\n\n2. Raising the threshold from 6.0 to 8.0 reduces the number of\noutlier channels (perhaps to 2\nwith magnitude 6.0–8.0 are now quantized to INT8 instead of kept in\nFP16. If these channels carry significant information, model quality\ndegrades. Need to measure perplexity at different thresholds.\n\n3. SmoothQuant (W8A8): migrates quantization difficulty from\nactivations to weights using per-channel scaling. No FP16 fallback needed\nbecause the smoothed activations have no outliers. All computation is\nINT8. Requires calibration data but eliminates the decomposition overhead\nentirely. Expected speedup: 1.7–1.9x on A100.\n\nKey Insight: LLM.int8()'s mixed-precision decomposition trades\ncompute for quality. At high outlier rates ($>$3\ndominates. SmoothQuant avoids this by solving the outlier problem before\nquantization, not during inference.\n\nAnswer: LLM.int8()'s mixed-precision decomposition trades\ncompute for quality. At high outlier rates ($>$3\ndominates."} />
+
+<AnkiCard type="problem" id="chapters-vol0-ch04-PROB-GIVEN_THE_4BIT_TENSOR_5_12_3_9_15_0" los="QD-4.2" front={"Given the 4-bit tensor $[5, 12, 3, 9, 15, 0]$:\n(a) Pack into uint8 by hand.\n(b) Verify by unpacking.\n(c) What happens if a value exceeds the 4-bit range (i.e., value $> 15$)?"} back={"Approach:\n(a) Packing: 4-bit = 2 values per byte.\n\nByte 0: values $[5, 12]$. $12 \\ll 4 \\;|\\; 5 = 11000101_2 = 197$.\n\nByte 1: values $[3, 9]$. $9 \\ll 4 \\;|\\; 3 = 10010011_2 = 147$.\n\nByte 2: values $[15, 0]$. $0 \\ll 4 \\;|\\; 15 = 00001111_2 = 15$.\n\nPacked: $[197, 147, 15]$.\n\n(b) Unpacking byte 197: $197 \\mathbin{&} 15 = 5$,\n$(197 \\gg 4) \\mathbin{&} 15 = 12$. Correct.\n\n(c) If a value exceeds 15 (e.g., 18 = $10010_2$), the upper bits\nare truncated during the shift-and-OR. Only the lowest 4 bits survive:\n$18 \\mathbin{&} 15 = 2$. Silent data corruption. Prevention: clamp all\nvalues to $[0, 2^b - 1]$ before packing.\n\nKey Insight: Packing has no overflow detection. Values exceeding\n$2^b - 1$ are silently truncated. Always validate the quantized range\nbefore packing.\n\nAnswer: Packing has no overflow detection. Values exceeding\n$2^b - 1$ are silently truncated."} />
+
+<AnkiCard type="problem" id="chapters-vol0-ch04-PROB-A_WEIGHT_MATRIX_W_HAS_PERCHANNEL_MAX_MAGNITUDES_20" los="QD-4.5" front={"A weight matrix $W$ has per-channel max magnitudes $[2.0, 4.0, 1.0]$.\nThe corresponding activation channels have max magnitudes $[100.0, 5.0,\n50.0]$. Compute the SmoothQuant scaling factors $s_j$ with $\\alpha = 0.5$.\nThen compute the smoothed activation and weight magnitudes."} back={"Approach:\nFormula: $s_j = \\frac{\\max(|X_j|)^\\alpha}{\\max(|W_j|)^{1-\\alpha}}$\n\nChannel 0: $s_0 = \\frac{100^{0.5}}{2.0^{0.5}} = \\frac{10}{1.414} = 7.07$\n\nChannel 1: $s_1 = \\frac{5^{0.5}}{4.0^{0.5}} = \\frac{2.236}{2.0} = 1.118$\n\nChannel 2: $s_2 = \\frac{50^{0.5}}{1.0^{0.5}} = \\frac{7.07}{1.0} = 7.07$\n\nSmoothed magnitudes:\n\n- Activation: $\\hat{X}_j = X_j / s_j$: $[100/7.07, 5/1.118, 50/7.07] = [14.14, 4.47, 7.07]$\n\n- Weight: $\\hat{W}_j = W_j \\times s_j$: $[2.0 \\times 7.07, 4.0 \\times 1.118, 1.0 \\times 7.07] = [14.14, 4.47, 7.07]$\n\nResult: With $\\alpha = 0.5$, smoothed activations and weights have\nequal max magnitudes per channel. The dynamic range is perfectly\nbalanced, making both equally easy to quantize.\n\nKey Insight: $\\alpha = 0.5$ is the \"equal difficulty\" point.\nChannel 0's activation outlier (100x vs. weight's 2.0) is redistributed\nso both sides have magnitude 14.14. The 50x imbalance becomes a 1:1\nbalance.\n\nAnswer: $\\alpha = 0.5$ is the \"equal difficulty\" point. Channel 0's activation outlier (100x vs. weight's 2.0) is redistributed\nso both sides have magnitude 14.14."} />
+
+<AnkiCard type="problem" id="chapters-vol0-ch04-PROB-YOU_HAVE_A_16GB_GPU_AND_NEED_TO_SERVE_A_30BPARAMET" los="QD-4.6" front={"You have a 16GB GPU and need to serve a 30B-parameter model with a\nmaximum batch size of 4 and sequence length of 2048. The model has 48\nlayers, 48 heads, and head dimension 128.\n\n(a) Calculate the KV cache size at full precision (FP16).\n(b) Calculate total memory needed (model + KV cache) for FP16, INT8, and\n4-bit model weights.\n(c) Which is the minimum quantization level that fits?"} back={"Approach:\n(a) KV cache: Per layer: $2 \\times \\text{batch} \\times\n\\text{heads} \\times \\text{seq_len} \\times \\text{head_dim} \\times 2$\nbytes (FP16).\n\n$= 2 \\times 4 \\times 48 \\times 2048 \\times 128 \\times 2 = 201{,}326{,}592$ bytes per layer.\n\nTotal: $48 \\times 201{,}326{,}592 approx 9.66$ GB.\n\n(b) Model + KV cache:\n\n- FP16 model: $30\\text{B} \\times 2 = 60$ GB. Total: $60 + 9.66 = 69.66$ GB. Does not fit.\n\n- INT8 model: $30\\text{B} \\times 1 = 30$ GB. Total: $30 + 9.66 = 39.66$ GB. Does not fit.\n\n- 4-bit model: $30\\text{B} \\times 0.5 = 15$ GB. Total: $15 + 9.66 = 24.66$ GB. Does not fit.\n\n(c) Even 4-bit model weights (15GB) + KV cache (9.66GB) = 24.66GB\nexceeds 16GB. Solution: 4-bit model weights + INT8 KV cache ($9.66/2 =\n4.83$ GB) = $15 + 4.83 = 19.83$ GB. Still over. Need 4-bit weights +\nINT4 KV cache ($9.66/4 = 2.4$ GB) = $15 + 2.4 = 17.4$ GB. Still tight.\nReduce batch size to 2: KV cache halves to 1.2GB. Total: $15 + 1.2 =\n16.2$ GB. Barely fits with batch=2 + 4-bit model + INT4 KV cache.\n\nKey Insight: KV cache dominates memory for long sequences and\nbatched inference. Model quantization alone is insufficient—KV cache\nquantization and batch size tuning are equally important levers.\n\nAnswer: KV cache dominates memory for long sequences and\nbatched inference. Model quantization alone is insufficient—KV cache\nquantization and batch size tuning are equally important levers."} />
+
+### Vignette cards (1)
+
+<AnkiCard type="vignette" id="chapters-vol0-ch04-VIG-QUANTIZATION_REGRESSION_IN_PRODUCTION" los="QD-4.4, QD-4.5, QD-4.6" front={"Case Study: Quantization Regression in Production\n\nLinguaServe deploys a 30B-parameter language model for real-time\ntranslation. To fit on two A10G GPUs (24GB each, 48GB total), the team\napplies GPTQ 4-bit quantization, reducing the model from 60GB (FP16)\nto 15GB. Initial benchmarks show BLEU scores within 1 point of the FP16\nbaseline. After two weeks in production, the quality team reports that\ntranslations involving rare languages (Swahili, Bengali, Tagalog) have\ndegraded severely—BLEU drops by 8 points for these languages while\nhigh-resource languages (English, Spanish, Mandarin) remain unaffected.\nAn engineer hypothesizes that the problem is outlier features: the rare\nlanguage embeddings have activation magnitudes 50$\\times$ larger than\nthe per-channel average, concentrated in 12 of 4,096 hidden dimensions."} back={"Question 1: Explain why GPTQ 4-bit quantization would affect\nrare languages more than common languages. What role do outlier features\nplay in this degradation?\n\nQuestion 2: Compare LLM.int8() and SmoothQuant as potential\nfixes. For each, explain how it handles the outlier channels and whether\nit would fit within the 48GB VRAM budget.\n\nQuestion 3: The CTO proposes a hybrid strategy: GPTQ 4-bit\nfor the first 20 layers and FP16 for the last 10 layers (where outlier\nfeatures are most concentrated). Calculate the VRAM requirement and\nevaluate whether this is a viable compromise.\n\n---\n\n**Answer Rubric:**\nApproach:\nQuestion 1: GPTQ calibrates its quantization parameters on a\ncalibration dataset that is dominated by high-resource languages. The\nscale and zero-point for each weight group are optimized to minimize\nreconstruction error on common activation patterns. Rare language\nembeddings activate different weight regions with different magnitude\ndistributions. The 12 outlier channels with 50$\\times$ magnitudes are\ncritical for encoding rare language distinctions—when GPTQ quantizes\nthese channels to 4 bits using scale factors calibrated on common\nlanguages, the large activations clip or lose precision, destroying the\ninformation that differentiates rare language tokens. Common languages\nare unaffected because their activations fall within the range the\ncalibration set optimized for.\n\nQuestion 2:\n\n- LLM.int8(): Decomposes each matrix multiply into two\n paths—the 12 outlier channels are processed in FP16, the\n remaining 4,084 channels in INT8. This preserves rare language\n information in the outlier channels. VRAM: $30\\text{B} \\times\n        1\\text{ byte (INT8)} + \\text{small FP16 overhead for 0.3\n        channels} approx 30.2\\text{ GB}$. Fits in 48GB. However,\n LLM.int8() is W8A8 (weight-and-activation quantization), which\n uses more VRAM than 4-bit but less than FP16.\n\n- SmoothQuant: Migrates the outlier magnitude from\n activations to weights using a per-channel scaling factor $s_j$.\n After smoothing, both weights and activations have similar\n magnitude ranges, enabling uniform INT8 quantization without\n mixed-precision decomposition. VRAM: same as LLM.int8()\n ($approx$30GB). SmoothQuant is simpler at inference time (no\n branching) but requires a calibration step to find the optimal\n smoothing factor $\\alpha$.\n\nBoth fit in 48GB. SmoothQuant is preferred for throughput (no\nmixed-precision overhead); LLM.int8() is preferred for zero-calibration\ndeployment.\n\nQuestion 3: Hybrid VRAM calculation:\n\n- First 20 layers at 4-bit: $20/30 \\times 30\\text{B} = 20\\text{B\n        params} \\times 0.5\\text{ bytes} = 10\\text{ GB}$.\n\n- Last 10 layers at FP16: $10/30 \\times 30\\text{B} = 10\\text{B\n        params} \\times 2\\text{ bytes} = 20\\text{ GB}$.\n\n- Total: $10 + 20 = 30\\text{ GB}$. Fits in 48GB with 18GB\n headroom for KV cache.\n\nThis is viable as a short-term fix but suboptimal. It assumes outlier\nfeatures are concentrated in the last 10 layers, which is often true\n(emergent features intensify in later layers) but not guaranteed.\nA more principled approach: profile the actual outlier distribution per\nlayer using a multilingual calibration set, then apply SmoothQuant\nonly to layers with outlier magnitudes exceeding 6$\\times$ the\nchannel mean, and GPTQ 4-bit to the rest.\n\nKey Insight: Quantization calibration datasets create an\nimplicit bias: the model works well for distributions similar to the\ncalibration data and degrades on underrepresented distributions. For\nmultilingual or multi-domain models, outlier-aware methods (LLM.int8(),\nSmoothQuant, AWQ) are essential because outlier features carry\ndisproportionate information about rare inputs.\n\nAnswer: Quantization calibration datasets create an\nimplicit bias: the model works well for distributions similar to the\ncalibration data and degrades on underrepresented distributions."} />
+
+### Interview cards (1)
+
+<AnkiCard type="interview" id="chapters-vol0-ch04-INT-ADVANCED_QUANTIZATION_OUTLIERS_PACKING_AND_METHOD_" los="QD-4.6" front={"Interview Q: W8A16 vs"} back={"Why interviewers ask this: NVIDIA TensorRT, Apple MLX, Google\n on-device ML, and Meta inference optimization teams (L5/L6) ask \"How\n does LLM.int8() handle activation outliers?\" or \"Compare GPTQ vs. AWQ\n for 4-bit deployment.\" These are senior-level questions that separate\n library users from engineers who can debug and extend quantization\n systems.\n\n What they're really testing: Whether you understand the outlier\n problem (0.1\n and the mixed-precision decomposition strategy."} />
+
+{/* CARD-PLACEMENT-AUTOEND */}

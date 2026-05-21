@@ -1,0 +1,664 @@
+---
+book: quantization-in-depth
+title: Granularity and Modes
+chapter: 2
+description: Per-tensor, per-channel, and per-group quantization granularity;
+  quantizing weights and activations for inference
+learning_outcomes:
+  - id: QD-2.1
+    verb: compare
+    text: Compare per-tensor, per-channel, and per-group quantization in terms of
+      accuracy, memory overhead, and implementation complexity
+  - id: QD-2.2
+    verb: implement
+    text: Implement per-channel symmetric quantization using scale tensors and
+      PyTorch broadcasting
+  - id: QD-2.3
+    verb: implement
+    text: Implement per-group symmetric quantization by reshaping tensors into
+      fixed-size row groups
+  - id: QD-2.4
+    verb: calculate
+    text: Calculate the effective bit width when per-group quantization parameters
+      are included in the memory budget
+  - id: QD-2.5
+    verb: explain
+    text: Explain the difference between W8A32 and W8A8 inference schemes and when
+      each applies
+  - id: QD-2.6
+    verb: apply
+    text: Apply a quantized linear layer that dequantizes INT8 weights on the fly
+      for FP32 matmul
+sources: []
+tools_compared:
+  - MLE / AI Infra --- Meta
+  - Google
+  - NVIDIA --- L4/L5
+last_verified: 2026-05-21
+volatility: architectural-pattern
+---
+
+{/* TODO: per-chapter polish pass — see plan decision Q1 round 3 */}
+
+&lt;!–MDXB-10-OPEN–&gt;
+
+Chapter 1 established the quantize/dequantize formula with a single scale
+and zero point for an entire tensor. Now we ask: *what if different
+parts of the tensor need different scales?* Finer granularity reduces
+quantization error at the cost of storing more parameters. This chapter
+implements three levels of granularity and shows how quantized weights
+participate in actual inference.
+
+&lt;!–MDXB-10-CLOSE–&gt;
+
+# Per-Tensor Quantization (Baseline)
+
+&lt;!–MDXB-11-OPEN–&gt;
+
+**What**: Per-tensor quantization computes a single scale *s* and zero
+point *z* for the entire weight tensor. Every element shares these two
+parameters.  
+**Why**: This is the simplest and cheapest approach—only two extra
+numbers per tensor. It serves as the baseline for comparing finer
+granularities.
+
+&lt;!–MDXB-11-CLOSE–&gt;
+
+
+
+<Sidenote category="formula">Per-tensor overhead: 2 values (scale + ZP) regardless of tensor size. Negligible for large weight matrices.</Sidenote>
+
+
+
+
+
+<Term name="Per-Channel Quantization" los="QD-2.1">
+  Computing a separate scale (and optionally zero point) for each row or column of a weight matrix, isolating outliers to their own channel and reducing quantization error vs. per-tensor.
+</Term>
+<AnkiCard type="term" front={"Per-Channel Quantization"} back={"Computing a separate scale (and optionally zero point) for each row or column of a weight matrix, isolating outliers to their own channel and reducing quantization error vs. per-tensor."} los="QD-2.1" />
+
+
+
+Per-tensor quantization was implemented in Chapter 1. Its weakness becomes
+apparent when a tensor contains outliers: a single large value forces the
+scale to be large, reducing precision for all other values.
+
+
+
+```cypher
+import torch
+from helper import linear_q_symmetric, linear_dequantization
+from helper import quantization_error
+
+test_tensor = torch.tensor(
+    [[191.6, -13.5, 728.6],
+     [92.14, 295.5, -184.0],
+     [0.0,   684.6, 245.5]]
+)
+
+q_tensor, scale = linear_q_symmetric(test_tensor)
+dq_tensor = linear_dequantization(q_tensor, scale, 0)
+print(f"Per-tensor error: {quantization_error(test_tensor, dq_tensor):.2f}")
+# Per-tensor error: ~2.5
+```
+
+
+
+
+
+<Sidenote category="warning">Outlier impact: one extreme value in a row inflates $s$ for the entire tensor, degrading precision for every other element.</Sidenote>
+
+
+
+# Per-Channel Quantization
+
+&lt;!–MDXB-12-OPEN–&gt;
+
+**What**: Compute a separate scale for each row (or column) of the
+weight matrix. Each *channel* gets its own quantization parameters.  
+**Why**: Outliers in one row no longer affect other rows. The memory
+overhead is small: one scale value per output channel.
+
+&lt;!–MDXB-12-CLOSE–&gt;
+
+
+
+<Sidenote category="pattern">Per-channel pattern: (1) compute scale per row via .abs().max(dim), (2) reshape scale for broadcasting, (3) quantize with shared function.</Sidenote>
+
+
+
+
+
+<Sidenote category="interview">"Why per-channel over per-tensor?" Answer: outliers are isolated to their channel. Standard for INT8 weight-only quantization. Used by TensorRT, PyTorch quantization, and ONNX Runtime<Citation src="jacob2018quantization" />.</Sidenote>
+
+
+
+The implementation loops over the chosen dimension, computes a scale for each
+slice, then reshapes the scale tensor so PyTorch broadcasting divides each
+row by its own scale:
+
+
+
+```cypher
+from helper import (get_q_scale_symmetric,
+                    linear_q_with_scale_and_zero_point)
+
+def linear_q_symmetric_per_channel(tensor, dim=0,
+                                    dtype=torch.int8):
+    output_dim = tensor.shape[dim]
+    scale = torch.zeros(output_dim)
+
+    for idx in range(output_dim):
+        sub = tensor.select(dim, idx)
+        scale[idx] = get_q_scale_symmetric(sub, dtype)
+
+    # Reshape scale for broadcasting: e.g., (3,) -> (3,1)
+    scale_shape = [1] * tensor.dim()
+    scale_shape[dim] = -1
+    scale = scale.view(scale_shape)
+
+    q_tensor = linear_q_with_scale_and_zero_point(
+        tensor, scale, zero_point=0, dtype=dtype
+    )
+    return q_tensor, scale
+```
+
+
+
+&lt;!–MDXB-16-OPEN–&gt;
+
+**Core Insight:** To divide each row by its own scale, reshape the 1D
+scale tensor to shape (*n*, 1) for row-wise quantization or (1, *n*) for
+column-wise. PyTorch broadcasting then applies element-wise division
+correctly without explicit loops.
+
+**Why It Matters:** This reshape-and-broadcast pattern is the standard
+approach in all production quantization libraries. Understanding it is
+essential for reading TensorRT or PyTorch AO source code.
+
+**When It Breaks:** For tensors with more than 2 dimensions (e.g.,
+conv weights with shape ), the reshape must account
+for all dimensions—not just the first two.
+
+&lt;!–MDXB-16-CLOSE–&gt;
+
+Quantizing along rows vs columns produces different errors because outlier
+distributions differ across dimensions:
+
+
+
+```cypher
+q0, s0 = linear_q_symmetric_per_channel(test_tensor, dim=0)
+dq0 = linear_dequantization(q0, s0, 0)
+
+q1, s1 = linear_q_symmetric_per_channel(test_tensor, dim=1)
+dq1 = linear_dequantization(q1, s1, 0)
+
+print(f"Per-channel dim=0 error: "
+      f"{quantization_error(test_tensor, dq0):.2f}")  # ~1.8
+print(f"Per-channel dim=1 error: "
+      f"{quantization_error(test_tensor, dq1):.2f}")  # ~1.2
+```
+
+
+
+
+
+<Sidenote category="practice">Drill: quantize a random 4x4 tensor per-channel along both dims. Compare errors vs per-tensor. Target: 5 minutes.</Sidenote>
+
+
+
+# Per-Group Quantization
+
+&lt;!–MDXB-13-OPEN–&gt;
+
+**What**: Divide each row into groups of *g* elements and compute a
+separate scale per group. Common group sizes are 32, 64, and 128.  
+**Why**: This is the finest practical granularity for weight-only
+quantization. Smaller groups mean tighter scales and lower error, but
+more parameters to store.
+
+&lt;!–MDXB-13-CLOSE–&gt;
+
+
+
+<Sidenote category="formula">Effective bits: for 4-bit quant with group size 32 and FP16 scales, effective rate = $4 + 16/32 = 4.5$ bits/param.</Sidenote>
+
+
+
+
+
+<Term name="Per-Group Quantization" los="QD-2.3">
+  Dividing each weight row into fixed-size groups (e.g., 32 or 128 elements) and computing a separate scale per group—the finest practical granularity for 4-bit and lower quantization<Citation src="dettmers2022gptq" />.
+</Term>
+<AnkiCard type="term" front={"Per-Group Quantization"} back={"Dividing each weight row into fixed-size groups (e.g., 32 or 128 elements) and computing a separate scale per group—the finest practical granularity for 4-bit and lower quantization[dettmers2022gptq]."} los="QD-2.3" />
+
+
+
+The key insight is that per-group quantization reduces to per-channel
+quantization after reshaping. If the original tensor has shape (*m*, *n*) and
+group size is *g*, reshape to (−1, *g*), quantize per-channel along
+dimension 0, then reshape back:
+
+
+
+```cypher
+def linear_q_symmetric_per_group(tensor, group_size,
+                                  dtype=torch.int8):
+    t_shape = tensor.shape
+    assert t_shape[1] % group_size == 0, (
+        f"Columns {t_shape[1]} not divisible by group_size {group_size}"
+    )
+
+    tensor = tensor.view(-1, group_size)
+    q_tensor, scale = linear_q_symmetric_per_channel(
+        tensor, dim=0, dtype=dtype
+    )
+    q_tensor = q_tensor.view(t_shape)
+    return q_tensor, scale
+
+def linear_dequant_per_group(q_tensor, scale, group_size):
+    q_shape = q_tensor.shape
+    q_tensor = q_tensor.view(-1, group_size)
+    dq = linear_dequantization(q_tensor, scale, 0)
+    return dq.view(q_shape)
+```
+
+
+
+
+
+<Sidenote category="warning">Group size must evenly divide the row length. If not, pad the tensor before quantizing and strip padding after dequantizing.</Sidenote>
+
+
+
+
+
+```cypher
+t = torch.randn(6, 6)
+q, s = linear_q_symmetric_per_group(t, group_size=3)
+dq = linear_dequant_per_group(q, s, group_size=3)
+print(f"Per-group (g=3) error: {quantization_error(t, dq):.4f}")
+# Very low error: each 3-element group has its own scale
+```
+
+
+
+&lt;!–MDXB-17-OPEN–&gt;
+
+**Core Insight:** Finer granularity always reduces quantization error
+but increases the number of stored scale parameters. The effective bit width
+is: $b\_{\text{eff}} = b + \frac{b\_{\text{scale}}}{g}$ where *b* is the
+nominal bit width, *b*<sub>scale</sub> is the scale’s bit width, and *g* is
+the group size.
+
+**Decision Rule:** Use per-tensor for quick prototyping, per-channel
+for INT8 production<Citation src="nagel2021whitepaper" />, and per-group for 4-bit or lower.
+
+**When It Breaks:** At very small group sizes (*g* &lt; 16), the overhead
+from scales can exceed the savings from lower bit width, making the model
+*larger* than a higher-bit alternative.
+
+&lt;!–MDXB-17-CLOSE–&gt;
+
+&lt;!–MDXB-18-OPEN–&gt;
+
+**Why interviewers ask this:** NVIDIA, Apple MLX, Google TPU
+inference, and Qualcomm on-device teams (L4–L6) ask “What granularity
+would you use for INT4 quantization and why?” or “Explain the
+difference between W8A16 and W8A8.” These questions test whether you
+can make deployment-ready quantization decisions, not just run a library.
+
+**What they’re really testing:** Whether you understand the
+granularity–memory tradeoff: finer granularity (per-group) reduces error
+but increases scale storage overhead. The meta-signal: can you calculate
+the effective bit width *b*<sub>eff</sub> = *b* + *b*<sub>scale</sub>/*g* and
+determine when the overhead exceeds the savings?
+
+**Expected depth by level:**
+
+- **IC3/IC4:** Define per-tensor, per-channel, and per-group
+  quantization. Explain W8A16 (dequantize weights, FP16 matmul).
+  Know that per-channel is the INT8 production standard.
+
+- **IC5+/Staff:** Calculate effective bit width for a given
+  group size, explain why per-group is essential for 4-bit,
+  discuss the hardware implications (INT8 Tensor Cores vs. FP16
+  fallback), and evaluate when W8A8 with SmoothQuant is worth
+  the calibration cost.
+
+**Red flag:** Recommending per-tensor quantization for 4-bit
+weights. At 4-bit, a single scale for the entire tensor produces
+catastrophic accuracy loss—per-group (*g* = 32 or *g* = 128) is
+mandatory.
+
+&lt;!–MDXB-18-CLOSE–&gt;
+
+# Inference with Quantized Weights
+
+&lt;!–MDXB-14-OPEN–&gt;
+
+**What**: Store weights in INT8 but perform computation in FP32.
+At inference time, dequantize the weights on the fly, then execute the
+standard floating-point matmul.  
+**Why**: This is the simplest deployment path. It reduces memory
+(weights are stored as INT8) while using the well-supported FP32 compute
+path available on all hardware.
+
+&lt;!–MDXB-14-CLOSE–&gt;
+
+
+
+<Sidenote category="interview">"What is W8A16?" Weights in 8-bit, activations in 16-bit. Dequantize weights to FP16 before matmul. HuggingFace bitsandbytes uses this scheme.</Sidenote>
+
+
+
+Two common schemes differ in what gets quantized:
+
+- **W8A32 / W8A16**: Only weights quantized. Dequantize before
+  FP matmul. Supported everywhere.
+
+- **W8A8**: Both weights and activations quantized. Use integer
+  matmul kernels<Citation src="jacob2018quantization" />. Requires hardware support
+  (e.g., NVIDIA Tensor Cores with INT8).
+
+
+
+<Sidenote category="crossref">For W8A8 and SmoothQuant details, see Chapter 4 (QD-4) on advanced quantization methods.</Sidenote>
+
+
+
+
+
+```cypher
+import torch.nn.functional as F
+
+def quantized_linear_W8A32(input, q_w, scale, zero_point):
+    """W8A32: dequantize weights, then FP32 matmul."""
+    assert input.dtype == torch.float32
+    assert q_w.dtype == torch.int8
+
+    # Dequantize weights to FP32
+    dq_w = q_w.float() * scale + zero_point
+    return F.linear(input, dq_w)
+
+# Example
+input = torch.tensor([[1.0, 2.0, 3.0]])
+weights = torch.tensor([[1.0, 2.0, 3.0],
+                         [4.0, 5.0, 6.0]])
+
+q_w, scale = linear_q_symmetric(weights)
+output_q = quantized_linear_W8A32(input, q_w, scale, 0)
+output_fp = F.linear(input, weights)
+
+print(f"Quantized output: {output_q}")
+print(f"FP32 output:      {output_fp}")
+# Values should be very close
+```
+
+
+
+
+
+<Sidenote category="practice">Drill: write a W8A16 linear forward pass. Cast dequantized weights to FP16 before matmul. Target: 3 minutes.</Sidenote>
+
+
+
+&lt;!–MDXB-19-OPEN–&gt;
+
+You quantize a weight matrix to 4-bit with group size 64. Scales are stored
+in FP16 (16 bits). Zero points are not stored (symmetric mode). What is
+the effective bit width per parameter? How does it change if group size
+drops to 32?
+
+&lt;!–MDXB-19-CLOSE–&gt;
+
+&lt;!–MDXB-22-OPEN–&gt;
+
+**Approach:**
+**Group size 64:**
+$b\_{\text{eff}} = 4 + \frac{16}{64} = 4 + 0.25 = 4.25$ bits/param.
+
+**Group size 32:**
+$b\_{\text{eff}} = 4 + \frac{16}{32} = 4 + 0.5 = 4.5$ bits/param.
+
+**Key Insight:** Halving the group size adds 0.25 bits/param of
+overhead. For a 7B model this means an extra
+7 × 10<sup>9</sup> × 0.25/8 ≈ 219 MB. The trade-off
+is lower quantization error vs higher memory.
+
+**Answer:** Halving the group size adds 0.25 bits/param of
+overhead. For a 7B model this means an extra
+7 × 10<sup>9</sup> × 0.25/8 ≈ 219 MB.
+
+&lt;!–MDXB-22-CLOSE–&gt;
+
+&lt;!–MDXB-20-OPEN–&gt;
+
+Given the tensor
+$T = \begin{bmatrix} 1.0 & 2.0 & 100.0 \\ 0.5 & 0.8 & 1.2 \end{bmatrix}$,
+explain qualitatively why per-channel quantization (dim=0) will have
+significantly lower error than per-tensor quantization.
+
+&lt;!–MDXB-20-CLOSE–&gt;
+
+&lt;!–MDXB-23-OPEN–&gt;
+
+**Approach:**
+**Per-tensor**: The scale is dominated by the outlier 100.0, so
+*s* = 100/127 ≈ 0.787. The small values in row 2 (0.5, 0.8, 1.2)
+span less than 2 quantized bins, producing large relative error.
+
+**Per-channel dim=0**: Row 1 gets *s*<sub>1</sub> = 100/127 ≈ 0.787
+(same as before). Row 2 gets *s*<sub>2</sub> = 1.2/127 ≈ 0.0094. Now the
+small values span ∼128 bins, achieving much finer precision.
+
+**Key Insight:** Per-channel quantization isolates outliers to their
+own channel. The cost is one extra scale per row—negligible for matrices
+with hundreds of rows.
+
+**Answer:** Per-channel quantization isolates outliers to their
+own channel. The cost is one extra scale per row—negligible for matrices
+with hundreds of rows.
+
+&lt;!–MDXB-23-CLOSE–&gt;
+
+&lt;!–MDXB-21-OPEN–&gt;
+
+A 7B-parameter model is quantized to 4-bit with three different group sizes:
+32, 64, and 128. For each group size, calculate: (a) the effective bit width,
+(b) the total model size in GB, and (c) the number of independent scale
+parameters. Scales are FP16. Then explain qualitatively why smaller groups
+improve quality but increase memory.
+
+&lt;!–MDXB-21-CLOSE–&gt;
+
+&lt;!–MDXB-24-OPEN–&gt;
+
+**Approach:**
+**(a) Effective bit widths:**
+
+- Group 32: 4 + 16/32 = 4.5 bits/param
+
+- Group 64: 4 + 16/64 = 4.25 bits/param
+
+- Group 128: 4 + 16/128 = 4.125 bits/param
+
+**(b) Total model sizes:**
+
+- Group 32: 7B × 4.5/8 = 3.94 GB
+
+- Group 64: 7B × 4.25/8 = 3.72 GB
+
+- Group 128: 7B × 4.125/8 = 3.61 GB
+
+**(c) Scale parameter counts:**
+
+- Group 32: 7B/32 = 218.75M scales
+
+- Group 64: 7B/64 = 109.38M scales
+
+- Group 128: 7B/128 = 54.69M scales
+
+**Quality explanation:** Smaller groups mean each scale adapts to a
+narrower distribution of weight values, reducing the range each must cover.
+This minimizes clipping and rounding errors. The cost is more FP16 scale
+parameters stored alongside the 4-bit weights.
+
+**Key Insight:** Group size 64 is the sweet spot for most models—it
+adds only 0.25 bits/param over group 128 but cuts quantization error
+substantially. Group 32 adds another 0.25 bits/param with diminishing
+quality returns.
+
+**Answer:** Group size 64 is the sweet spot for most models—it
+adds only 0.25 bits/param over group 128 but cuts quantization error
+substantially.
+
+&lt;!–MDXB-24-CLOSE–&gt;
+
+&lt;!–MDXB-26-OPEN–&gt;
+
+\[QD-2.1, QD-2.4\]
+VisionLab deploys a 13B-parameter vision-language model (ViT encoder + LLM
+decoder) on a single A10G GPU (24GB VRAM). The ViT encoder weights occupy
+2B parameters with activation ranges \[−0.3, 0.3\] (tightly distributed).
+The LLM decoder occupies 11B parameters with activation ranges varying
+widely across layers: early layers have ranges \[−1, 1\] while later layers
+have ranges \[−50, 50\] due to outlier features. The team initially applies
+per-tensor INT8 quantization to the entire model. Image captioning quality
+is acceptable, but visual question answering (VQA) accuracy drops 15%.
+
+**Question 1:** Explain why per-tensor quantization causes different
+quality impacts on captioning vs. VQA. Which component is the bottleneck?
+
+**Question 2:** Design a mixed-granularity strategy: specify the
+quantization granularity for the ViT encoder, early LLM layers, and late
+LLM layers. Calculate the total VRAM requirement.
+
+**Question 3:** A colleague suggests per-group quantization with
+group size 64 for the entire model instead. Calculate the effective bit
+width and total VRAM, and compare with your mixed strategy.
+
+&lt;!–MDXB-26-CLOSE–&gt;
+
+&lt;!–MDXB-25-OPEN–&gt;
+
+**Approach:**
+**Question 1:** Image captioning relies primarily on the ViT encoder
+(tight distribution, per-tensor works fine) and early LLM layers (for
+language generation). VQA requires the LLM decoder to reason about
+visual features, activating later layers where outlier features concentrate.
+Per-tensor quantization in late layers uses a scale dominated by the
+\[−50, 50\] range, giving only ∼2.5 bins per unit in the \[−1, 1\]
+subrange. Fine-grained visual reasoning information is destroyed. The
+bottleneck is the late LLM decoder layers.
+
+**Question 2:** Mixed granularity:
+
+- ViT encoder (2B params): per-tensor INT8. Tight distribution
+  means per-tensor is sufficient. Size: 2B × 1 = 2 GB.
+
+- Early LLM layers 1–16 (5.5B params): per-channel INT8.
+  Moderate variation across channels. Size: 5.5B × 1 = 5.5 GB + negligible scale overhead.
+
+- Late LLM layers 17–32 (5.5B params): per-group INT8 with
+  group size 64. Outlier features need fine granularity.
+  Effective bits: 8 + 16/64 = 8.25. Size: 5.5B × 8.25/8 = 5.67 GB.
+
+Total: 2 + 5.5 + 5.67 = 13.17 GB. Fits in 24GB with 10.8GB for KV cache.
+
+**Question 3:** Per-group 64 everywhere at INT8: effective bits =
+8.25. Total: 13B × 8.25/8 = 13.41 GB. This is 0.24GB
+more than the mixed strategy but simpler to implement (one config for
+the whole model). Quality would be slightly better in late layers
+(per-group catches outliers) but wastes granularity on the ViT encoder
+where per-tensor suffices. In practice, the uniform per-group approach
+is often preferred because the implementation complexity of mixed
+granularity rarely justifies the marginal memory savings.
+
+**Key Insight:** The optimal granularity depends on the activation
+distribution, not the model architecture. Tight distributions tolerate
+coarse granularity; wide or multi-modal distributions need fine granularity.
+Profile activation ranges per layer before choosing.
+
+**Answer:** The optimal granularity depends on the activation
+distribution, not the model architecture. Tight distributions tolerate
+coarse granularity; wide or multi-modal distributions need fine granularity.
+
+&lt;!–MDXB-25-CLOSE–&gt;
+
+&lt;!–MDXB-15-OPEN–&gt;
+
+1.  What shape does the scale tensor have for per-channel quantization along dim=0 of a (3, 4) matrix?
+
+2.  Why is per-group quantization equivalent to per-channel after reshaping?
+
+3.  Calculate the effective bit width for 2-bit quantization with group size 128 and FP16 scales.
+
+4.  In W8A32 inference, at what point are weights dequantized?
+
+5.  Why is it standard to *not* quantize the language model head?
+
+6.  Name one scenario where per-tensor quantization is sufficient.
+
+7.  Write the key steps to implement per-channel symmetric
+    quantization using scale tensors and PyTorch broadcasting.
+
+8.  What is the difference between W8A32 and W8A8 inference, and
+    when does each apply?
+
+9.  How does a W8A32 quantized linear layer dequantize INT8
+    weights on the fly for FP32 matmul?
+
+&lt;!–MDXB-15-CLOSE–&gt;
+
+{/* CARD-PLACEMENT-AUTOSTART */}
+
+## Review
+
+{/* CARD-PLACEMENT-TODO: polish pass should move these cards inline */}
+{/* near the concepts they test, per Q-R4.4 hybrid placement.       */}
+
+### Checkpoint cards (9)
+
+<AnkiCard type="checkpoint" id="chapters-vol0-ch02-CHECKPOINT-SELFCHECK_M2_GRANULARITY_AND_MODES_Q1" los="" front={"What shape does the scale tensor have for per-channel quantization along dim=0 of a $(3, 4)$ matrix?"} back={"Self-check from: Self-Check: M2 --- Granularity and Modes\n\n(Answer from memory, then verify against the chapter text.)"} />
+
+<AnkiCard type="checkpoint" id="chapters-vol0-ch02-CHECKPOINT-SELFCHECK_M2_GRANULARITY_AND_MODES_Q2" los="" front={"Why is per-group quantization equivalent to per-channel after reshaping?"} back={"Self-check from: Self-Check: M2 --- Granularity and Modes\n\n(Answer from memory, then verify against the chapter text.)"} />
+
+<AnkiCard type="checkpoint" id="chapters-vol0-ch02-CHECKPOINT-SELFCHECK_M2_GRANULARITY_AND_MODES_Q3" los="" front={"Calculate the effective bit width for 2-bit quantization with group size 128 and FP16 scales."} back={"Self-check from: Self-Check: M2 --- Granularity and Modes\n\n(Answer from memory, then verify against the chapter text.)"} />
+
+<AnkiCard type="checkpoint" id="chapters-vol0-ch02-CHECKPOINT-SELFCHECK_M2_GRANULARITY_AND_MODES_Q4" los="" front={"In W8A32 inference, at what point are weights dequantized?"} back={"Self-check from: Self-Check: M2 --- Granularity and Modes\n\n(Answer from memory, then verify against the chapter text.)"} />
+
+<AnkiCard type="checkpoint" id="chapters-vol0-ch02-CHECKPOINT-SELFCHECK_M2_GRANULARITY_AND_MODES_Q5" los="" front={"Why is it standard to not quantize the language model head?"} back={"Self-check from: Self-Check: M2 --- Granularity and Modes\n\n(Answer from memory, then verify against the chapter text.)"} />
+
+<AnkiCard type="checkpoint" id="chapters-vol0-ch02-CHECKPOINT-SELFCHECK_M2_GRANULARITY_AND_MODES_Q6" los="" front={"Name one scenario where per-tensor quantization is sufficient."} back={"Self-check from: Self-Check: M2 --- Granularity and Modes\n\n(Answer from memory, then verify against the chapter text.)"} />
+
+<AnkiCard type="checkpoint" id="chapters-vol0-ch02-CHECKPOINT-SELFCHECK_M2_GRANULARITY_AND_MODES_Q7" los="QD-2.2" front={"Write the key steps to implement per-channel symmetric\n quantization using scale tensors and PyTorch broadcasting."} back={"Self-check from: Self-Check: M2 --- Granularity and Modes\n\n(Answer from memory, then verify against the chapter text.)"} />
+
+<AnkiCard type="checkpoint" id="chapters-vol0-ch02-CHECKPOINT-SELFCHECK_M2_GRANULARITY_AND_MODES_Q8" los="QD-2.5" front={"What is the difference between W8A32 and W8A8 inference, and\n when does each apply?"} back={"Self-check from: Self-Check: M2 --- Granularity and Modes\n\n(Answer from memory, then verify against the chapter text.)"} />
+
+<AnkiCard type="checkpoint" id="chapters-vol0-ch02-CHECKPOINT-SELFCHECK_M2_GRANULARITY_AND_MODES_Q9" los="QD-2.6" front={"How does a W8A32 quantized linear layer dequantize INT8\n weights on the fly for FP32 matmul?"} back={"Self-check from: Self-Check: M2 --- Granularity and Modes\n\n(Answer from memory, then verify against the chapter text.)"} />
+
+### Keyconcept cards (2)
+
+<AnkiCard type="keyconcept" id="chapters-vol0-ch02-CONCEPT-BROADCASTING_SCALES_FOR_PERCHANNEL_DIVISION" los="QD-2.2" front={"Key Concept: Broadcasting Scales for Per-Channel Division"} back={"Core Insight: To divide each row by its own scale, reshape the 1D\nscale tensor to shape $(n, 1)$ for row-wise quantization or $(1, n)$ for\ncolumn-wise. PyTorch broadcasting then applies element-wise division\ncorrectly without explicit loops.\n\nWhy It Matters: This reshape-and-broadcast pattern is the standard\napproach in all production quantization libraries. Understanding it is\nessential for reading TensorRT or PyTorch AO source code.\n\nWhen It Breaks: For tensors with more than 2 dimensions (e.g.,\nconv weights with shape [out, in, H, W]), the reshape must account\nfor all dimensions—not just the first two."} />
+
+<AnkiCard type="keyconcept" id="chapters-vol0-ch02-CONCEPT-GRANULARITYMEMORY_TRADEOFF" los="QD-2.4" front={"Key Concept: Granularity--Memory Trade-off"} back={"Core Insight: Finer granularity always reduces quantization error\nbut increases the number of stored scale parameters. The effective bit width\nis: $b_{\\text{eff}} = b + \\frac{b_{\\text{scale}}}{g}$ where $b$ is the\nnominal bit width, $b_{\\text{scale}}$ is the scale's bit width, and $g$ is\nthe group size.\n\nDecision Rule: Use per-tensor for quick prototyping, per-channel\nfor INT8 production, and per-group for 4-bit or lower.\n\nWhen It Breaks: At very small group sizes ($g < 16$), the overhead\nfrom scales can exceed the savings from lower bit width, making the model\nlarger than a higher-bit alternative."} />
+
+### Problem cards (3)
+
+<AnkiCard type="problem" id="chapters-vol0-ch02-PROB-YOU_QUANTIZE_A_WEIGHT_MATRIX_TO_4BIT_WITH_GROUP_SI" los="QD-2.4" front={"You quantize a weight matrix to 4-bit with group size 64. Scales are stored\nin FP16 (16 bits). Zero points are not stored (symmetric mode). What is\nthe effective bit width per parameter? How does it change if group size\ndrops to 32?"} back={"Approach:\nGroup size 64:\n$b_{\\text{eff}} = 4 + \\frac{16}{64} = 4 + 0.25 = 4.25$ bits/param.\n\nGroup size 32:\n$b_{\\text{eff}} = 4 + \\frac{16}{32} = 4 + 0.5 = 4.5$ bits/param.\n\nKey Insight: Halving the group size adds 0.25 bits/param of\noverhead. For a 7B model this means an extra\n$7 \\times 10^9 \\times 0.25 / 8 approx 219\\,\\text{MB}$. The trade-off\nis lower quantization error vs higher memory.\n\nAnswer: Halving the group size adds 0.25 bits/param of\noverhead. For a 7B model this means an extra\n$7 \\times 10^9 \\times 0.25 / 8 approx 219\\,\\text{MB}$."} />
+
+<AnkiCard type="problem" id="chapters-vol0-ch02-PROB-GIVEN_THE_TENSOR" los="QD-2.1" front={"Given the tensor\n$T = \\begin{bmatrix} 1.0 & 2.0 & 100.0 \\\\ 0.5 & 0.8 & 1.2 \\end{bmatrix}$,\nexplain qualitatively why per-channel quantization (dim=0) will have\nsignificantly lower error than per-tensor quantization."} back={"Approach:\nPer-tensor: The scale is dominated by the outlier $100.0$, so\n$s = 100/127 approx 0.787$. The small values in row 2 ($0.5, 0.8, 1.2$)\nspan less than 2 quantized bins, producing large relative error.\n\nPer-channel dim=0: Row 1 gets $s_1 = 100/127 approx 0.787$\n(same as before). Row 2 gets $s_2 = 1.2/127 approx 0.0094$. Now the\nsmall values span $\\sim$128 bins, achieving much finer precision.\n\nKey Insight: Per-channel quantization isolates outliers to their\nown channel. The cost is one extra scale per row—negligible for matrices\nwith hundreds of rows.\n\nAnswer: Per-channel quantization isolates outliers to their\nown channel. The cost is one extra scale per row—negligible for matrices\nwith hundreds of rows."} />
+
+<AnkiCard type="problem" id="chapters-vol0-ch02-PROB-A_7BPARAMETER_MODEL_IS_QUANTIZED_TO_4BIT_WITH_THRE" los="QD-2.3" front={"A 7B-parameter model is quantized to 4-bit with three different group sizes:\n32, 64, and 128. For each group size, calculate: (a) the effective bit width,\n(b) the total model size in GB, and (c) the number of independent scale\nparameters. Scales are FP16. Then explain qualitatively why smaller groups\nimprove quality but increase memory."} back={"Approach:\n(a) Effective bit widths:\n\n- Group 32: $4 + 16/32 = 4.5$ bits/param\n\n- Group 64: $4 + 16/64 = 4.25$ bits/param\n\n- Group 128: $4 + 16/128 = 4.125$ bits/param\n\n(b) Total model sizes:\n\n- Group 32: $7\\text{B} \\times 4.5 / 8 = 3.94$ GB\n\n- Group 64: $7\\text{B} \\times 4.25 / 8 = 3.72$ GB\n\n- Group 128: $7\\text{B} \\times 4.125 / 8 = 3.61$ GB\n\n(c) Scale parameter counts:\n\n- Group 32: $7\\text{B} / 32 = 218.75\\text{M}$ scales\n\n- Group 64: $7\\text{B} / 64 = 109.38\\text{M}$ scales\n\n- Group 128: $7\\text{B} / 128 = 54.69\\text{M}$ scales\n\nQuality explanation: Smaller groups mean each scale adapts to a\nnarrower distribution of weight values, reducing the range each must cover.\nThis minimizes clipping and rounding errors. The cost is more FP16 scale\nparameters stored alongside the 4-bit weights.\n\nKey Insight: Group size 64 is the sweet spot for most models—it\nadds only 0.25 bits/param over group 128 but cuts quantization error\nsubstantially. Group 32 adds another 0.25 bits/param with diminishing\nquality returns.\n\nAnswer: Group size 64 is the sweet spot for most models—it\nadds only 0.25 bits/param over group 128 but cuts quantization error\nsubstantially."} />
+
+### Vignette cards (1)
+
+<AnkiCard type="vignette" id="chapters-vol0-ch02-VIG-GRANULARITY_SELECTION_FOR_MULTIMODAL_MODEL" los="QD-2.1, QD-2.4" front={"Case Study: Granularity Selection for Multi-Modal Model\n\nVisionLab deploys a 13B-parameter vision-language model (ViT encoder + LLM\ndecoder) on a single A10G GPU (24GB VRAM). The ViT encoder weights occupy\n2B parameters with activation ranges $[-0.3, 0.3]$ (tightly distributed).\nThe LLM decoder occupies 11B parameters with activation ranges varying\nwidely across layers: early layers have ranges $[-1, 1]$ while later layers\nhave ranges $[-50, 50]$ due to outlier features. The team initially applies\nper-tensor INT8 quantization to the entire model. Image captioning quality\nis acceptable, but visual question answering (VQA) accuracy drops 15"} back={"Question 1: Explain why per-tensor quantization causes different\nquality impacts on captioning vs. VQA. Which component is the bottleneck?\n\nQuestion 2: Design a mixed-granularity strategy: specify the\nquantization granularity for the ViT encoder, early LLM layers, and late\nLLM layers. Calculate the total VRAM requirement.\n\nQuestion 3: A colleague suggests per-group quantization with\ngroup size 64 for the entire model instead. Calculate the effective bit\nwidth and total VRAM, and compare with your mixed strategy.\n\n---\n\n**Answer Rubric:**\nApproach:\nQuestion 1: Image captioning relies primarily on the ViT encoder\n(tight distribution, per-tensor works fine) and early LLM layers (for\nlanguage generation). VQA requires the LLM decoder to reason about\nvisual features, activating later layers where outlier features concentrate.\nPer-tensor quantization in late layers uses a scale dominated by the\n$[-50, 50]$ range, giving only $\\sim$2.5 bins per unit in the $[-1, 1]$\nsubrange. Fine-grained visual reasoning information is destroyed. The\nbottleneck is the late LLM decoder layers.\n\nQuestion 2: Mixed granularity:\n\n- ViT encoder (2B params): per-tensor INT8. Tight distribution\n means per-tensor is sufficient. Size: $2\\text{B} \\times 1 = 2$ GB.\n\n- Early LLM layers 1–16 (5.5B params): per-channel INT8.\n Moderate variation across channels. Size: $5.5\\text{B} \\times 1\n        = 5.5$ GB + negligible scale overhead.\n\n- Late LLM layers 17–32 (5.5B params): per-group INT8 with\n group size 64. Outlier features need fine granularity.\n Effective bits: $8 + 16/64 = 8.25$. Size: $5.5\\text{B} \\times\n        8.25/8 = 5.67$ GB.\n\nTotal: $2 + 5.5 + 5.67 = 13.17$ GB. Fits in 24GB with 10.8GB for KV cache.\n\nQuestion 3: Per-group 64 everywhere at INT8: effective bits =\n$8.25$. Total: $13\\text{B} \\times 8.25/8 = 13.41$ GB. This is 0.24GB\nmore than the mixed strategy but simpler to implement (one config for\nthe whole model). Quality would be slightly better in late layers\n(per-group catches outliers) but wastes granularity on the ViT encoder\nwhere per-tensor suffices. In practice, the uniform per-group approach\nis often preferred because the implementation complexity of mixed\ngranularity rarely justifies the marginal memory savings.\n\nKey Insight: The optimal granularity depends on the activation\ndistribution, not the model architecture. Tight distributions tolerate\ncoarse granularity; wide or multi-modal distributions need fine granularity.\nProfile activation ranges per layer before choosing.\n\nAnswer: The optimal granularity depends on the activation\ndistribution, not the model architecture. Tight distributions tolerate\ncoarse granularity; wide or multi-modal distributions need fine granularity."} />
+
+### Interview cards (1)
+
+<AnkiCard type="interview" id="chapters-vol0-ch02-INT-QUANTIZATION_GRANULARITY_AND_W8A16_INFERENCE" los="QD-2.4" front={"Interview Q: the\n difference between W8A16 and W8A8"} back={"Why interviewers ask this: NVIDIA, Apple MLX, Google TPU\n inference, and Qualcomm on-device teams (L4–L6) ask \"What granularity\n would you use for INT4 quantization and why?\" or \"Explain the\n difference between W8A16 and W8A8.\" These questions test whether you\n can make deployment-ready quantization decisions, not just run a library.\n\n What they're really testing: Whether you understand the\n granularity–memory tradeoff: finer granularity (per-group) reduces error\n but increases scale storage overhead."} />
+
+{/* CARD-PLACEMENT-AUTOEND */}

@@ -32,7 +32,7 @@ learning_outcomes:
       engineering to prevent them
   - id: KGR-4.7
     verb: apply
-    text: Neo4jVector.from\_existing\_graph to connect LangChain to Neo4j's vector
+    text: Neo4jVector.from_existing_graph to connect LangChain to Neo4j's vector
       index, specifying node labels, text properties, and embedding properties
   - id: KGR-4.8
     verb: define
@@ -45,13 +45,13 @@ tools_compared:
   - SWE-Neo4j
   - MLE-Amazon-L5
   - DS-JPMorgan
-last_verified: 2026-05-19
+last_verified: 2026-05-21
 volatility: architectural-pattern
 ---
 
 {/* TODO: per-chapter polish pass — see plan decision Q1 round 3 */}
 
-<NarrativeBox title="Where We Are">
+&lt;!–MDXB-14-OPEN–&gt;
 
 You can query a Knowledge Graph and perform vector similarity search.
 Now it is time to build a real Knowledge Graph from scratch, using
@@ -63,11 +63,11 @@ working question-answering system—but it uses Neo4j only as a
 vector store. The next module transforms it into a true Knowledge
 Graph by adding relationships.
 
-</NarrativeBox>
+&lt;!–MDXB-14-CLOSE–&gt;
 
 # SEC Form 10-K: Source Data
 
-<ConceptBox>
+&lt;!–MDXB-15-OPEN–&gt;
 
 **Why SEC Filings?**
 Form 10-K is an annual report that public companies file with the SEC.
@@ -76,7 +76,7 @@ and financial data—structured, high-quality text that is ideal for
 Knowledge Graph construction. The forms are publicly accessible through
 the SEC’s **EDGAR** database<Citation src="sec2024edgar" />.
 
-</ConceptBox>
+&lt;!–MDXB-15-CLOSE–&gt;
 
 
 
@@ -162,7 +162,7 @@ chunks = text_splitter.split_text(item1_text)
 
 
 
-<RedFlag title="Chunk Size Tradeoffs">
+&lt;!–MDXB-27-OPEN–&gt;
 
 Too large: embeddings become generic, losing specificity for precise
 retrieval. Too small: chunks lose context, and answers require
@@ -170,7 +170,7 @@ assembling multiple fragments. The 2000-character size with 200-character
 overlap is a practical starting point. Tune based on your document
 structure and query patterns.
 
-</RedFlag>
+&lt;!–MDXB-27-CLOSE–&gt;
 
 ## Chunk Metadata Schema
 
@@ -331,7 +331,7 @@ kg.query("""
 
 # Building a RAG Chain with LangChain
 
-<PipelineBox title="Pipeline: RAG Chain with Neo4j">
+&lt;!–MDXB-16-OPEN–&gt;
 
 1.  **Connect** *(Neo4jVector setup)*  
     LangChain’s Neo4jVector wraps Neo4j as a standard vector store,
@@ -346,7 +346,7 @@ kg.query("""
     The LLM generates a natural language answer grounded in the
     retrieved evidence.
 
-</PipelineBox>
+&lt;!–MDXB-16-CLOSE–&gt;
 
 ## Neo4j as a Vector Store
 
@@ -374,9 +374,9 @@ retriever = neo4j_vector.as_retriever()
 
 
 <Term name="Neo4jVector" los="KGR-4.7">
-  LangChain's vector store interface for Neo4j. Wraps the graph database to look like a standard vector store, using Cypher queries internally for similarity search. Created via `from\_existing\_graph` to connect to pre-existing vector indexes.
+  LangChain's vector store interface for Neo4j. Wraps the graph database to look like a standard vector store, using Cypher queries internally for similarity search. Created via `from_existing_graph` to connect to pre-existing vector indexes.
 </Term>
-<AnkiCard type="term" front={"Neo4jVector"} back={"LangChain's vector store interface for Neo4j. Wraps the graph database to look like a standard vector store, using Cypher queries internally for similarity search. Created via `from\\_existing\\_graph` to connect to pre-existing vector indexes."} los="KGR-4.7" />
+<AnkiCard type="term" front={"Neo4jVector"} back={"LangChain's vector store interface for Neo4j. Wraps the graph database to look like a standard vector store, using Cypher queries internally for similarity search. Created via `from_existing_graph` to connect to pre-existing vector indexes."} los="KGR-4.7" />
 
 
 
@@ -431,16 +431,16 @@ result = chain.invoke(
 
 
 
-<RedFlag title="LLM Hallucination on Out-of-Scope Questions">
+&lt;!–MDXB-28-OPEN–&gt;
 
 When asked about companies not in the dataset, the LLM hallucinated—
 it described Apple using NetApp’s data. The model filled the gap with
 plausible-sounding but incorrect information because the prompt did not
 instruct it to acknowledge knowledge boundaries.
 
-</RedFlag>
+&lt;!–MDXB-28-CLOSE–&gt;
 
-<NarrativeBox title="Fixing Hallucination">
+&lt;!–MDXB-17-OPEN–&gt;
 
 1.  **Add a safety instruction** to the prompt:
     “If you are unsure, say you don’t know.”
@@ -452,7 +452,7 @@ instruct it to acknowledge knowledge boundaries.
     scores before passing chunks to the LLM. Low
     scores indicate out-of-scope questions.
 
-</NarrativeBox>
+&lt;!–MDXB-17-CLOSE–&gt;
 
 
 
@@ -482,9 +482,9 @@ Answer:""",
 
 
 <Term name="Hallucination" los="KGR-4.6">
-  When an LLM generates plausible but factually incorrect informationMDXISTART1MDXIEND. In RAG systems, hallucination occurs when the retrieved context does not contain the answer but the model fabricates one anyway. Mitigated by prompt engineering and retrieval quality checks.
+  When an LLM generates plausible but factually incorrect information<Citation src="lewis2020retrieval" />. In RAG systems, hallucination occurs when the retrieved context does not contain the answer but the model fabricates one anyway. Mitigated by prompt engineering and retrieval quality checks.
 </Term>
-<AnkiCard type="term" front={"Hallucination"} back={"When an LLM generates plausible but factually incorrect informationMDXISTART1MDXIEND. In RAG systems, hallucination occurs when the retrieved context does not contain the answer but the model fabricates one anyway. Mitigated by prompt engineering and retrieval quality checks."} los="KGR-4.6" />
+<AnkiCard type="term" front={"Hallucination"} back={"When an LLM generates plausible but factually incorrect information[lewis2020retrieval]. In RAG systems, hallucination occurs when the retrieved context does not contain the answer but the model fabricates one anyway. Mitigated by prompt engineering and retrieval quality checks."} los="KGR-4.6" />
 
 
 
@@ -496,7 +496,7 @@ Answer:""",
 
 # Current Limitations
 
-<KeyConcept title="Neo4j as a Pure Vector Store" los="KGR-4.8">
+&lt;!–MDXB-19-OPEN–&gt;
 
 At this stage, Neo4j is used *only* as a vector store. The chunk
 nodes are disconnected—there are no relationships between them, no
@@ -517,7 +517,7 @@ by adding NEXT, PART\_OF, and SECTION relationships.
 (e.g., FAQ lookup), a pure vector store is sufficient and simpler to operate.
 Graph overhead is wasted when no relationship-based retrieval is needed.
 
-</KeyConcept>
+&lt;!–MDXB-19-CLOSE–&gt;
 
 
 
@@ -525,7 +525,7 @@ Graph overhead is wasted when no relationship-based retrieval is needed.
 
 
 
-<InterviewContext title="Constructing Knowledge Graphs from Text" los="KGR-4.2, KGR-4.4, KGR-4.5, KGR-4.6">
+&lt;!–MDXB-21-OPEN–&gt;
 
 Building KG-powered RAG pipelines from documents is a core interview topic at
 companies combining search infrastructure with LLMs (Google, Amazon, Netflix).
@@ -545,7 +545,7 @@ strategy, idempotent graph construction, and hallucination mitigation.
   explain why prompt engineering alone is insufficient for hallucination
   prevention and when to add retrieval-quality gating.
 
-</InterviewContext>
+&lt;!–MDXB-21-CLOSE–&gt;
 
 # Chapter Summary
 
@@ -561,7 +561,7 @@ transformative graph relationships are added in Module 5.
 
 # Practice Problems
 
-<KeyConcept title="Idempotent Pipeline Design" los="KGR-4.4">
+&lt;!–MDXB-20-OPEN–&gt;
 
 **Core Insight:** Every step in a graph construction pipeline must be
 safe to re-run: uniqueness constraints prevent duplicate nodes, MERGE
@@ -577,9 +577,9 @@ data. At scale, this silently corrupts the graph.
 (timestamps, counters) creates new elements every run. Always MERGE on
 stable identifiers only.
 
-</KeyConcept>
+&lt;!–MDXB-20-CLOSE–&gt;
 
-<Problem title="Chunking Strategy Design" los="KGR-4.2">
+&lt;!–MDXB-22-OPEN–&gt;
 
 You are building a RAG system over legal contracts. Each contract is 20–50
 pages long, with distinct sections: parties, terms, obligations, and
@@ -594,9 +594,9 @@ termination clauses.
 
 3.  How would you preserve section boundaries in the chunk metadata?
 
-</Problem>
+&lt;!–MDXB-22-CLOSE–&gt;
 
-<Solution>
+&lt;!–MDXB-24-OPEN–&gt;
 
 **Approach:** **Step 1: Chunk Count Calculation**  
 Total text: 40 × 3000 = 120, 000 characters.  
@@ -627,9 +627,9 @@ splitting *strategy* is a design decision.
 **Answer:** ≈67 chunks. Use recursive splitter with section
 awareness, not fixed-size. Preserve section identity in chunk metadata.
 
-</Solution>
+&lt;!–MDXB-24-CLOSE–&gt;
 
-<Problem title="Hallucination Debugging" los="KGR-4.6">
+&lt;!–MDXB-23-OPEN–&gt;
 
 Your RAG system over SEC filings produces the following response:
 
@@ -645,9 +645,9 @@ The knowledge graph only contains NetApp’s Form 10-K.
 
 3.  Write a prompt template that prevents this type of error.
 
-</Problem>
+&lt;!–MDXB-23-CLOSE–&gt;
 
-<Solution>
+&lt;!–MDXB-25-OPEN–&gt;
 
 **Approach:** **Step 1: Error Identification**  
 The answer attributes NetApp’s business description (“cloud storage and data
@@ -674,7 +674,7 @@ Do NOT use your general knowledge to fill gaps.
 
 Context: {context}
 Question: {question}
-\textbf{Answer:}
+Answer:
 ```
 
 
@@ -688,9 +688,9 @@ the model to check entity alignment and acknowledge knowledge boundaries.
 entity-alignment check. Fix: prompt instructs “use ONLY context” and
 “say you don’t know” for missing entities.
 
-</Solution>
+&lt;!–MDXB-25-CLOSE–&gt;
 
-<Vignette title="Enterprise Knowledge Graph Construction Pipeline">
+&lt;!–MDXB-29-OPEN–&gt;
 
 \[KGR-4.4\]
 TechCorp is building an internal knowledge graph from three data sources:
@@ -722,9 +722,9 @@ keys for this knowledge graph.
 **Question 3:** Jira tickets update in real-time. How do you handle
 updates without creating duplicate nodes?
 
-</Vignette>
+&lt;!–MDXB-29-CLOSE–&gt;
 
-<Solution>
+&lt;!–MDXB-26-OPEN–&gt;
 
 **Approach:** **Question 1: Graph Schema Design**
 
@@ -814,9 +814,9 @@ HR database first.
 
 **Key Insight:** The core principle demonstrated here is that understanding the underlying mechanism enables better decision-making in practice.
 
-</Solution>
+&lt;!–MDXB-26-CLOSE–&gt;
 
-<NarrativeBox title="Self-Check: M4 — Constructing a Knowledge Graph from Text Documents">
+&lt;!–MDXB-18-OPEN–&gt;
 
 **Answer from memory before checking the chapter.**
 
@@ -846,7 +846,7 @@ HR database first.
 8.  What are three limitations of using Neo4j as a pure vector
     store without relationships? *(KGR-4.8)*
 
-</NarrativeBox>
+&lt;!–MDXB-18-CLOSE–&gt;
 
 {/* CARD-PLACEMENT-AUTOSTART */}
 
@@ -900,4 +900,3 @@ HR database first.
 <AnkiCard type="interview" id="chapters-vol0-ch04-INT-CONSTRUCTING_KNOWLEDGE_GRAPHS_FROM_TEXT" los="KGR-4.2, KGR-4.4, KGR-4.5, KGR-4.6" front={"Interview Q: text chunking with overlap; describe the\n RetrievalQA pipeline (connect, retrieve, generate);..."} back={"Building KG-powered RAG pipelines from documents is a core interview topic at\ncompanies combining search infrastructure with LLMs (Google, Amazon, Netflix).\n\nWhat they're really testing: Whether you can design an end-to-end\npipeline from raw documents to a queryable RAG system, including chunking\nstrategy, idempotent graph construction, and hallucination mitigation.\n\nExpected depth by level:\n\n- IC3/IC4: Explain text chunking with overlap; describe the\n RetrievalQA pipeline (connect, retrieve, generate); identify\n hallucination in RAG output."} />
 
 {/* CARD-PLACEMENT-AUTOEND */}
-

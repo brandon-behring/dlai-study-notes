@@ -51,7 +51,7 @@ volatility: architectural-pattern
 
 {/* TODO: per-chapter polish pass — see plan decision Q1 round 3 */}
 
-<NarrativeBox title="Where We Are">
+&lt;!–MDXB-5-OPEN–&gt;
 
 Module 3 solved the embedding–synthesis tension for contiguous context
 using sentence windows. But what if the relevant information is spread
@@ -60,7 +60,7 @@ retrieval addresses this with a hierarchical approach: instead of
 expanding around a single sentence, it merges distant leaf nodes
 into their shared parent when enough siblings are relevant.
 
-</NarrativeBox>
+&lt;!–MDXB-5-CLOSE–&gt;
 
 # The Context Fragmentation Problem
 
@@ -70,7 +70,7 @@ into their shared parent when enough siblings are relevant.
 
 
 
-<ConceptBox>
+&lt;!–MDXB-6-OPEN–&gt;
 
 **The Fragmentation Problem.**
 Standard RAG<Citation src="lewis2020retrieval" /> retrieves individual chunks and
@@ -81,7 +81,7 @@ The LLM receives a disjointed collage of text fragments instead of
 coherent passages, hampering its ability to synthesise a comprehensive
 answer.
 
-</ConceptBox>
+&lt;!–MDXB-6-CLOSE–&gt;
 
 
 
@@ -99,7 +99,7 @@ and child 4 of a parent), sentence windowing cannot bridge the gap.
 
 # How Auto-Merging Retrieval Works
 
-<PipelineBox title="Pipeline: Auto-Merging Retrieval">
+&lt;!–MDXB-7-OPEN–&gt;
 
 1.  **Parse** — Define a **hierarchy of chunks**:
     smaller child nodes link to bigger parent nodes. Each parent’s
@@ -119,7 +119,7 @@ and child 4 of a parent), sentence windowing cannot bridge the gap.
 5.  **Re-rank & Synthesise** — Re-rank the merged
     results and feed the top-N to the LLM.
 
-</PipelineBox>
+&lt;!–MDXB-7-CLOSE–&gt;
 
 
 
@@ -132,7 +132,7 @@ and child 4 of a parent), sentence windowing cannot bridge the gap.
 
 # The Hierarchical Node Structure
 
-<ConceptBox>
+&lt;!–MDXB-8-OPEN–&gt;
 
 **Example Hierarchy (Three Layers).**
 Each level divides by a factor of 4: chunk sizes of
@@ -149,7 +149,7 @@ Each level divides by a factor of 4: chunk sizes of
         |   +-- ...
         +-- ...
 
-</ConceptBox>
+&lt;!–MDXB-8-CLOSE–&gt;
 
 
 
@@ -221,7 +221,7 @@ print(len(parent.text))  # ~512 tokens
 
 # Building the Auto-Merging Index
 
-<KeyConcept title="Dual-Store Architecture" los="BEA-4.4">
+&lt;!–MDXB-13-OPEN–&gt;
 
 Auto-merging retrieval requires two stores:
 
@@ -240,7 +240,7 @@ the retriever degrades to standard flat retrieval. Always verify that
 `docstore.add_documents(nodes)` receives *all* hierarchy
 levels, not just leaves.
 
-</KeyConcept>
+&lt;!–MDXB-13-CLOSE–&gt;
 
 
 
@@ -366,7 +366,7 @@ Anupam Datta demonstrates the impact of hierarchy depth:
 | Groundedness | Moderate | Higher | Better context → less compensation |
 | Total Cost | Higher | ∼50% lower | Fewer tokens at leaf level |
 
-<ConceptBox>
+&lt;!–MDXB-9-OPEN–&gt;
 
 **Why Three Layers Win.**
 The three-layer structure performs better because:
@@ -380,13 +380,13 @@ The three-layer structure performs better because:
 3.  **Lower cost** results from processing fewer tokens at the
     leaf level during embedding.
 
-</ConceptBox>
+&lt;!–MDXB-9-CLOSE–&gt;
 
 # Diagnosing Failure Modes
 
 Using the TruLens dashboard to examine individual records:
 
-<NarrativeBox title="Two-Layer Failure Example">
+&lt;!–MDXB-10-OPEN–&gt;
 
 **Question**: “Discuss the importance of budgeting for resources
 and the successful execution of AI projects.”
@@ -398,9 +398,9 @@ and the successful execution of AI projects.”
 coarse-grained. The embeddings average over too much text, diluting
 the semantic signal for the specific query.
 
-</NarrativeBox>
+&lt;!–MDXB-10-CLOSE–&gt;
 
-<NarrativeBox title="Three-Layer Improvement">
+&lt;!–MDXB-11-OPEN–&gt;
 
 Same question with three-layer structure:
 
@@ -413,7 +413,7 @@ Same question with three-layer structure:
   more precisely, and the merging step produces coherent
   parent context.
 
-</NarrativeBox>
+&lt;!–MDXB-11-CLOSE–&gt;
 
 
 
@@ -423,7 +423,7 @@ Same question with three-layer structure:
 
 # Auto-Merging vs. Sentence-Window Retrieval
 
-<KeyConcept title="Complementary Techniques" los="BEA-4.7">
+&lt;!–MDXB-14-OPEN–&gt;
 
 Sentence-window and auto-merging retrieval are **complementary**,
 not competing. Each excels in different scenarios:
@@ -442,9 +442,9 @@ retrieval well. If the answer requires combining information from two
 separate PDFs (not just two sections of the same PDF), both methods
 rely on the base vector search to surface chunks from both documents.
 
-</KeyConcept>
+&lt;!–MDXB-14-CLOSE–&gt;
 
-<DecisionTree title="Decision: Sentence Window vs. Auto-Merging">
+&lt;!–MDXB-25-OPEN–&gt;
 
 - **Yes—information flows linearly (narratives, tutorials)**  
 
@@ -459,7 +459,7 @@ rely on the base vector search to surface chunks from both documents.
 
 - **Willing to invest in infrastructure**  
 
-</DecisionTree>
+&lt;!–MDXB-25-CLOSE–&gt;
 
 
 
@@ -579,7 +579,7 @@ The choice between techniques depends on your document structure:
 use sentence windows for linearly flowing text, auto-merging for
 documents with scattered relevant sections.
 
-<KeyConcept title="Hierarchical Merging for Non-Contiguous Context" los="BEA-4.1">
+&lt;!–MDXB-15-OPEN–&gt;
 
 **Core Insight:** Auto-merging retrieval embeds fine-grained leaf nodes
 (128 tokens) for precision, then dynamically merges them into coarser parent
@@ -598,9 +598,9 @@ merging dilutes precision. Also, the hierarchy is fixed at index time; documents
 with irregular structure (tables, mixed formats) may produce suboptimal
 hierarchical decompositions.
 
-</KeyConcept>
+&lt;!–MDXB-15-CLOSE–&gt;
 
-<InterviewContext title="Hierarchical Retrieval for Complex Documents" los="BEA-4.1">
+&lt;!–MDXB-16-OPEN–&gt;
 
 **Why interviewers ask this:** Amazon (product search), Google
 (legal/patent search), and enterprise AI teams at Notion and Glean
@@ -633,18 +633,18 @@ conservative merging misses consolidation opportunities).
 or being unable to explain why a legal contract with cross-referenced
 clauses needs a different retrieval strategy than a blog post.
 
-</InterviewContext>
+&lt;!–MDXB-16-CLOSE–&gt;
 
-<Problem title="Hierarchy Structure Calculation" los="BEA-4.3">
+&lt;!–MDXB-17-OPEN–&gt;
 
 A three-layer hierarchy uses chunk sizes \[2048, 512, 128\]. Each parent has
 4 children and each intermediate has 4 children. How many leaf nodes does one
 root node contain? If a document has 8,192 tokens, how many root nodes are
 created?
 
-</Problem>
+&lt;!–MDXB-17-CLOSE–&gt;
 
-<Solution>
+&lt;!–MDXB-20-OPEN–&gt;
 
 **Approach:**
 **Leaf nodes per root:** 4 × 4 = 16 leaf nodes per root node.
@@ -662,18 +662,18 @@ without requiring contiguous proximity.
 retrieval. The hierarchy provides log<sub>4</sub>(*N*) levels of context expansion
 without requiring contiguous proximity.
 
-</Solution>
+&lt;!–MDXB-20-CLOSE–&gt;
 
-<Problem title="Two-Layer vs. Three-Layer Diagnosis" los="BEA-4.6">
+&lt;!–MDXB-18-OPEN–&gt;
 
 Your two-layer auto-merging system (leaf=512, parent=2048) scores
 CR=0.48 on the query “Discuss budgeting for AI projects.” After switching
 to three-layer (leaf=128, intermediate=512, parent=2048), CR rises to
 0.68. Explain why smaller leaf nodes solved the problem.
 
-</Problem>
+&lt;!–MDXB-18-CLOSE–&gt;
 
-<Solution>
+&lt;!–MDXB-21-OPEN–&gt;
 
 **Approach:**
 **Root cause:** With 512-token leaves, each leaf averages over ∼2
@@ -695,18 +695,18 @@ no precision-context tradeoff at the leaf level.
 **Answer:** Leaf size is the precision dial. Smaller leaves =
 sharper semantic matching.
 
-</Solution>
+&lt;!–MDXB-21-CLOSE–&gt;
 
-<Problem title="Technique Selection" los="BEA-4.7">
+&lt;!–MDXB-19-OPEN–&gt;
 
 A research paper has Sections A, B, C, each ∼2,000 tokens. Relevant
 information for most queries is within a single section (contiguous). Would
 you use sentence-window or auto-merging retrieval? Justify with RAG triad
 implications.
 
-</Problem>
+&lt;!–MDXB-19-CLOSE–&gt;
 
-<Solution>
+&lt;!–MDXB-22-OPEN–&gt;
 
 **Approach:**
 **Answer:** Sentence-window retrieval.
@@ -733,9 +733,9 @@ non-contiguous information to consolidate.
 **Key Insight:** Document structure determines technique. Contiguous
 relevance → sentence-window. Scattered relevance → auto-merging.
 
-</Solution>
+&lt;!–MDXB-22-CLOSE–&gt;
 
-<Vignette title="Retrieval Strategy for Contract Analysis">
+&lt;!–MDXB-24-OPEN–&gt;
 
 \[BEA-4.1, BEA-4.7\]
 A legal-AI company builds a RAG system over commercial contracts. Contracts
@@ -757,9 +757,9 @@ queries like “What are the payment terms and associated liability limits?”
 
 **Question 3:** Propose a hybrid approach that combines both techniques.
 
-</Vignette>
+&lt;!–MDXB-24-CLOSE–&gt;
 
-<Solution>
+&lt;!–MDXB-23-OPEN–&gt;
 
 **Approach:**
 **Q1:** Cross-reference queries require information from multiple
@@ -790,9 +790,9 @@ context.
 
 **Answer:** Auto-merging (3-layer hierarchy) outperforms sentence-window for cross-reference queries. It dynamically promotes parent nodes when child matches span sections, capturing payment terms AND liability limits in one merged context.
 
-</Solution>
+&lt;!–MDXB-23-CLOSE–&gt;
 
-<NarrativeBox title="Self-Check: M4 — Auto-Merging Retrieval">
+&lt;!–MDXB-12-OPEN–&gt;
 
 **Answer from memory before checking the chapter.**
 
@@ -826,7 +826,7 @@ context.
     and `get_auto_merging_query_engine`. What are
     the default chunk sizes? *(BEA-4.8)*
 
-</NarrativeBox>
+&lt;!–MDXB-12-CLOSE–&gt;
 
 {/* CARD-PLACEMENT-AUTOSTART */}
 

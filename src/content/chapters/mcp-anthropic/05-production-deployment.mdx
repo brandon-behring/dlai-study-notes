@@ -1,0 +1,752 @@
+---
+book: mcp-anthropic
+title: Production Deployment
+chapter: 5
+description: Deploy MCP servers remotely using SSE transport, manage deployment
+  infrastructure with Render and GitHub, and design production-grade
+  architectures with authentication and monitoring.
+learning_outcomes:
+  - id: MCP-5.1
+    verb: design
+    text: a remote MCP server by switching from stdio to SSE transport
+  - id: MCP-5.2
+    verb: apply
+    text: deploying an MCP server to Render via GitHub integration with
+      pip-compatible dependencies
+  - id: MCP-5.3
+    verb: design
+    text: authentication and security for production MCP servers
+  - id: MCP-5.4
+    verb: compare
+    text: "the three transport options: stdio, SSE, and Streamable HTTP"
+  - id: MCP-5.5
+    verb: evaluate
+    text: "production architecture patterns: sidecar, shared service, and gateway"
+sources: []
+tools_compared:
+  - AI Engineer --- All companies --- L4/L5
+last_verified: 2026-05-21
+volatility: architectural-pattern
+---
+
+{/* TODO: per-chapter polish pass — see plan decision Q1 round 3 */}
+
+# Creating a Remote MCP Server
+
+
+
+<Sidenote category="interview">Production MCP = remote servers over HTTP. Know the one-line change from stdio to SSE and why it matters for multi-user access.</Sidenote>
+
+
+
+The transition from local to remote is minimal at the code level. The server keeps all
+tools, resources, and prompts unchanged. Only the transport and port configuration change:
+
+
+
+```cypher
+from mcp.server.fastmcp import FastMCP
+
+# Configure port for remote access
+mcp = FastMCP("research", port=8000)
+
+@mcp.tool()
+def search_papers(topic: str, max_results: int = 5) -> str:
+    """Search arxiv for papers on a given topic."""
+    # ... same implementation as before ...
+
+@mcp.resource("docs://paper-list")
+def get_paper_list() -> str:
+    """List of indexed papers."""
+    # ... same implementation ...
+
+@mcp.prompt()
+def research_summary(topic: str) -> str:
+    """Generate a research summary."""
+    # ... same implementation ...
+
+if __name__ == "__main__":
+    mcp.run(transport="sse")  # Changed from "stdio" to "sse"
+```
+
+
+
+
+
+<Sidenote category="warning">At recording, Python SDK lacks Streamable HTTP; course uses SSE. When SDK support arrives, only the transport string changes.</Sidenote>
+
+
+
+&lt;!–MDXB-10-OPEN–&gt;
+
+**Core Insight:** The only code change to go from local to remote is the transport parameter.
+All tools, resources, and prompts remain identical. This is MCP’s design goal: tool logic
+is transport-independent.
+
+**Decision Matrix:**
+
+- Development / Claude Desktop → stdio (no networking)
+
+- Team-shared server / multi-user → SSE<Citation src="sse2024spec" /> (HTTP endpoint)
+
+- Stateless deployments at scale → Streamable HTTP<Citation src="mcp2025spec" /> (when SDK supports it)
+
+**When It Breaks:** SSE requires a persistent connection. Long-running tool calls
+can timeout if the connection drops. For tools that take &gt;30 seconds, implement heartbeat
+pings or consider chunked responses.
+
+&lt;!–MDXB-10-CLOSE–&gt;
+
+
+
+<Sidenote category="formula">SSE endpoint: server runs at `http://host:port/sse`. The `/sse` path returns a session ID on GET. POST to `/messages` for tool calls.</Sidenote>
+
+
+
+# Testing Remote Servers with Inspector
+
+
+
+<Sidenote category="practice">Always test remote servers with Inspector before deployment. Switch transport type to SSE and enter the server URL.</Sidenote>
+
+
+
+The MCP Inspector works with remote servers too. Switch the transport type to SSE
+and provide the server URL:
+
+
+
+```cypher
+# Start Inspector (no server command needed for remote)
+npx @modelcontextprotocol/inspector
+
+# In the Inspector UI:
+# Transport: SSE
+# URL: http://localhost:8000/sse
+# Click "Connect"
+```
+
+
+
+The Inspector shows the same initialization handshake, tool listing, and interactive testing
+as with stdio—confirming that the protocol is transport-independent. After verifying
+locally, the server is ready for deployment.
+
+# Deploying to Render
+
+
+
+<Sidenote category="pattern">Deployment pipeline: local dev (uv + stdio) $$ test remote (SSE + Inspector) $$ push to GitHub $$ deploy on Render $$ verify /sse endpoint.</Sidenote>
+
+
+
+The course walks through deploying the research server to Render, a cloud hosting platform:
+
+**Step 1: Prepare dependencies for pip** (Render uses pip, not uv):
+
+
+```cypher
+# Convert uv dependencies to requirements.txt
+uv pip compile pyproject.toml > requirements.txt
+
+# Specify Python version for Render
+echo "python-3.11.11" > runtime.txt
+```
+
+
+
+**Step 2: Push to GitHub:**
+
+
+```cypher
+git init
+echo ".venv" > .gitignore
+git add -A && git commit -m "ready for deployment"
+git remote add origin https://github.com/user/remote-research.git
+git push origin main
+```
+
+
+
+**Step 3: Deploy on Render:**
+
+- Create a new Web Service connected to the GitHub repository
+
+- Set start command: `python research_server.py`
+
+- Render installs from `requirements.txt` using the Python version in `runtime.txt`
+
+- After deployment, `/sse` returns a session ID confirming the server is running
+
+
+
+<Sidenote category="warning">The root URL returns 404—this is expected. The MCP endpoint is at `/sse`. A session ID in the response confirms successful deployment.</Sidenote>
+
+
+
+&lt;!–MDXB-11-OPEN–&gt;
+
+**Core Insight:** MCP is deployment-agnostic<Citation src="mcp2024spec" />. The same server code runs on Render,
+AWS, GCP, Azure, a local Docker container, or bare metal. The protocol is the same;
+only the hosting infrastructure changes. Start with the simplest deployment (Render free tier)
+and scale later.
+
+**Why It Matters:** You can prototype on Render’s free tier and move to Kubernetes
+when traffic demands it—without changing any MCP server code.
+
+**When It Breaks:** Platform-specific features (Render’s auto-sleep, cold starts on
+serverless) can cause latency spikes that violate MCP client timeout expectations.
+SSE connections also behave differently behind different reverse proxies and CDNs.
+
+&lt;!–MDXB-11-CLOSE–&gt;
+
+# Authentication and Security
+
+
+
+<Sidenote category="interview">MCP has NO built-in auth. This is the \#1 security question. Know that auth must be implemented at the HTTP layer (bearer tokens, OAuth2).</Sidenote>
+
+
+
+MCP itself does not define authentication or authorization<Citation src="mcp2026roadmap" />. For remote servers,
+you must implement auth at the transport layer:
+
+
+
+```cypher
+from starlette.middleware import Middleware
+from starlette.middleware.authentication import AuthenticationMiddleware
+
+class BearerTokenBackend:
+    async def authenticate(self, conn):
+        token = conn.headers.get("Authorization", "").replace("Bearer ", "")
+        if not token or not await verify_token(token):
+            return None
+        return AuthCredentials(["authenticated"]), get_user(token)
+
+app = Starlette(
+    routes=[...],
+    middleware=[Middleware(AuthenticationMiddleware, backend=BearerTokenBackend())]
+)
+```
+
+
+
+&lt;!–MDXB-12-OPEN–&gt;
+
+**Core Insight:** MCP deliberately excludes built-in authentication. Security is implemented
+at the HTTP transport layer using bearer tokens, OAuth2, or API keys. This design choice keeps
+the protocol simple but means every remote deployment must add auth explicitly.
+
+**Why It Matters:** A remote MCP server without auth is an open API—anyone with the URL
+can invoke your tools. This is the \#1 production security question in MCP interviews.
+
+**When It Breaks:** For local stdio servers, auth is unnecessary since the process runs
+on the user’s machine. Auth only matters for remote (SSE/HTTP) deployments.
+
+&lt;!–MDXB-12-CLOSE–&gt;
+
+**Production security checklist:**
+
+- Bearer token or OAuth2 on all endpoints
+
+- HTTPS only—no plaintext HTTP
+
+- Rate limiting per user/API key
+
+- Input validation on all tool parameters
+
+- Path traversal prevention for file-access tools
+
+- Audit logging of all tool invocations
+
+- Principle of least privilege: expose only needed tools
+
+
+
+<Sidenote category="warning">A remote MCP server without auth is an open API. Anyone with the URL can call your tools. Always deploy auth before exposing to the network.</Sidenote>
+
+
+
+# Production Architecture Patterns
+
+
+
+<Sidenote category="pattern">Three patterns: sidecar (per-app isolation), shared service (efficient multi-user), gateway (enterprise routing). Most production = shared service.</Sidenote>
+
+
+
+## Sidecar Pattern
+
+One MCP server per application instance. Simple and isolated, but duplicates resources
+and doesn’t allow sharing between applications.
+
+
+
+<Sidenote category="formula">Gateway pattern: clients see 1 endpoint; gateway fans out to N backends. Central auth + unified monitoring + simplified config.</Sidenote>
+
+
+
+## Shared Service Pattern
+
+One MCP server shared by multiple clients. All users connect to the same endpoint.
+Efficient and consistent, but requires auth and rate limiting. Best for most teams.
+
+## Gateway Pattern
+
+An MCP proxy that routes to multiple backend servers based on tool name.
+Clients see one server; the gateway fans out to many. This is the enterprise pattern—central
+auth, unified monitoring, simplified client configuration.
+
+&lt;!–MDXB-13-OPEN–&gt;
+
+**Design an MCP Architecture for a Growing Startup**
+
+Your startup has 10 engineers using Claude Desktop, 2 AI agents (customer support bot,
+code review bot), and 4 tools (GitHub, PostgreSQL, Slack, internal docs search).
+
+Design the architecture: deployment pattern, transport, auth strategy, and scaling plan.
+Justify each choice.
+
+&lt;!–MDXB-13-CLOSE–&gt;
+
+&lt;!–MDXB-21-OPEN–&gt;
+
+**Approach:**
+**Architecture:**
+
+- **Pattern:** Shared service (one server per tool, shared by all clients)
+
+- **Transport:** SSE/HTTP (12 clients need shared access)
+
+- **Deployment:** Docker Compose on a single server (startup scale—no K8s yet)
+
+- **Auth:** API keys per client. Engineers get personal keys; bots get service accounts.
+
+- **Config:** Shared `claude_desktop_config.json` template in the company
+  dotfiles repo. Each engineer adds their personal API key.
+
+**Why not stdio?** 10 engineers need shared access to the same PostgreSQL and docs server.
+Running 10 copies wastes resources and creates consistency issues.
+
+**Scaling plan:** When the team grows to 50+ or traffic spikes, migrate from Docker Compose
+to Kubernetes with auto-scaling per server. The MCP protocol is identical regardless of
+deployment infrastructure.
+
+**Key Insight:** Start with the simplest deployment that works (Docker Compose &gt; Render
+&gt; bare Python). MCP’s transport independence means you never rewrite server code when
+upgrading infrastructure.
+
+**Answer:** Start with the simplest deployment that works (Docker Compose &gt; Render
+&gt; bare Python). MCP’s transport independence means you never rewrite server code when
+upgrading infrastructure.
+
+&lt;!–MDXB-21-CLOSE–&gt;
+
+&lt;!–MDXB-29-OPEN–&gt;
+
+**Case Study: Enterprise MCP at Scale**
+
+**Scenario:** A company with 50 engineers, 3 custom AI applications, and 5 MCP servers
+(GitHub, Jira, Confluence, Slack, internal DB).
+
+**Architecture:**
+
+- **Gateway:** nginx reverse proxy routing requests to backend servers
+
+- **Auth:** Company SSO via OAuth2 at the gateway layer
+
+- **Monitoring:** Prometheus metrics on tool call volume, latency, error rates
+
+- **Deployment:** Kubernetes with per-server auto-scaling
+
+**Questions:**
+
+1.  Why use a gateway instead of direct client-to-server connections?
+    (Central auth, unified monitoring, simplified client config)
+
+2.  How do you add a new server without updating 50+ client configs?
+    (Add to gateway; clients auto-discover via updated `list_tools`)
+
+3.  A tool call takes 90 seconds. What problem does this cause with SSE?
+    (Connection timeout. Fix: heartbeat pings, chunked responses, or async completion notification.)
+
+&lt;!–MDXB-29-CLOSE–&gt;
+
+&lt;!–MDXB-14-OPEN–&gt;
+
+**Case Study: MCP Migration at a Fintech Startup**
+
+A fintech startup runs 8 MCP servers (Stripe, PostgreSQL, Redis, Slack,
+internal-docs, compliance-checker, risk-scorer, notification-hub) on stdio
+with Claude Desktop for 5 engineers. They just hired 20 more engineers and
+need shared access. The compliance-checker tool queries PII and must be
+auditable. Two servers (risk-scorer, compliance-checker) have 45-second
+average response times.
+
+| **Metric**         | **Current (stdio)** | **Target (remote)**          |
+|:-------------------|:--------------------|:-----------------------------|
+| Engineers          | 5                   | 25                           |
+| Servers            | 8                   | 8                            |
+| Avg. response      | 200ms               | 200ms (non-PII)              |
+| PII tools          | 2                   | 2 (audit required)           |
+| Long-running tools | 2                   | 2 (&gt;30s) |
+
+1.  Which deployment pattern (sidecar, shared service, gateway) should
+    they choose? Justify considering the PII audit requirement.
+
+2.  How should they handle the 45-second response times for
+    risk-scorer and compliance-checker over SSE?
+
+3.  Design the auth strategy: should all 25 engineers have the same
+    access to PII tools?
+
+&lt;!–MDXB-14-CLOSE–&gt;
+
+&lt;!–MDXB-22-OPEN–&gt;
+
+**Approach:**
+**1.** Gateway pattern. Central auth enables per-tool access control
+(PII tools restricted to compliance team). Unified audit logging at the
+gateway captures every tool invocation with user identity. Shared service
+alone lacks the routing granularity for per-tool authorization.
+
+**2.** Two mitigations: (a) Implement SSE heartbeat pings every 10
+seconds to keep connections alive during long computations. (b) Return a
+job ID immediately and poll for completion—convert synchronous SSE to
+async completion notification.
+
+**3.** Role-based API keys: “standard” keys access 6 non-PII
+servers; “compliance” keys access all 8. Gateway enforces the mapping.
+Every compliance-checker call is logged with user ID, timestamp, and
+parameters for audit trail. Rotate keys quarterly.
+
+**Key Insight:** The PII audit requirement is the deciding factor for
+gateway over shared service. Without it, shared service would suffice for
+25 engineers.
+
+**Answer:** The PII audit requirement is the deciding factor for
+gateway over shared service. Without it, shared service would suffice for
+25 engineers.
+
+&lt;!–MDXB-22-CLOSE–&gt;
+
+&lt;!–MDXB-15-OPEN–&gt;
+
+**Case Study: Multi-Cloud MCP Gateway Failure**
+
+An enterprise deploys an MCP gateway on AWS routing to 12 backend servers.
+During a regional AWS outage, 4 backend servers become unreachable. The
+gateway returns 502 errors for tools hosted on those servers, but clients
+have no visibility into which tools are affected. Engineers waste 20
+minutes discovering which tools work.
+
+| **Metric**          | **Before Outage** | **During Outage** |
+|:--------------------|:------------------|:------------------|
+| Available tools     | 30                | 18                |
+| Error rate          | 0.1%              | 33%               |
+| Mean discovery time | —                 | 20 min            |
+| Affected backends   | 0/12              | 4/12              |
+
+1.  How should the gateway communicate partial availability to
+    clients via the MCP protocol?
+
+2.  Design a health-check system that proactively detects backend
+    failures before clients hit them.
+
+3.  What architectural change prevents a single-region outage from
+    degrading the entire gateway?
+
+&lt;!–MDXB-15-CLOSE–&gt;
+
+&lt;!–MDXB-23-OPEN–&gt;
+
+**Approach:**
+**1.** The gateway should filter its `list_tools` response to
+exclude tools from unhealthy backends. Clients see only working tools.
+Additionally, return structured error messages with a
+`server_status` field when a tool call fails, naming the affected
+backend and estimated recovery time.
+
+**2.** Health-check system: each backend exposes a `/health`
+endpoint. Gateway polls every 15 seconds. After 3 consecutive failures,
+mark backend as unhealthy and remove its tools from `list_tools`.
+After 2 consecutive successes, re-add. Alert on-call via PagerDuty on
+first failure.
+
+**3.** Multi-region deployment: deploy critical backends in 2+ AWS
+regions. Gateway routes to the healthy region. For the 4 affected servers,
+failover to us-west-2 replicas. This adds cost but eliminates single-region
+dependency.
+
+**Key Insight:** MCP’s `list_tools` is the natural mechanism
+for communicating availability. A gateway that dynamically filters tools
+based on backend health turns a confusing outage into a graceful
+degradation.
+
+**Answer:** MCP’s `list_tools` is the natural mechanism
+for communicating availability. A gateway that dynamically filters tools
+based on backend health turns a confusing outage into a graceful
+degradation.
+
+&lt;!–MDXB-23-CLOSE–&gt;
+
+&lt;!–MDXB-16-OPEN–&gt;
+
+Your MCP server processes document analysis requests that take 15–60
+seconds. Users report intermittent “connection reset” errors during long
+tool calls. Diagnose the cause and design a solution that works with
+standard SSE transport.
+
+&lt;!–MDXB-16-CLOSE–&gt;
+
+&lt;!–MDXB-24-OPEN–&gt;
+
+**Approach:**
+**Diagnosis:** SSE connections are long-lived HTTP connections. Many
+reverse proxies (nginx default: 60s), load balancers (AWS ALB: 60s), and
+CDNs have idle connection timeouts. A 60-second tool call with no data sent
+triggers the timeout.
+
+**Solution:** Implement SSE heartbeat events. Send a comment line
+(`:heartbeat`) every 15 seconds during tool execution. This keeps
+the connection alive without sending actual data. The MCP client ignores
+comment lines per the SSE specification.
+
+**Infrastructure fix:** Increase proxy timeouts to 120s as a safety
+margin. Configure ALB idle timeout to 120s. These are defense-in-depth;
+heartbeats are the primary fix.
+
+**Key Insight:** The SSE spec defines comment lines (starting with
+`:`) that are ignored by clients. Using these as keepalive pings is
+the standard pattern—no protocol extension needed.
+
+**Answer:** The SSE spec defines comment lines (starting with
+`:`) that are ignored by clients. Using these as keepalive pings is
+the standard pattern—no protocol extension needed.
+
+&lt;!–MDXB-24-CLOSE–&gt;
+
+&lt;!–MDXB-17-OPEN–&gt;
+
+Your team has 15 MCP servers running on stdio for Claude Desktop. You need
+to migrate to SSE for a new multi-user application while keeping Claude
+Desktop working. Design a migration plan that avoids downtime.
+
+&lt;!–MDXB-17-CLOSE–&gt;
+
+&lt;!–MDXB-25-OPEN–&gt;
+
+**Approach:**
+**Phase 1—Dual transport:** Modify each server’s entry point to
+accept a `--transport` flag. Default to stdio; pass
+`--transport sse` for remote deployment. Same server code, two run
+modes.
+
+**Phase 2—Deploy remote:** Deploy each server to Render/Docker with
+`--transport sse`. Test with Inspector against remote URLs. Claude
+Desktop configs remain unchanged (still stdio).
+
+**Phase 3—Migrate clients:** Update Claude Desktop configs from
+stdio to SSE, pointing to remote URLs. Roll out one server at a time. If a
+server fails, revert that config entry to stdio.
+
+**Phase 4—Decommission:** After all clients use SSE, remove stdio
+entry points if desired (or keep for local development).
+
+**Key Insight:** MCP’s transport independence makes migration a
+configuration change, not a code rewrite. The dual-transport phase ensures
+zero downtime.
+
+**Answer:** MCP’s transport independence makes migration a
+configuration change, not a code rewrite. The dual-transport phase ensures
+zero downtime.
+
+&lt;!–MDXB-25-CLOSE–&gt;
+
+&lt;!–MDXB-18-OPEN–&gt;
+
+An MCP server exposes a `search_database` tool that costs $0.02
+per query to the underlying API. 25 engineers and 3 AI agents use it. Last
+month the bill was $4,000—4x budget. Design a rate limiting strategy.
+
+&lt;!–MDXB-18-CLOSE–&gt;
+
+&lt;!–MDXB-26-OPEN–&gt;
+
+**Approach:**
+**Analysis:** $4,000 / $0.02 = 200,000 queries/month. Budget
+of $1,000 = 50,000 queries/month ≈ 1,667/day.
+
+**Strategy:**
+
+- Per-user daily limit: engineers get 50 queries/day (25 ×
+  50 = 1,250/day). AI agents get 100 queries/day (3 × 100
+  = 300/day). Total: 1,550/day, within budget.
+
+- Implement at the auth middleware layer using a Redis counter per
+  API key. Return a structured MCP error with remaining quota when
+  limit is hit.
+
+- Add a `search_quota` resource that clients can check
+  before querying.
+
+**Key Insight:** Rate limiting belongs at the auth/middleware layer,
+not inside the tool function. MCP resources (not just tools) can expose
+quota information, enabling clients to self-regulate.
+
+**Answer:** Rate limiting belongs at the auth/middleware layer,
+not inside the tool function. MCP resources (not just tools) can expose
+quota information, enabling clients to self-regulate.
+
+&lt;!–MDXB-26-CLOSE–&gt;
+
+&lt;!–MDXB-19-OPEN–&gt;
+
+Design the monitoring dashboard for a production MCP gateway serving 50
+users across 8 backend servers. Specify metrics, alert thresholds, and the
+dashboard layout.
+
+&lt;!–MDXB-19-CLOSE–&gt;
+
+&lt;!–MDXB-27-OPEN–&gt;
+
+**Approach:**
+**Metrics (per server + aggregate):**
+
+- Tool call volume (calls/min), latency (p50, p95, p99), error rate
+
+- SSE connection count (active), connection duration distribution
+
+- Auth failures/min (potential attack indicator)
+
+- Per-user call volume (abuse detection)
+
+**Alert thresholds:**
+
+- Error rate &gt; 5% sustained 5 min → page on-call
+
+- p99 latency &gt; 30s → warning
+
+- Auth failures &gt; 50/min → page security
+
+- Backend health check failure → immediate alert
+
+**Dashboard layout:** Row 1: aggregate call volume + error rate (time
+series). Row 2: per-server health grid (green/yellow/red). Row 3: latency
+heatmap by tool. Row 4: top users by volume + cost.
+
+**Key Insight:** MCP-specific monitoring adds SSE connection health
+and per-tool latency breakdown. Standard API monitoring misses these
+because MCP tools have heterogeneous latency profiles.
+
+**Answer:** MCP-specific monitoring adds SSE connection health
+and per-tool latency breakdown. Standard API monitoring misses these
+because MCP tools have heterogeneous latency profiles.
+
+&lt;!–MDXB-27-CLOSE–&gt;
+
+&lt;!–MDXB-20-OPEN–&gt;
+
+Your MCP server wraps a PostgreSQL database, a Stripe API, and an internal
+microservice. Each requires different credentials. The server runs on
+Render. Design the secrets management approach.
+
+&lt;!–MDXB-20-CLOSE–&gt;
+
+&lt;!–MDXB-28-OPEN–&gt;
+
+**Approach:**
+**Never in code or config files.** Use Render’s environment variable
+secrets:
+
+- `POSTGRES_URI`: Connection string with credentials
+
+- `STRIPE_SECRET_KEY`: API key for payment operations
+
+- `INTERNAL_SERVICE_TOKEN`: Bearer token for microservice
+
+**Access pattern:** Each tool function reads its credential from
+`os.environ` at call time, not at import time. This enables
+credential rotation without server restart.
+
+**Rotation strategy:** Render supports secret updates without
+redeployment. Schedule quarterly rotation. Use short-lived tokens where
+possible (Stripe supports this natively).
+
+**Key Insight:** MCP tools are thin wrappers around external services.
+Each tool needs exactly one credential set. Map credentials 1:1 with tools,
+not with servers.
+
+**Answer:** MCP tools are thin wrappers around external services. Each tool needs exactly one credential set.
+
+&lt;!–MDXB-28-CLOSE–&gt;
+
+&lt;!–MDXB-9-OPEN–&gt;
+
+1.  What code change converts a local MCP server to a remote one?
+
+2.  Why does Render need `requirements.txt` instead of `pyproject.toml`?
+
+3.  Why doesn’t MCP include built-in authentication? Where should you implement it?
+
+4.  Compare the three production deployment patterns. When would you use each?
+
+5.  Design an auth strategy for an MCP server used by both human engineers and AI agents.
+
+6.  What monitoring would you add to a production MCP server?
+
+&lt;!–MDXB-9-CLOSE–&gt;
+
+{/* CARD-PLACEMENT-AUTOSTART */}
+
+## Review
+
+{/* CARD-PLACEMENT-TODO: polish pass should move these cards inline */}
+{/* near the concepts they test, per Q-R4.4 hybrid placement.       */}
+
+### Checkpoint cards (6)
+
+<AnkiCard type="checkpoint" id="chapters-vol0-ch05-CHECKPOINT-MODULE_5_CHECKPOINT_Q1" los="" front={"What code change converts a local MCP server to a remote one?"} back={"Self-check from: Module 5 Checkpoint\n\n(Answer from memory, then verify against the chapter text.)"} />
+
+<AnkiCard type="checkpoint" id="chapters-vol0-ch05-CHECKPOINT-MODULE_5_CHECKPOINT_Q2" los="" front={"Why does Render need requirements.txt instead of pyproject.toml?"} back={"Self-check from: Module 5 Checkpoint\n\n(Answer from memory, then verify against the chapter text.)"} />
+
+<AnkiCard type="checkpoint" id="chapters-vol0-ch05-CHECKPOINT-MODULE_5_CHECKPOINT_Q3" los="" front={"Why doesn't MCP include built-in authentication? Where should you implement it?"} back={"Self-check from: Module 5 Checkpoint\n\n(Answer from memory, then verify against the chapter text.)"} />
+
+<AnkiCard type="checkpoint" id="chapters-vol0-ch05-CHECKPOINT-MODULE_5_CHECKPOINT_Q4" los="" front={"Compare the three production deployment patterns. When would you use each?"} back={"Self-check from: Module 5 Checkpoint\n\n(Answer from memory, then verify against the chapter text.)"} />
+
+<AnkiCard type="checkpoint" id="chapters-vol0-ch05-CHECKPOINT-MODULE_5_CHECKPOINT_Q5" los="" front={"Design an auth strategy for an MCP server used by both human engineers and AI agents."} back={"Self-check from: Module 5 Checkpoint\n\n(Answer from memory, then verify against the chapter text.)"} />
+
+<AnkiCard type="checkpoint" id="chapters-vol0-ch05-CHECKPOINT-MODULE_5_CHECKPOINT_Q6" los="" front={"What monitoring would you add to a production MCP server?"} back={"Self-check from: Module 5 Checkpoint\n\n(Answer from memory, then verify against the chapter text.)"} />
+
+### Keyconcept cards (3)
+
+<AnkiCard type="keyconcept" id="chapters-vol0-ch05-CONCEPT-STDIO_VS_SSE_THE_ONELINE_DIFFERENCE" los="" front={"Key Concept: stdio vs.\\ SSE: The One-Line Difference"} back={"Core Insight: The only code change to go from local to remote is the transport parameter.\nAll tools, resources, and prompts remain identical. This is MCP's design goal: tool logic\nis transport-independent.\n\nDecision Matrix:\n\n- Development / Claude Desktop $\\to$ stdio (no networking)\n\n- Team-shared server / multi-user $\\to$ SSE (HTTP endpoint)\n\n- Stateless deployments at scale $\\to$ Streamable HTTP (when SDK supports it)\n\nWhen It Breaks: SSE requires a persistent connection. Long-running tool calls\ncan timeout if the connection drops."} />
+
+<AnkiCard type="keyconcept" id="chapters-vol0-ch05-CONCEPT-DEPLOYMENT_INFRASTRUCTURE_INDEPENDENCE" los="" front={"Key Concept: Deployment Infrastructure Independence"} back={"Core Insight: MCP is deployment-agnostic. The same server code runs on Render,\nAWS, GCP, Azure, a local Docker container, or bare metal. The protocol is the same;\nonly the hosting infrastructure changes. Start with the simplest deployment (Render free tier)\nand scale later.\n\nWhy It Matters: You can prototype on Render's free tier and move to Kubernetes\nwhen traffic demands it—without changing any MCP server code.\n\nWhen It Breaks: Platform-specific features (Render's auto-sleep, cold starts on\nserverless) can cause latency spikes that violate MCP client timeout expectations."} />
+
+<AnkiCard type="keyconcept" id="chapters-vol0-ch05-CONCEPT-AUTH_IS_YOUR_RESPONSIBILITY" los="" front={"Key Concept: Auth Is Your Responsibility"} back={"Core Insight: MCP deliberately excludes built-in authentication. Security is implemented\nat the HTTP transport layer using bearer tokens, OAuth2, or API keys. This design choice keeps\nthe protocol simple but means every remote deployment must add auth explicitly.\n\nWhy It Matters: A remote MCP server without auth is an open API—anyone with the URL\ncan invoke your tools. This is the #1 production security question in MCP interviews.\n\nWhen It Breaks: For local stdio servers, auth is unnecessary since the process runs\non the user's machine. Auth only matters for remote (SSE/HTTP) deployments."} />
+
+### Problem cards (8)
+
+<AnkiCard type="problem" id="chapters-vol0-ch05-PROB-DESIGN_AN_MCP_ARCHITECTURE_FOR_A_GROWING_STARTUP" los="MCP-5.5" front={"Design an MCP Architecture for a Growing Startup\n\nYour startup has 10 engineers using Claude Desktop, 2 AI agents (customer support bot,\ncode review bot), and 4 tools (GitHub, PostgreSQL, Slack, internal docs search).\n\nDesign the architecture: deployment pattern, transport, auth strategy, and scaling plan.\nJustify each choice."} back={"Approach:\nArchitecture:\n\n- Pattern: Shared service (one server per tool, shared by all clients)\n\n- Transport: SSE/HTTP (12 clients need shared access)\n\n- Deployment: Docker Compose on a single server (startup scale—no K8s yet)\n\n- Auth: API keys per client. Engineers get personal keys; bots get service accounts.\n\n- Config: Shared claude_desktop_config.json template in the company\n dotfiles repo. Each engineer adds their personal API key.\n\nWhy not stdio? 10 engineers need shared access to the same PostgreSQL and docs server.\nRunning 10 copies wastes resources and creates consistency issues.\n\nScaling plan: When the team grows to 50+ or traffic spikes, migrate from Docker Compose\nto Kubernetes with auto-scaling per server. The MCP protocol is identical regardless of\ndeployment infrastructure.\n\nKey Insight: Start with the simplest deployment that works (Docker Compose $>$ Render\n$>$ bare Python). MCP's transport independence means you never rewrite server code when\nupgrading infrastructure.\n\nAnswer: Start with the simplest deployment that works (Docker Compose $>$ Render\n$>$ bare Python). MCP's transport independence means you never rewrite server code when\nupgrading infrastructure."} />
+
+<AnkiCard type="problem" id="chapters-vol0-ch05-PROB-CASE_STUDY_MCP_MIGRATION_AT_A_FINTECH_STARTUP" los="MCP-5.1" front={"Case Study: MCP Migration at a Fintech Startup\n\nA fintech startup runs 8 MCP servers (Stripe, PostgreSQL, Redis, Slack,\ninternal-docs, compliance-checker, risk-scorer, notification-hub) on stdio\nwith Claude Desktop for 5 engineers. They just hired 20 more engineers and\nneed shared access. The compliance-checker tool queries PII and must be\nauditable. Two servers (risk-scorer, compliance-checker) have 45-second\naverage response times.\n\ncompacttable\n\nMetric | Current (stdio) | Target (remote) \n\nEngineers | 5 | 25 \nServers | 8 | 8 \nAvg."} back={"Approach:\n1. Gateway pattern. Central auth enables per-tool access control\n(PII tools restricted to compliance team). Unified audit logging at the\ngateway captures every tool invocation with user identity. Shared service\nalone lacks the routing granularity for per-tool authorization.\n\n2. Two mitigations: (a) Implement SSE heartbeat pings every 10\nseconds to keep connections alive during long computations. (b) Return a\njob ID immediately and poll for completion—convert synchronous SSE to\nasync completion notification.\n\n3. Role-based API keys: \"standard\" keys access 6 non-PII\nservers; \"compliance\" keys access all 8. Gateway enforces the mapping.\nEvery compliance-checker call is logged with user ID, timestamp, and\nparameters for audit trail. Rotate keys quarterly.\n\nKey Insight: The PII audit requirement is the deciding factor for\ngateway over shared service. Without it, shared service would suffice for\n25 engineers.\n\nAnswer: The PII audit requirement is the deciding factor for\ngateway over shared service. Without it, shared service would suffice for\n25 engineers."} />
+
+<AnkiCard type="problem" id="chapters-vol0-ch05-PROB-CASE_STUDY_MULTICLOUD_MCP_GATEWAY_FAILURE" los="MCP-5.5" front={"Case Study: Multi-Cloud MCP Gateway Failure\n\nAn enterprise deploys an MCP gateway on AWS routing to 12 backend servers.\nDuring a regional AWS outage, 4 backend servers become unreachable. The\ngateway returns 502 errors for tools hosted on those servers, but clients\nhave no visibility into which tools are affected. Engineers waste 20\nminutes discovering which tools work.\n\ncompacttable\n\nMetric | Before Outage | During Outage \n\nAvailable tools | 30 | 18 \nError rate | 0.1\nMean discovery time | — | 20 min \nAffected backends | 0/12 | 4/12 \n\ncompacttable\n\n- How should the gateway communicate partial availability to\n clients via the MCP protocol?\n\n- Design a health-check system that proactively detects backend\n failures before clients hit them."} back={"Approach:\n1. The gateway should filter its list_tools response to\nexclude tools from unhealthy backends. Clients see only working tools.\nAdditionally, return structured error messages with a\nserver_status field when a tool call fails, naming the affected\nbackend and estimated recovery time.\n\n2. Health-check system: each backend exposes a /health\nendpoint. Gateway polls every 15 seconds. After 3 consecutive failures,\nmark backend as unhealthy and remove its tools from list_tools.\nAfter 2 consecutive successes, re-add. Alert on-call via PagerDuty on\nfirst failure.\n\n3. Multi-region deployment: deploy critical backends in 2+ AWS\nregions. Gateway routes to the healthy region. For the 4 affected servers,\nfailover to us-west-2 replicas. This adds cost but eliminates single-region\ndependency.\n\nKey Insight: MCP's list_tools is the natural mechanism\nfor communicating availability. A gateway that dynamically filters tools\nbased on backend health turns a confusing outage into a graceful\ndegradation.\n\nAnswer: MCP's list_tools is the natural mechanism\nfor communicating availability. A gateway that dynamically filters tools\nbased on backend health turns a confusing outage into a graceful\ndegradation."} />
+
+<AnkiCard type="problem" id="chapters-vol0-ch05-PROB-YOUR_MCP_SERVER_PROCESSES_DOCUMENT_ANALYSIS_REQUES" los="MCP-5.4" front={"Your MCP server processes document analysis requests that take 15–60\nseconds. Users report intermittent \"connection reset\" errors during long\ntool calls. Diagnose the cause and design a solution that works with\nstandard SSE transport."} back={"Approach:\nDiagnosis: SSE connections are long-lived HTTP connections. Many\nreverse proxies (nginx default: 60s), load balancers (AWS ALB: 60s), and\nCDNs have idle connection timeouts. A 60-second tool call with no data sent\ntriggers the timeout.\n\nSolution: Implement SSE heartbeat events. Send a comment line\n(:heartbeat) every 15 seconds during tool execution. This keeps\nthe connection alive without sending actual data. The MCP client ignores\ncomment lines per the SSE specification.\n\nInfrastructure fix: Increase proxy timeouts to 120s as a safety\nmargin. Configure ALB idle timeout to 120s. These are defense-in-depth;\nheartbeats are the primary fix.\n\nKey Insight: The SSE spec defines comment lines (starting with:) that are ignored by clients. Using these as keepalive pings is\nthe standard pattern—no protocol extension needed.\n\nAnswer: The SSE spec defines comment lines (starting with:) that are ignored by clients. Using these as keepalive pings is\nthe standard pattern—no protocol extension needed."} />
+
+<AnkiCard type="problem" id="chapters-vol0-ch05-PROB-YOUR_TEAM_HAS_15_MCP_SERVERS_RUNNING_ON_STDIO_FOR_" los="MCP-5.4" front={"Your team has 15 MCP servers running on stdio for Claude Desktop. You need\nto migrate to SSE for a new multi-user application while keeping Claude\nDesktop working. Design a migration plan that avoids downtime."} back={"Approach:\nPhase 1—Dual transport: Modify each server's entry point to\naccept a –transport flag. Default to stdio; pass\n–transport sse for remote deployment. Same server code, two run\nmodes.\n\nPhase 2—Deploy remote: Deploy each server to Render/Docker with\n–transport sse. Test with Inspector against remote URLs. Claude\nDesktop configs remain unchanged (still stdio).\n\nPhase 3—Migrate clients: Update Claude Desktop configs from\nstdio to SSE, pointing to remote URLs. Roll out one server at a time. If a\nserver fails, revert that config entry to stdio.\n\nPhase 4—Decommission: After all clients use SSE, remove stdio\nentry points if desired (or keep for local development).\n\nKey Insight: MCP's transport independence makes migration a\nconfiguration change, not a code rewrite. The dual-transport phase ensures\nzero downtime.\n\nAnswer: MCP's transport independence makes migration a\nconfiguration change, not a code rewrite. The dual-transport phase ensures\nzero downtime."} />
+
+<AnkiCard type="problem" id="chapters-vol0-ch05-PROB-AN_MCP_SERVER_EXPOSES_A_SEARCHDATABASE_TOOL_THAT_C" los="MCP-5.3" front={"An MCP server exposes a search_database tool that costs $0.02\nper query to the underlying API. 25 engineers and 3 AI agents use it. Last\nmonth the bill was $4,000—4x budget. Design a rate limiting strategy."} back={"Approach:\nAnalysis: $4,000 / $0.02 = 200,000 queries/month. Budget\nof $1,000 = 50,000 queries/month $approx$ 1,667/day.\n\nStrategy:\n\n- Per-user daily limit: engineers get 50 queries/day (25 $\\times$\n 50 = 1,250/day). AI agents get 100 queries/day (3 $\\times$ 100\n = 300/day). Total: 1,550/day, within budget.\n\n- Implement at the auth middleware layer using a Redis counter per\n API key. Return a structured MCP error with remaining quota when\n limit is hit.\n\n- Add a search_quota resource that clients can check\n before querying.\n\nKey Insight: Rate limiting belongs at the auth/middleware layer,\nnot inside the tool function. MCP resources (not just tools) can expose\nquota information, enabling clients to self-regulate.\n\nAnswer: Rate limiting belongs at the auth/middleware layer,\nnot inside the tool function. MCP resources (not just tools) can expose\nquota information, enabling clients to self-regulate."} />
+
+<AnkiCard type="problem" id="chapters-vol0-ch05-PROB-DESIGN_THE_MONITORING_DASHBOARD_FOR_A_PRODUCTION_M" los="MCP-5.2" front={"Design the monitoring dashboard for a production MCP gateway serving 50\nusers across 8 backend servers. Specify metrics, alert thresholds, and the\ndashboard layout."} back={"Approach:\nMetrics (per server + aggregate):\n\n- Tool call volume (calls/min), latency (p50, p95, p99), error rate\n\n- SSE connection count (active), connection duration distribution\n\n- Auth failures/min (potential attack indicator)\n\n- Per-user call volume (abuse detection)\n\nAlert thresholds:\n\n- Error rate $>$ 5\n\n- p99 latency $>$ 30s $\\to$ warning\n\n- Auth failures $>$ 50/min $\\to$ page security\n\n- Backend health check failure $\\to$ immediate alert\n\nDashboard layout: Row 1: aggregate call volume + error rate (time\nseries). Row 2: per-server health grid (green/yellow/red). Row 3: latency\nheatmap by tool. Row 4: top users by volume + cost.\n\nKey Insight: MCP-specific monitoring adds SSE connection health\nand per-tool latency breakdown. Standard API monitoring misses these\nbecause MCP tools have heterogeneous latency profiles.\n\nAnswer: MCP-specific monitoring adds SSE connection health\nand per-tool latency breakdown. Standard API monitoring misses these\nbecause MCP tools have heterogeneous latency profiles."} />
+
+<AnkiCard type="problem" id="chapters-vol0-ch05-PROB-YOUR_MCP_SERVER_WRAPS_A_POSTGRESQL_DATABASE_A_STRI" los="MCP-5.3" front={"Your MCP server wraps a PostgreSQL database, a Stripe API, and an internal\nmicroservice. Each requires different credentials. The server runs on\nRender. Design the secrets management approach."} back={"Approach:\nNever in code or config files. Use Render's environment variable\nsecrets:\n\n- POSTGRES_URI: Connection string with credentials\n\n- STRIPE_SECRET_KEY: API key for payment operations\n\n- INTERNAL_SERVICE_TOKEN: Bearer token for microservice\n\nAccess pattern: Each tool function reads its credential from\nos.environ at call time, not at import time. This enables\ncredential rotation without server restart.\n\nRotation strategy: Render supports secret updates without\nredeployment. Schedule quarterly rotation. Use short-lived tokens where\npossible (Stripe supports this natively).\n\nKey Insight: MCP tools are thin wrappers around external services.\nEach tool needs exactly one credential set. Map credentials 1:1 with tools,\nnot with servers.\n\nAnswer: MCP tools are thin wrappers around external services. Each tool needs exactly one credential set."} />
+
+### Vignette cards (1)
+
+<AnkiCard type="vignette" id="chapters-vol0-ch05-VIG-CASE_STUDY_ENTERPRISE_MCP_AT_SCALE" los="" front={"Case Study: Case Study"} back={"Case Study: Enterprise MCP at Scale\n\nScenario: A company with 50 engineers, 3 custom AI applications, and 5 MCP servers\n(GitHub, Jira, Confluence, Slack, internal DB).\n\nArchitecture:\n\n- Gateway: nginx reverse proxy routing requests to backend servers\n\n- Auth: Company SSO via OAuth2 at the gateway layer\n\n- Monitoring: Prometheus metrics on tool call volume, latency, error rates\n\n- Deployment: Kubernetes with per-server auto-scaling\n\nQuestions:\n\n- Why use a gateway instead of direct client-to-server connections?\n (Central auth, unified monitoring, simplified client config)\n\n- How do you add a new server without updating 50+ client configs?\n (Add to gateway; clients auto-discover via updated list_tools)\n\n- A tool call takes 90 seconds. What problem does this cause with SSE?\n (Connection timeout. Fix: heartbeat pings, chunked responses, or async completion notification.)\n\n---\n\n**Answer Rubric:**\nApproach:\n1. Gateway pattern. Central auth enables per-tool access control\n(PII tools restricted to compliance team). Unified audit logging at the\ngateway captures every tool invocation with user identity. Shared service\nalone lacks the routing granularity for per-tool authorization.\n\n2. Two mitigations: (a) Implement SSE heartbeat pings every 10\nseconds to keep connections alive during long computations. (b) Return a\njob ID immediately and poll for completion—convert synchronous SSE to\nasync completion notification.\n\n3. Role-based API keys: \"standard\" keys access 6 non-PII\nservers; \"compliance\" keys access all 8. Gateway enforces the mapping.\nEvery compliance-checker call is logged with user ID, timestamp, and\nparameters for audit trail. Rotate keys quarterly.\n\nKey Insight: The PII audit requirement is the deciding factor for\ngateway over shared service. Without it, shared service would suffice for\n25 engineers.\n\nAnswer: The PII audit requirement is the deciding factor for\ngateway over shared service. Without it, shared service would suffice for\n25 engineers."} />
+
+{/* CARD-PLACEMENT-AUTOEND */}

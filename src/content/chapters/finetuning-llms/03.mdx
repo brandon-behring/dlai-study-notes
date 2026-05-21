@@ -1,0 +1,920 @@
+---
+book: finetuning-llms
+title: Training and Evaluation
+chapter: 3
+description: The standard PyTorch training loop—epochs, batches, loss, backprop,
+  optimizer—is the engine beneath every fine-tuning run; HuggingFace Trainer and
+  higher-level wrappers abstract it to a single call, but understanding the loop
+  is what separates operators from engineers.
+learning_outcomes:
+  - id: FT-3.1
+    verb: explain
+    text: "the standard PyTorch training loop for LLMs: epoch iteration, batch
+      loading, forward pass, loss computation, backward pass, and optimizer
+      step"
+  - id: FT-3.2
+    verb: calculate
+    text: GPU memory requirements for fine-tuning given model parameter count, using
+      the rule of thumb that parameters $$ 4 bytes $$ model weight footprint
+  - id: FT-3.3
+    verb: compare
+    text: human evaluation, ELO ranking, and open benchmarks (ARC, HellaSwag, MMLU,
+      TruthfulQA) as evaluation strategies for fine-tuned generative models
+  - id: FT-3.4
+    verb: analyze
+    text: why a fine-tuned model can score *lower* on general benchmarks while
+      performing dramatically better on its target task
+  - id: FT-3.5
+    verb: apply
+    text: error analysis categories—misspellings, verbosity, repetition—to diagnose
+      fine-tuning failures and propose data-level fixes
+sources: []
+tools_compared:
+  - ML Engineer --- All companies --- L4/L5
+last_verified: 2026-05-21
+volatility: architectural-pattern
+---
+
+{/* TODO: per-chapter polish pass — see plan decision Q1 round 3 */}
+
+&lt;!–MDXB-23-OPEN–&gt;
+
+Chapter 2 prepared data: you chose a format (question/answer, instruction,
+completion), tokenized it, and split it into training and test sets.
+Now the data enters the model. This chapter covers the training loop that
+updates weights, the evaluation methods that tell you whether those updates
+helped, and the error analysis workflow that tells you *what to fix next*.
+After this chapter, you will know how to train, measure, and iterate—the
+core cycle of fine-tuning.
+
+&lt;!–MDXB-23-CLOSE–&gt;
+
+Before reading, consider:
+
+1.  What are the basic steps inside one iteration of a neural network training loop?
+
+2.  Why is evaluation harder for generative models than for classifiers?
+
+3.  If a model scores worse on a general benchmark after fine-tuning, does that mean fine-tuning failed?
+
+# The Training Loop
+
+
+
+<Sidenote category="interview">"Walk me through a PyTorch training loop" is a standard ML screen. Know: epochs, batches, loss, `loss.backward()`, `optimizer.step()`.</Sidenote>
+
+
+
+The training process for fine-tuning an LLM is structurally identical to training
+any neural network. The model sees training data, predicts an output, compares
+the prediction against the target, computes a loss, and updates its weights via
+backpropagation<Citation src="dlai-ft-course" />.
+
+
+
+<Term name="Training Loop" los="FT-3.1">
+  The iterative process of updating model weights: (1) iterate over epochs (full passes over the dataset), (2) load data in batches, (3) compute the forward pass to get predictions, (4) calculate loss against targets, (5) backpropagate gradients, (6) update weights with the optimizer<Citation src="dlai-ft-course" />.
+</Term>
+<AnkiCard type="term" front={"Training Loop"} back={"The iterative process of updating model weights: (1) iterate over epochs (full passes over the dataset), (2) load data in batches, (3) compute the forward pass to get predictions, (4) calculate loss against targets, (5) backpropagate gradients, (6) update weights with the optimizer[dlai-ft-course]."} los="FT-3.1" />
+
+
+
+
+
+<Sidenote category="pattern">Training loop order: `for epoch` $$ `for batch` $$ forward $$ loss $$ `backward()` $$ `optimizer.step()` $$ `zero_grad()`.</Sidenote>
+
+
+
+In PyTorch, the canonical loop looks like this:
+
+~~~ python
+for epoch in range(num_epochs):
+    for batch in dataloader:
+        outputs = model(batch)
+        loss = loss_fn(outputs, batch["labels"])
+        loss.backward()
+        optimizer.step()
+        optimizer.zero_grad()
+~~~
+
+Each component has a specific role:
+
+- **Epochs:** One epoch is a single pass over the entire dataset.
+  Fine-tuning typically uses 1–3 epochs; training for longer risks
+  overfitting to the fine-tuning data and losing general capabilities.
+
+- **Batches:** The dataset is divided into batches. If the batch
+  size is 1, each step processes one example; if the batch size is 2,000,
+  each step processes 2,000 examples. Larger batches smooth gradient
+  estimates but require more memory.
+
+- **Loss computation:** The model predicts a token sequence, and the
+  loss measures how far the prediction is from the target.
+
+- **Backward pass:** `loss.backward()` computes gradients of
+  the loss with respect to every trainable parameter.
+
+- **Optimizer step:** The optimizer (typically AdamW for LLMs) updates
+  weights using the gradients.
+
+
+
+<Term name="Cross-Entropy Loss" los="FT-3.1">
+  The standard loss function for language model training. For each position in the sequence, it measures the negative log-probability the model assigns to the correct next token. Minimizing cross-entropy is equivalent to maximizing the likelihood of the training data<Citation src="brown2020gpt3" />.
+</Term>
+<AnkiCard type="term" front={"Cross-Entropy Loss"} back={"The standard loss function for language model training. For each position in the sequence, it measures the negative log-probability the model assigns to the correct next token. Minimizing cross-entropy is equivalent to maximizing the likelihood of the training data[brown2020gpt3]."} los="FT-3.1" />
+
+
+
+
+
+<Sidenote category="formula">Cross-entropy: $L = -1{N}_{i=1}^{N} p(t_i  t_{<i})$ where $t_i$ is the target token.</Sidenote>
+
+
+
+## Hyperparameters
+
+Three hyperparameters dominate fine-tuning decisions:
+
+1.  **Learning rate:** Controls the magnitude of weight updates. Too high
+    and the model diverges (loss spikes or oscillates); too low and training
+    stalls (loss decreases imperceptibly). Typical fine-tuning learning rates
+    are 1 × 10<sup>−5</sup> to 5 × 10<sup>−5</sup>—much lower than pre-training
+    rates, because the model already has useful representations you want to
+    preserve.
+
+2.  **Learning rate scheduler:** Adjusts the learning rate over the course
+    of training. A common pattern is linear warmup followed by cosine decay.
+    The warmup prevents early gradient explosions; the decay allows fine-grained
+    convergence near the end.
+
+3.  **Optimizer:** AdamW is standard for LLMs. It combines adaptive
+    per-parameter learning rates with weight decay regularization.
+
+
+
+<Sidenote category="warning">LR too high $$ loss spikes, catastrophic forgetting. LR too low $$ loss barely moves, wasted compute. Start at $2  10^{-5}$ for fine-tuning.</Sidenote>
+
+
+
+## GPU Memory and Model Scale
+
+
+
+<Sidenote category="formula">Rule of thumb: params $$ 4 B (fp32) $$ weight footprint. 70M params $$ 300 MB. 1B params $$ 4 GB.</Sidenote>
+
+
+
+Even a “tiny” 70-million-parameter model occupies approximately 300 MB in
+memory<Citation src="dlai-ft-course" />. Memory requirements scale linearly with parameter
+count for the weights alone, but training also requires memory for gradients
+(same size as weights), optimizer states (2× for Adam), and activations.
+A rough estimate for full fine-tuning memory is 4–8× the model weight
+footprint:
+
+| **Model Size** | **Params** |     **Weight Footprint** | **GPU for Training** |
+|:---------------|-----------:|-------------------------:|:---------------------|
+| Pythia-70M     |        70M | ∼300 MB | CPU or any GPU       |
+| Pythia-410M    |       410M | ∼1.6 GB | Single GPU (8 GB+)   |
+| Pythia-1B      |         1B |   ∼4 GB | V100 16 GB           |
+| Pythia-2.8B    |       2.8B |  ∼11 GB | A100 40 GB           |
+
+
+
+<Sidenote category="interview">"Can you train a 1B model on a V100?" Yes—16 GB VRAM fits weights + gradients + optimizer for 1B params. Beyond that, use LoRA or multi-GPU.</Sidenote>
+
+
+
+In the course lab, the 70M Pythia model runs on CPU to keep the training loop
+observable. For real use cases, Zhou recommends starting with at least a 400M–1B
+parameter model if the task is straightforward, and scaling up from
+there<Citation src="dlai-ft-course" /><Citation src="biderman2023pythia" />.
+
+## From PyTorch to High-Level APIs
+
+The raw PyTorch loop is instructive but verbose. In practice, fine-tuning uses
+successively higher-level interfaces:
+
+
+
+<Sidenote category="pattern">Abstraction ladder: raw PyTorch $$ HuggingFace Trainer $$ Lamini/cloud APIs. Each hides the loop but respects the same hyperparameters.</Sidenote>
+
+
+
+1.  **HuggingFace Trainer:** Wraps the loop into a single class. You
+    pass the model, training arguments (learning rate, max steps, batch size),
+    and datasets. The Trainer handles device placement, logging, checkpointing,
+    and distributed training automatically.
+
+2.  **Cloud APIs (Lamini library):** Reduce fine-tuning to three lines:
+    load model, load data, call `model.train()`. The training runs on
+    a hosted GPU and returns a model ID you can call for inference.
+
+~~~ python
+# HuggingFace Trainer approach
+from transformers import Trainer, TrainingArguments
+
+training_args = TrainingArguments(
+    output_dir="./output",
+    max_steps=3,
+    learning_rate=2e-5,
+    per_device_train_batch_size=1,
+)
+
+trainer = Trainer(
+    model=base_model,
+    args=training_args,
+    train_dataset=train_data,
+    eval_dataset=test_data,
+)
+trainer.train()
+~~~
+
+
+
+<Sidenote category="practice">Best practice: timestamp your model checkpoints. You will experiment with many runs; names like `lamini_3steps_20231015` prevent confusion.</Sidenote>
+
+
+
+After training, save and reload:
+
+~~~ python
+# Save locally
+trainer.save_model("./output/final_checkpoint")
+
+# Reload fine-tuned model
+from transformers import AutoModelForCausalLM
+finetuned = AutoModelForCausalLM.from_pretrained(
+    "./output/final_checkpoint",
+    local_files_only=True
+)
+~~~
+
+The course demonstrates that three training steps produce no visible improvement—the
+model’s output is still nearly identical to the base model. Training on the full
+dataset for two epochs produces coherent, task-relevant answers, but with some
+repetition at the end of longer outputs. A larger model (2.8B parameters)
+eliminates most repetition<Citation src="dlai-ft-course" />.
+
+&lt;!–MDXB-25-OPEN–&gt;
+
+**Core Insight:** A *step* processes one batch; an *epoch* is a
+complete pass over the entire dataset. Three steps on a dataset of 1,260
+examples (with batch size 1) means the model has seen 3 out of 1,260
+data points—less than 0.25% of the data. Fine-tuning requires seeing
+the full dataset at least once.
+
+**Decision Rule:** Start with 1–2 epochs. Monitor validation loss: if it
+starts increasing while training loss continues to decrease, stop—the model
+is overfitting to the fine-tuning data.
+
+**When It Breaks:** Very large datasets (millions of examples) may not need
+a full epoch. Very small datasets (hundreds of examples) may benefit from 3–5
+epochs, but watch for overfitting carefully.
+
+&lt;!–MDXB-25-CLOSE–&gt;
+
+## Moderation in Training Data
+
+
+
+<Sidenote category="warning">Include refusal examples in training data. Without them, the model will confidently answer off-topic or harmful queries.</Sidenote>
+
+
+
+An often-overlooked aspect of data preparation is *moderation examples*—data
+points that teach the model to decline off-topic or inappropriate queries. The
+Lamini dataset includes examples where the target response is “Let’s keep the
+discussion relevant to Lamini” when the question is unrelated to the
+product<Citation src="dlai-ft-course" />. This is analogous to how ChatGPT responds
+“Sorry, I’m an AI and I can’t answer that”—the behavior is trained, not
+hard-coded.
+
+# Evaluation Approaches
+
+
+
+<Sidenote category="interview">"How do you evaluate a fine-tuned generative model?" Lead with task-specific test set + human eval. Mention benchmarks but immediately note they may not correlate with task quality.</Sidenote>
+
+
+
+Evaluating generative models is notoriously difficult. Unlike classification,
+where accuracy is straightforward, there is no single correct answer for a
+generation task. The model might produce a valid response that differs entirely
+from the reference answer<Citation src="dlai-ft-course" />.
+
+## Human Evaluation
+
+Human evaluation remains the most reliable method for assessing generative
+model quality. A domain expert inspects model outputs against a curated test
+set and judges whether the responses are accurate, relevant, and appropriately
+scoped<Citation src="dlai-ft-course" />.
+
+Requirements for effective human evaluation:
+
+- **High-quality test set:** Accurate, diverse, and representative
+  of the target use cases. Every example must be manually verified.
+
+- **Generalized coverage:** The test set must cover the range of
+  expected inputs, not just easy cases.
+
+- **No data leakage:** The test set must not appear in the training
+  data. This is the most basic requirement and the most commonly violated.
+
+
+
+<Sidenote category="pattern">Eval priority: (1) human eval on curated test set, (2) LLM-as-judge, (3) embedding similarity, (4) exact match. Only (1) is reliable for generative tasks.</Sidenote>
+
+
+
+The course demonstrates that exact string matching produces zero matches on
+the fine-tuned model’s outputs, even when the answers are substantively
+correct<Citation src="dlai-ft-course" />. This is expected: generative tasks have a vast
+space of valid outputs. Alternative automated approaches include:
+
+- **LLM-as-judge:** Feed the generated output and the reference answer
+  into a stronger LLM and ask it to rate quality.
+
+- **Embedding similarity:** Embed both the generated and reference
+  answers, then compute cosine similarity. High similarity indicates
+  semantic equivalence even when surface forms differ.
+
+- **Exact match:** Only meaningful for extractive or classification-style
+  tasks where the output space is constrained.
+
+## ELO Comparison
+
+An emerging evaluation method borrows ELO rankings from chess. Multiple models
+generate responses to the same prompt, and human judges (or automated systems)
+select which response is better. Over many comparisons, models accumulate ELO
+scores that reflect relative quality. This method is used by platforms like
+Chatbot Arena to rank models without requiring absolute quality metrics.
+
+## Open Benchmarks
+
+
+
+<Term name="EleutherAI LM Evaluation Harness" los="FT-3.3">
+  A unified framework for evaluating generative language models across standardized benchmarks including ARC (grade-school science), HellaSwag (commonsense reasoning), MMLU (multitask knowledge), and TruthfulQA (factuality). Used to produce the Open LLM Leaderboard rankings<Citation src="eleutherailmeval" />.
+</Term>
+<AnkiCard type="term" front={"EleutherAI LM Evaluation Harness"} back={"A unified framework for evaluating generative language models across standardized benchmarks including ARC (grade-school science), HellaSwag (commonsense reasoning), MMLU (multitask knowledge), and TruthfulQA (factuality). Used to produce the Open LLM Leaderboard rankings[eleutherailmeval]."} los="FT-3.3" />
+
+
+
+The most widely used open benchmark suite is the EleutherAI LM Evaluation
+Harness, which aggregates four benchmarks<Citation src="eleutherailmeval" />:
+
+| **Benchmark** | **Tests** | **What It Measures** |
+|:---|:---|:---|
+| ARC | Grade-school science | Multi-choice science reasoning (easy + challenge sets) |
+| HellaSwag | Common sense | Sentence completion requiring real-world knowledge |
+| MMLU | Multitask knowledge | 57 subjects from elementary to professional level |
+| TruthfulQA | Factuality | Whether the model reproduces common online falsehoods |
+
+
+
+<Sidenote category="formula">Open LLM Leaderboard score = average of ARC, HellaSwag, MMLU, TruthfulQA (normalized).</Sidenote>
+
+
+
+Models on the Open LLM Leaderboard are ranked by the average of these four
+benchmark scores. At the time of the course recording, Llama 2 and fine-tuned
+variants (e.g., Free Willy, fine-tuned with the Orca method) dominated the top
+of the leaderboard<Citation src="dlai-ft-course" />.
+
+## The ARC Drop: Benchmarks vs. Task Performance
+
+
+
+<Sidenote category="warning">ARC dropped from 0.36 to 0.31 after fine-tuning. This is *expected*: the model traded general science knowledge for task-specific capability.</Sidenote>
+
+
+
+The course runs the ARC benchmark on the fine-tuned Lamini model and obtains a
+score of 0.31—*lower* than the base model’s published score of
+0.36<Citation src="dlai-ft-course" /><Citation src="biderman2023pythia" />. This result is counterintuitive
+only if you expect fine-tuning to improve everything. In reality:
+
+- The model was fine-tuned on Lamini product documentation, not
+  grade-school science.
+
+- Fine-tuning specializes the model: it gets dramatically better at
+  the target task and somewhat worse at unrelated tasks.
+
+- General benchmarks measure general capabilities. A model fine-tuned
+  on a narrow domain *should* score lower on general benchmarks
+  unless the fine-tuning data happens to overlap with the benchmark
+  domain.
+
+&lt;!–MDXB-26-OPEN–&gt;
+
+**Core Insight:** A fine-tuned model can score *lower* on general
+benchmarks (ARC, MMLU) while performing dramatically better on its target task.
+The ARC score dropped from 0.36 to 0.31 after fine-tuning on Lamini docs, but
+the model went from producing incoherent output to generating accurate,
+on-topic product documentation.
+
+**Why It Matters:** If you evaluate a domain-specific fine-tuned model
+solely by general benchmarks, you will conclude it got worse. Always evaluate
+on a task-specific test set first. Use general benchmarks only when comparing
+general-purpose base models before fine-tuning.
+
+**When It Breaks:** If you fine-tune on general instruction-following
+data (e.g., Alpaca<Citation src="taori2023alpaca" />), you *should* see benchmark
+scores improve or hold steady. A drop in that case indicates a problem with
+data quality or training duration.
+
+&lt;!–MDXB-26-CLOSE–&gt;
+
+Zhou’s practical recommendation: general benchmarks are useful for selecting a
+base model (comparing Pythia vs. Llama 2 before fine-tuning), but not for
+evaluating the fine-tuned result. For that, use a curated test set with human
+inspection<Citation src="dlai-ft-course" />.
+
+# Error Analysis and Iteration
+
+
+
+<Sidenote category="interview">Error analysis is how senior engineers debug models. Categorize errors, fix the most common/catastrophic first, retrain, re-evaluate. This is the iteration loop.</Sidenote>
+
+
+
+Error analysis is the bridge between evaluation and improvement. Instead of
+treating model failures as a monolithic problem, you categorize errors into
+types and prioritize fixes based on frequency and severity<Citation src="dlai-ft-course" />.
+
+
+
+<Sidenote category="pattern">Error analysis cycle: generate outputs $$ categorize errors $$ fix most common/catastrophic $$ update data $$ retrain $$ re-evaluate.</Sidenote>
+
+
+
+A distinctive advantage of fine-tuning over training from scratch: you can
+perform error analysis *before* fine-tuning. The base model already
+generates outputs, so you can characterize its failure modes and design
+training data specifically to address them<Citation src="dlai-ft-course" />.
+
+## Common Error Categories
+
+Three error categories appear consistently in fine-tuned generative
+models<Citation src="dlai-ft-course" />:
+
+1.  **Misspellings and factual errors:** The model produces incorrect
+    names, numbers, or terminology. *Fix:* Correct the corresponding
+    examples in the training data. If the model misspells “Lamini” as
+    “Llamani,” ensure all training examples use the correct spelling.
+
+2.  **Length problems (too long or too short):** Generative models
+    tend to be verbose, producing lengthy answers when a concise response
+    is appropriate. This is one of the most common complaints about
+    ChatGPT-style models. *Fix:* Ensure your training data contains
+    concise target responses. If your reference answers are paragraphs when
+    one sentence would suffice, the model learns to be verbose.
+
+3.  **Repetition:** The model repeats phrases, sentences, or entire
+    paragraphs within a single response. This is especially common in
+    smaller models. The course demonstrates this with the 70M Pythia model,
+    which produces correct initial content but degrades into repetition
+    after a few sentences<Citation src="dlai-ft-course" />. *Fix:* A combination
+    of data fixes (ensure training examples have diverse, non-repetitive
+    content) and inference-time controls (stop tokens, repetition penalty,
+    prompt templates).
+
+
+
+<Sidenote category="warning">Repetition in small models is partly a capacity problem. Scaling from 70M to 2.8B eliminates most repetition, even with the same data.</Sidenote>
+
+
+
+## The Iteration Workflow
+
+1.  **Generate outputs on the test set.** Run the model on every test
+    example and collect predicted answers alongside reference answers.
+
+2.  **Inspect manually.** Read through predicted vs. target answers.
+    Human inspection on a curated test set is significantly more effective
+    than automated metrics for generative tasks<Citation src="dlai-ft-course" />.
+
+3.  **Categorize errors.** Group failures into categories: misspelling,
+    too verbose, too short, repetitive, off-topic, factually wrong, etc.
+
+4.  **Prioritize.** Fix the most frequent error category first. If 40%
+    of errors are verbosity and 10% are misspellings, shorten your training
+    examples before correcting spelling.
+
+5.  **Update data and retrain.** Modify the training data to address
+    the top error category. Retrain. Re-evaluate. Repeat.
+
+The course shows the evaluation mode switch as an important implementation
+detail: before generating outputs for evaluation, call `model.eval()`
+to disable dropout and other training-specific behaviors. This ensures
+reproducible evaluation outputs.
+
+~~~ python
+model.eval()  # Disable dropout for evaluation
+
+for example in test_data:
+    question = example["question"]
+    predicted = inference(question, model, tokenizer)
+    results.append({
+        "question": question,
+        "predicted": predicted,
+        "target": example["answer"]
+    })
+~~~
+
+&lt;!–MDXB-27-OPEN–&gt;
+
+**Core Insight:** Unlike training from scratch, fine-tuning starts with a
+pre-trained model that already generates outputs. You can run error analysis on
+the *base model* before any fine-tuning to characterize its failure modes
+and design training data that specifically addresses them.
+
+**Why It Matters:** This inverts the traditional ML workflow where you
+train first and evaluate after. By analyzing base model errors first, you
+collect targeted data instead of generic data, reducing the amount of training
+data needed and improving the fine-tuning outcome.
+
+**When It Breaks:** If the base model is so weak on the target task that
+its outputs are pure noise (e.g., a 70M model on a complex reasoning task),
+error analysis may not yield useful categories. In that case, start with a
+larger base model.
+
+&lt;!–MDXB-27-CLOSE–&gt;
+
+Interview question: “You fine-tuned a model and its benchmark scores dropped.
+Your manager says the model got worse. How do you respond?”
+
+**Strong answer:** “Benchmark scores measure general capabilities. If we
+fine-tuned on a domain-specific task, a drop in general benchmarks is expected
+and even desirable—it means the model is specializing. I’d show the manager
+our task-specific evaluation: the curated test set where the model went from
+incoherent output to accurate, on-topic responses. General benchmarks are
+useful for selecting a base model, not for evaluating a fine-tuned one.”
+
+**Meta-signal:** This tests whether you understand the difference between
+general and task-specific evaluation. Senior engineers do not panic at benchmark
+drops; they know that specialization trades breadth for depth. The interviewer
+is also testing communication skills: can you translate a technical nuance into
+a business-relevant argument for a non-technical stakeholder?
+
+&lt;!–MDXB-28-OPEN–&gt;
+
+\[foundation\]\[full\]
+**Estimate VRAM for Fine-Tuning**
+
+You want to fine-tune Pythia-1.4B (1.4 billion parameters) using full fine-tuning
+(no LoRA). You have access to a single NVIDIA V100 GPU with 16 GB of VRAM.
+
+1.  Estimate the memory required for model weights in fp32.
+
+2.  Estimate the total training memory (weights + gradients + optimizer states).
+
+3.  Can this model be trained on the V100? If not, what are your options?
+
+&lt;!–MDXB-28-CLOSE–&gt;
+
+&lt;!–MDXB-33-OPEN–&gt;
+
+**Step 1: Weight Footprint.**
+Each fp32 parameter uses 4 bytes.
+1.4 × 10<sup>9</sup> params × 4 bytes = 5.6 GB
+
+**Step 2: Total Training Memory.**
+Full fine-tuning with AdamW requires:
+
+- Weights: 5.6 GB
+
+- Gradients: 5.6 GB (same size as weights)
+
+- Optimizer states: 11.2 GB (AdamW stores 2 states per parameter—first and second moment estimates)
+
+- Activations: Variable, depends on batch size and sequence length.
+  Minimum ∼1–2 GB for batch size 1.
+
+Total estimate: 5.6 + 5.6 + 11.2 + 1.5 ≈ 23.9 GB.
+
+**Step 3: Feasibility.**
+The V100 has 16 GB. Full fine-tuning requires ∼24 GB. Options:
+
+- Use **LoRA**<Citation src="hu2022lora" />: train only low-rank adapter matrices
+  (&lt;1% of parameters), reducing gradient and optimizer memory by ∼99%.
+
+- Use **fp16/bf16 mixed precision**: halves the weight and gradient footprint
+  (optimizer states remain fp32 for stability). Reduces total to ∼17 GB—still tight.
+
+- Use **gradient checkpointing**: trades compute for memory by recomputing
+  activations during the backward pass instead of storing them.
+
+- Use a **larger GPU** (A100 with 40 GB or 80 GB).
+
+**Key Insight:** The 4× rule (params × 4 bytes) gives only
+the weight footprint. Total training memory is typically 4–6× the weight
+footprint because of gradients and optimizer states. LoRA is the most practical
+solution when GPU memory is constrained.
+
+**Answer:** Weights alone require 5.6 GB, but total training memory is
+∼24 GB—exceeding the V100’s 16 GB. Use LoRA or mixed precision to fit
+within the memory budget.
+
+&lt;!–MDXB-33-CLOSE–&gt;
+
+&lt;!–MDXB-29-OPEN–&gt;
+
+\[core\]\[full\]
+**Explain the ARC Score Drop**
+
+You fine-tuned Pythia-70M on a company’s internal Q&A dataset (1,260 examples,
+2 epochs). Before fine-tuning, the base model scored 0.36 on ARC. After
+fine-tuning, the ARC score dropped to 0.31. However, on your internal test set,
+the model went from producing incoherent gibberish to generating accurate,
+on-topic answers.
+
+1.  Is the ARC drop a problem? Explain why or why not.
+
+2.  Your product manager asks: “Did the model get worse?” Draft a
+    two-sentence response.
+
+3.  Under what conditions *would* an ARC drop indicate a real problem?
+
+&lt;!–MDXB-29-CLOSE–&gt;
+
+&lt;!–MDXB-34-OPEN–&gt;
+
+**Step 1: Is the ARC Drop a Problem?**
+No. ARC measures grade-school science reasoning. The model was fine-tuned on
+company Q&A data, which has no overlap with ARC’s domain. Fine-tuning
+specializes the model: it redistributes the model’s capacity toward the
+fine-tuning domain and away from unrelated domains. A 5-point drop on an
+unrelated benchmark is the expected cost of specialization.
+
+**Step 2: Response to Product Manager.**
+“The model got dramatically better at our task—it went from incoherent output
+to accurate answers on our test set. The benchmark that dropped measures
+grade-school science, which is unrelated to our use case; that drop is the
+expected tradeoff of specialization.”
+
+**Step 3: When Would the Drop Be Concerning?**
+An ARC drop indicates a real problem if:
+
+- The fine-tuning data is *general instruction-following* data
+  (e.g., Alpaca), in which case benchmarks should improve or hold steady.
+
+- The drop is extreme (e.g., 0.36 → 0.15), suggesting catastrophic
+  forgetting—the model has lost too much general capability.
+
+- The task-specific evaluation also shows degradation, meaning the model
+  got worse at everything.
+
+**Key Insight:** General benchmarks and task-specific evaluation measure
+different things. A specialized model should be evaluated on its target task
+first. Benchmark scores are for comparing general-purpose base models, not
+fine-tuned specialists.
+
+**Answer:** The ARC drop is expected and not a problem. The model traded
+irrelevant general science knowledge for task-specific capability. Concern is
+warranted only if the fine-tuning data was general-purpose or if task-specific
+evaluation also degraded.
+
+&lt;!–MDXB-34-CLOSE–&gt;
+
+&lt;!–MDXB-30-OPEN–&gt;
+
+\[applied\]\[full\]
+**Categorize and Fix Model Errors**
+
+Your fine-tuned model generates the following outputs on the test set. For each,
+identify the error category and propose a data-level fix.
+
+1.  **Output:** “Yes, Llamani can generate technical documentation
+    and user manuals and Llamani can also generate API reference guides
+    and Llamani can also generate...”
+
+2.  **Output:** “Go get your liver checked” (target: “Go get your
+    *lever* checked”)
+
+3.  **Output:** (800 words explaining a feature that could be described
+    in 2 sentences)
+
+4.  **Output:** “Mars is the fourth planet from the sun...” (asked
+    about the company’s Python SDK)
+
+&lt;!–MDXB-30-CLOSE–&gt;
+
+&lt;!–MDXB-35-OPEN–&gt;
+
+**Error 1: Repetition.**
+The model repeats “Llamani can also generate” in a loop. This is a common
+failure mode in smaller models.
+*Fix:* (a) Ensure training data contains diverse, non-repetitive examples.
+(b) At inference time, apply a repetition penalty or set a stop token.
+(c) Consider scaling to a larger model—the course shows that moving from
+70M to 2.8B eliminates most repetition.
+
+**Error 2: Misspelling / Factual Error.**
+“Liver” instead of “lever.” The model learned the misspelling from the
+training data.
+*Fix:* Audit the training data for this specific example and correct the
+spelling. Run a spell-check pass over the entire dataset.
+
+**Error 3: Verbosity.**
+The model produces an excessively long response for a simple question.
+*Fix:* Shorten the target responses in the training data. If reference
+answers are paragraphs when sentences would suffice, the model learns
+verbosity as the expected output style.
+
+**Error 4: Off-Topic / No Moderation.**
+The model answers a question about Mars instead of declining or redirecting.
+*Fix:* Add moderation examples to the training data: pairs where
+off-topic questions receive responses like “Let’s keep the discussion relevant
+to \[product\].” This is the same technique used by ChatGPT for refusal
+training<Citation src="ouyang2022instructgpt" />.
+
+**Key Insight:** Every error category maps to a data-level fix. Repetition
+→ diverse examples + larger model. Misspelling → correct the data.
+Verbosity → concise reference answers. Off-topic → moderation examples.
+The model learns what you show it.
+
+**Answer:** (1) Repetition—add diverse data and repetition penalty.
+(2) Misspelling—correct training data. (3) Verbosity—shorten reference
+answers. (4) Off-topic—add moderation/refusal examples.
+
+&lt;!–MDXB-35-CLOSE–&gt;
+
+&lt;!–MDXB-31-OPEN–&gt;
+
+\[core\]\[full\]
+**Diagnose from Loss Curves**
+
+You are fine-tuning a 410M model on a customer support dataset. You run three
+experiments with different learning rates and observe the following training
+loss patterns over 500 steps:
+
+| **Experiment** | **LR** | **Loss Behavior** |
+|:---|:---|:---|
+| A | 1 × 10<sup>−3</sup> | Loss spikes to 15.0 in the first 50 steps, oscillates wildly, never converges |
+| B | 2 × 10<sup>−5</sup> | Loss decreases smoothly from 3.2 to 1.1 over 500 steps |
+| C | 1 × 10<sup>−8</sup> | Loss starts at 3.2, decreases to 3.15 after 500 steps |
+
+1.  Diagnose each experiment.
+
+2.  Which learning rate would you use for production training?
+
+3.  If experiment B’s validation loss starts increasing at step 300 while
+    training loss continues decreasing, what should you do?
+
+&lt;!–MDXB-31-CLOSE–&gt;
+
+&lt;!–MDXB-36-OPEN–&gt;
+
+**Step 1: Diagnose.**
+
+- **Experiment A (10<sup>−3</sup>):** Learning rate is far too high.
+  Gradient updates overshoot, causing the loss to spike and oscillate.
+  The model may also suffer catastrophic forgetting—destroying
+  pre-trained representations.
+
+- **Experiment B (2 × 10<sup>−5</sup>):** This is the correct regime
+  for fine-tuning. The loss decreases smoothly, indicating stable
+  convergence.
+
+- **Experiment C (10<sup>−8</sup>):** Learning rate is too low. The model
+  barely updates. After 500 steps, the loss has decreased by only
+  ∼1.5%, which means the model has learned almost nothing.
+
+**Step 2: Production Choice.**
+Use experiment B’s learning rate (2 × 10<sup>−5</sup>). It shows stable, smooth
+convergence.
+
+**Step 3: Validation Loss Divergence at Step 300.**
+This is classic overfitting. The model is memorizing training data instead of
+generalizing. Actions:
+
+- Set `max_steps=300` or use early stopping with patience.
+
+- Consider adding regularization (weight decay, dropout).
+
+- If the dataset is small, collect more data or use LoRA (which
+  implicitly regularizes by constraining the update rank).
+
+**Key Insight:** Fine-tuning learning rates are typically 10–100×
+lower than pre-training rates because you want to adjust the model’s behavior
+without destroying its pre-trained knowledge. The sweet spot for most LLM
+fine-tuning is 1 × 10<sup>−5</sup> to 5 × 10<sup>−5</sup>.
+
+**Answer:** A is too high (loss explodes), C is too low (loss stagnates),
+B is correct. Use B for production. If validation loss diverges at step 300,
+apply early stopping at that step.
+
+&lt;!–MDXB-36-CLOSE–&gt;
+
+&lt;!–MDXB-32-OPEN–&gt;
+
+\[core\]\[full\]
+**Choose an Evaluation Strategy for Three Scenarios**
+
+
+
+<Sidenote category="practice">10 min  Eval design  On-site</Sidenote>
+
+
+
+You are advising three teams that each fine-tuned a model. For each scenario,
+recommend the most appropriate evaluation strategy (human evaluation, ELO
+ranking, or open benchmarks) and explain why the alternatives are weaker.
+
+1.  **Team A:** Fine-tuned a 7B model on internal legal contract
+    summaries. They need to know whether the summaries are factually
+    accurate and miss no key clauses.
+
+2.  **Team B:** Fine-tuned three candidate models (LoRA variants)
+    on the same customer-support dataset and needs to pick the best one
+    before deploying to production.
+
+3.  **Team C:** Fine-tuned a model on a broad instruction dataset
+    (Alpaca-style, 50K pairs) and wants to compare its general capability
+    against Llama 2 and Mistral on public leaderboards.
+
+&lt;!–MDXB-32-CLOSE–&gt;
+
+&lt;!–MDXB-37-OPEN–&gt;
+
+**Team A — Human evaluation.**
+Legal summaries require domain expertise to judge. A factual error (missing an
+indemnity clause, misstating a liability cap) cannot be caught by any automated
+benchmark. The evaluation must involve lawyers reviewing a sample of
+summaries against source contracts. Neither ELO nor open benchmarks test
+domain-specific factual accuracy.
+
+*Why not ELO:* ELO compares models against each other but does not verify
+factual correctness—both models could be wrong. *Why not benchmarks:*
+ARC, HellaSwag, MMLU, and TruthfulQA measure general knowledge, not legal
+contract accuracy.
+
+**Team B — ELO ranking.**
+Three models fine-tuned on the same data need a head-to-head comparison. ELO
+ranking is efficient here: show blind pairs of responses to human raters, who
+pick the better one. After enough comparisons, the ELO scores rank the models.
+This is faster than full human evaluation of each model independently and
+directly answers “which model is best?”
+
+*Why not human eval alone:* Absolute quality ratings are harder to
+calibrate across raters than pairwise preferences. *Why not benchmarks:*
+General benchmarks do not measure customer-support quality.
+
+**Team C — Open benchmarks (EleutherAI LM Evaluation Harness).**
+A broadly fine-tuned model should be compared on the same metrics as its
+competitors. The ARC/HellaSwag/MMLU/TruthfulQA suite directly measures general
+capability, and public leaderboard scores provide an apples-to-apples
+comparison with Llama 2 and Mistral. Since the fine-tuning data is broad
+instruction data (not domain-specific), general benchmarks are appropriate.
+
+*Why not human eval:* Too expensive for a leaderboard comparison across
+many models. *Why not ELO:* ELO is useful for pairwise model selection,
+not for positioning on a public leaderboard.
+
+**Key Insight:** The right evaluation strategy depends on what you need
+to know. Factual correctness in a domain → human evaluation. Best model
+among candidates → ELO ranking. General capability positioning → open
+benchmarks. Using the wrong strategy wastes effort and can mislead decisions.
+
+**Answer:** Team A: human eval (domain expertise required). Team B: ELO
+ranking (pairwise comparison is efficient for model selection). Team C: open
+benchmarks (broad fine-tuning should be measured on general metrics).
+
+&lt;!–MDXB-37-CLOSE–&gt;
+
+&lt;!–MDXB-24-OPEN–&gt;
+
+1.  List the six steps of the PyTorch training loop in order.
+
+2.  What is the difference between a training *step* and an *epoch*?
+
+3.  How much GPU memory (approximately) do the weights of a 1B-parameter model require in fp32?
+
+4.  Name three hyperparameters that control the training process and explain the effect of setting each one incorrectly.
+
+5.  Why is exact string matching a poor evaluation metric for generative models?
+
+6.  What four benchmarks compose the EleutherAI LM Evaluation Harness suite?
+
+7.  Explain why a fine-tuned model’s ARC score can drop while its task performance improves dramatically.
+
+8.  Name three common error categories in fine-tuned generative models and a data-level fix for each.
+
+9.  Write pseudocode for a minimal PyTorch training loop for fine-tuning an LLM.
+
+10. Estimate whether a 2B-parameter model can be fully fine-tuned on a V100 (16 GB). Show your calculation.
+
+11. Compare human evaluation and the EleutherAI benchmark suite: when is each appropriate?
+
+12. A model fine-tuned on medical Q&A data scores lower on MMLU than the base model. Is this a problem? Defend your answer.
+
+13. You observe that 60% of your model’s errors are verbosity. Propose a concrete data-level fix and explain why it works.
+
+14. evaluate fine-tuned generative models using the evaluation hierarchy
+    —human evaluation on curated test sets, ELO-style pairwise comparisons,
+    LLM-as-judge, embedding similarity, and exact match—and select the
+    appropriate method based on task type (extraction vs. expansion).
+
+&lt;!–MDXB-24-CLOSE–&gt;

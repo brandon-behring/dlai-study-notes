@@ -13,8 +13,8 @@ learning_outcomes:
       incrementally building and growing Knowledge Graphs
   - id: KGR-7.2
     verb: apply
-    text: geospatial queries using Neo4j's \texttt{point.distance()} function to
-      find entities within a specified radius
+    text: geospatial queries using Neo4j's `point.distance()` function to find
+      entities within a specified radius
   - id: KGR-7.3
     verb: design
     text: few-shot prompts that teach an LLM to generate valid Cypher queries from
@@ -46,13 +46,13 @@ tools_compared:
   - DS-JPMorgan
   - MLE-Amazon-L5
   - RSWE-Microsoft
-last_verified: 2026-05-19
+last_verified: 2026-05-21
 volatility: architectural-pattern
 ---
 
 {/* TODO: per-chapter polish pass — see plan decision Q1 round 3 */}
 
-<NarrativeBox title="Where We Are">
+&lt;!–MDXB-16-OPEN–&gt;
 
 The Knowledge Graph is complete—chunks, forms, companies, managers,
 and investment relationships are all connected. This final module
@@ -62,11 +62,11 @@ and have the system automatically generate and execute graph queries.
 The course concludes with the Extract-Enhance-Expand pattern—a
 repeatable framework for growing Knowledge Graphs incrementally.
 
-</NarrativeBox>
+&lt;!–MDXB-16-CLOSE–&gt;
 
 # The Extract-Enhance-Expand Pattern
 
-<KeyConcept title="Extract-Enhance-Expand" los="KGR-7.1">
+&lt;!–MDXB-23-OPEN–&gt;
 
 Throughout the course, the Knowledge Graph was built by repeating a
 three-phase pattern:
@@ -91,7 +91,7 @@ to existing nodes via shared identifiers. When identifiers are absent or
 ambiguous (e.g., name-only matching across datasets), the Expand phase
 requires an entity resolution step that the pattern does not cover.
 
-</KeyConcept>
+&lt;!–MDXB-23-CLOSE–&gt;
 
 
 
@@ -141,15 +141,15 @@ point** (latitude and longitude) enabling distance-based queries.
 
 
 <Term name="Address Node" los="KGR-7.8">
-  A graph node representing a physical location with city, state, and a geospatial `location` property (latitude/longitude point). Connected to Company and Manager nodes via LOCATED\_AT relationships. Enables distance-based queries using `point.distance()`.
+  A graph node representing a physical location with city, state, and a geospatial `location` property (latitude/longitude point). Connected to Company and Manager nodes via LOCATED_AT relationships. Enables distance-based queries using `point.distance()`.
 </Term>
-<AnkiCard type="term" front={"Address Node"} back={"A graph node representing a physical location with city, state, and a geospatial `location` property (latitude/longitude point). Connected to Company and Manager nodes via LOCATED\\_AT relationships. Enables distance-based queries using `point.distance()`."} los="KGR-7.8" />
+<AnkiCard type="term" front={"Address Node"} back={"A graph node representing a physical location with city, state, and a geospatial `location` property (latitude/longitude point). Connected to Company and Manager nodes via LOCATED_AT relationships. Enables distance-based queries using `point.distance()`."} los="KGR-7.8" />
 
 
 
 
 
-<Sidenote category="pattern">Address nodes follow the Extract-Enhance-Expand pattern: extract from CSV, enhance with geospatial points, expand with LOCATED\_AT.</Sidenote>
+<Sidenote category="pattern">Address nodes follow the Extract-Enhance-Expand pattern: extract from CSV, enhance with geospatial points, expand with LOCATED_AT.</Sidenote>
 
 
 
@@ -170,10 +170,10 @@ point** (latitude and longitude) enabling distance-based queries.
 
 
 
-<Term name="LOCATED\_AT Relationship" los="KGR-7.8">
+<Term name="LOCATED_AT Relationship" los="KGR-7.8">
   A directed relationship from a Company or Manager node to an Address node. Enables geographic queries by connecting entities to their physical locations.
 </Term>
-<AnkiCard type="term" front={"LOCATED\\_AT Relationship"} back={"A directed relationship from a Company or Manager node to an Address node. Enables geographic queries by connecting entities to their physical locations."} los="KGR-7.8" />
+<AnkiCard type="term" front={"LOCATED_AT Relationship"} back={"A directed relationship from a Company or Manager node to an Address node. Enables geographic queries by connecting entities to their physical locations."} los="KGR-7.8" />
 
 
 
@@ -241,7 +241,7 @@ result = kg.query("""
 
 
 
-<ConceptBox>
+&lt;!–MDXB-17-OPEN–&gt;
 
 **Geographic Insight.**
 Investment firms cluster in **New York** (Wall Street) and
@@ -250,7 +250,7 @@ Clara**, **San Jose**, **Sunnyvale**, and **Cupertino**
 (Silicon Valley). Within California, the cities are entirely
 different—a pattern that only graph aggregation can reveal.
 
-</ConceptBox>
+&lt;!–MDXB-17-CLOSE–&gt;
 
 # Geospatial Queries
 
@@ -331,7 +331,7 @@ result = kg.query("""
 
 
 
-<KeyConcept title="Geospatial Search as a Retrieval Paradigm" los="KGR-7.2">
+&lt;!–MDXB-24-OPEN–&gt;
 
 Geospatial queries use `point.distance()` to find entities
 within a radius, adding a fourth retrieval paradigm alongside vector,
@@ -346,9 +346,9 @@ jurisdictions.
 **When It Breaks:** Without a point index, distance queries
 degrade to *O*(*n*) full scans. Always create indexes before queries.
 
-</KeyConcept>
+&lt;!–MDXB-24-CLOSE–&gt;
 
-<NarrativeBox title="Debugging Geospatial Queries">
+&lt;!–MDXB-18-OPEN–&gt;
 
 1.  **No results?** Check that Address nodes have
     `location` properties with valid point values.
@@ -360,18 +360,18 @@ degrade to *O*(*n*) full scans. Always create indexes before queries.
     in the point data. Neo4j uses
     `point({latitude: x, longitude: y})`.
 
-</NarrativeBox>
+&lt;!–MDXB-18-CLOSE–&gt;
 
 # LLM-Generated Cypher with Few-Shot Learning
 
-<ConceptBox>
+&lt;!–MDXB-19-OPEN–&gt;
 
 **The Vision.**
 Instead of writing Cypher queries manually, teach the LLM to generate
 valid Cypher from natural language questions. The LLM becomes a
 “Cypher compiler” that translates user intent into graph queries.
 
-</ConceptBox>
+&lt;!–MDXB-19-CLOSE–&gt;
 
 ## Few-Shot Prompt Design
 
@@ -417,9 +417,9 @@ Question: {question}
 
 
 <Term name="Few-Shot Prompt" los="KGR-7.3">
-  A prompt containing 2–5 example question-answer pairs that teach the LLM a patternMDXISTART1MDXIEND. For Cypher generation, each example shows a natural language question paired with its correct Cypher query. The LLM generalises from these examples to handle new, unseen questions.
+  A prompt containing 2–5 example question-answer pairs that teach the LLM a pattern<Citation src="brown2020language" />. For Cypher generation, each example shows a natural language question paired with its correct Cypher query. The LLM generalises from these examples to handle new, unseen questions.
 </Term>
-<AnkiCard type="term" front={"Few-Shot Prompt"} back={"A prompt containing 2–5 example question-answer pairs that teach the LLM a patternMDXISTART1MDXIEND. For Cypher generation, each example shows a natural language question paired with its correct Cypher query. The LLM generalises from these examples to handle new, unseen questions."} los="KGR-7.3" />
+<AnkiCard type="term" front={"Few-Shot Prompt"} back={"A prompt containing 2–5 example question-answer pairs that teach the LLM a pattern[brown2020language]. For Cypher generation, each example shows a natural language question paired with its correct Cypher query. The LLM generalises from these examples to handle new, unseen questions."} los="KGR-7.3" />
 
 
 
@@ -455,7 +455,7 @@ result = cypher_chain.invoke(
 
 
 
-<PipelineBox title="Pipeline: Natural Language to Graph Answer">
+&lt;!–MDXB-20-OPEN–&gt;
 
 1.  **Question** *(user input)*  
     User asks a natural language question.
@@ -471,7 +471,7 @@ result = cypher_chain.invoke(
     The LLM synthesises a natural language answer from the
     query results.
 
-</PipelineBox>
+&lt;!–MDXB-20-CLOSE–&gt;
 
 ## Progressive Few-Shot Examples
 
@@ -537,16 +537,16 @@ generated_cypher = """
 
 
 
-<RedFlag title="Schema Hallucination">
+&lt;!–MDXB-33-OPEN–&gt;
 
 Without explicit schema injection and the instruction “do not hallucinate
 relationship types,” the LLM may invent non-existent relationship types
 or properties. Always inject the actual graph schema into the prompt and
 validate generated Cypher before execution in production systems.
 
-</RedFlag>
+&lt;!–MDXB-33-CLOSE–&gt;
 
-<NarrativeBox title="Debugging LLM-Generated Cypher">
+&lt;!–MDXB-21-OPEN–&gt;
 
 1.  **Invalid relationship type?** The LLM hallucinated a
     relationship not in the schema. Add more examples using the
@@ -560,7 +560,7 @@ validate generated Cypher before execution in production systems.
     data. The issue may be in the LLM’s summarisation, not the
     query.
 
-</NarrativeBox>
+&lt;!–MDXB-21-CLOSE–&gt;
 
 # The Four Retrieval Paradigms
 
@@ -570,7 +570,7 @@ validate generated Cypher before execution in production systems.
 
 
 
-<KeyConcept title="Four Retrieval Paradigms" los="KGR-7.7">
+&lt;!–MDXB-25-OPEN–&gt;
 
 The final Knowledge Graph supports four complementary retrieval
 approaches, each suited to different question types:
@@ -596,7 +596,7 @@ latency and complexity. If 90% of questions are simple semantic lookups,
 the overhead of maintaining full-text, geospatial, and graph indexes is
 unjustified. Match infrastructure complexity to actual query diversity.
 
-</KeyConcept>
+&lt;!–MDXB-25-CLOSE–&gt;
 
 
 
@@ -610,7 +610,7 @@ unjustified. Match infrastructure complexity to actual query diversity.
 
 
 
-<InterviewContext title="KG-RAG Chatbot and LLM-Generated Cypher" los="KGR-7.3, KGR-7.4, KGR-7.6, KGR-7.7">
+&lt;!–MDXB-26-OPEN–&gt;
 
 Natural language interfaces over Knowledge Graphs are increasingly asked about
 in senior system design rounds at companies building conversational search
@@ -631,7 +631,7 @@ and combine multiple retrieval paradigms for complex questions.
   selection for maximal query coverage; decompose complex questions
   into multi-paradigm retrieval plans (vector + traversal + geospatial).
 
-</InterviewContext>
+&lt;!–MDXB-26-CLOSE–&gt;
 
 | **Paradigm** | **Index/Method** | **Example Question** |
 |:---|:---|:---|
@@ -681,7 +681,7 @@ a retrieval toolkit far richer than similarity search alone.
 
 # Practice Problems
 
-<Problem title="Few-Shot Prompt Design for Cypher Generation" los="KGR-7.3">
+&lt;!–MDXB-27-OPEN–&gt;
 
 You are building a GraphCypherQAChain for a university course graph with:
 
@@ -699,9 +699,9 @@ Design a few-shot prompt with 3 examples that enables the LLM to answer:
 
 3.  “Which departments have the most courses?” (aggregation)
 
-</Problem>
+&lt;!–MDXB-27-CLOSE–&gt;
 
-<Solution>
+&lt;!–MDXB-30-OPEN–&gt;
 
 **Approach:** **Few-Shot Prompt:**
 
@@ -753,9 +753,9 @@ not quantity.
 **Answer:** 3 examples covering single-hop, multi-hop, and aggregation.
 Each example teaches a different Cypher pattern the LLM can generalise from.
 
-</Solution>
+&lt;!–MDXB-30-CLOSE–&gt;
 
-<Problem title="Geospatial Query Design" los="KGR-7.2">
+&lt;!–MDXB-28-OPEN–&gt;
 
 A real estate Knowledge Graph has Property nodes with geospatial locations
 and School nodes with geospatial locations.
@@ -768,9 +768,9 @@ and School nodes with geospatial locations.
 3.  What index should exist on School nodes to make this query
     performant?
 
-</Problem>
+&lt;!–MDXB-28-CLOSE–&gt;
 
-<Solution>
+&lt;!–MDXB-31-OPEN–&gt;
 
 **Approach:** **Step 1: Geospatial Proximity Query**
 
@@ -824,9 +824,9 @@ code.
 **Answer:** Use point.distance() with 2000 metres threshold. Sort by
 ASC for closest first. Create a point index for performance.
 
-</Solution>
+&lt;!–MDXB-31-CLOSE–&gt;
 
-<Problem title="Retrieval Paradigm Selection" los="KGR-7.7">
+&lt;!–MDXB-29-OPEN–&gt;
 
 For each of the following questions, identify which retrieval paradigm(s)
 from the four available (vector, full-text, graph traversal, geospatial)
@@ -840,9 +840,9 @@ should be used, and explain why.
 
 4.  “Show me the supply chain relationships for Apple’s components”
 
-</Problem>
+&lt;!–MDXB-29-CLOSE–&gt;
 
-<Solution>
+&lt;!–MDXB-32-OPEN–&gt;
 
 **Approach:** **1. “Risk factors for cloud computing companies”**  
 **Paradigm: Vector search + Graph traversal.**  
@@ -879,9 +879,9 @@ This is the core of KG-powered RAG system design.
 geospatial + traversal, (4) Full-text + traversal. Most real questions
 combine 2+ paradigms.
 
-</Solution>
+&lt;!–MDXB-32-CLOSE–&gt;
 
-<NarrativeBox title="Self-Check: M7 — Chatting with the Knowledge Graph">
+&lt;!–MDXB-22-OPEN–&gt;
 
 **Answer from memory before checking the chapter.**
 
@@ -911,7 +911,7 @@ combine 2+ paradigms.
 8.  What properties does an Address node have? How is geospatial
     data stored in Neo4j? *(KGR-7.8)*
 
-</NarrativeBox>
+&lt;!–MDXB-22-CLOSE–&gt;
 
 {/* CARD-PLACEMENT-AUTOSTART */}
 
@@ -963,4 +963,3 @@ combine 2+ paradigms.
 <AnkiCard type="interview" id="chapters-vol0-ch07-INT-KGRAG_CHATBOT_AND_LLMGENERATED_CYPHER" los="KGR-7.3, KGR-7.4, KGR-7.6, KGR-7.7" front={"Interview Q: few-shot\n prompting for Cypher generation; name the four retrieval paradigms"} back={"Natural language interfaces over Knowledge Graphs are increasingly asked about\nin senior system design rounds at companies building conversational search\n(Google, Neo4j, JPMorgan, Microsoft).\n\nWhat they're really testing: Whether you can design a system that\ntranslates natural language into graph queries, validate LLM-generated Cypher,\nand combine multiple retrieval paradigms for complex questions."} />
 
 {/* CARD-PLACEMENT-AUTOEND */}
-

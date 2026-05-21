@@ -53,7 +53,7 @@ volatility: architectural-pattern
 
 {/* TODO: per-chapter polish pass — see plan decision Q1 round 3 */}
 
-<NarrativeBox title="Where We Are">
+&lt;!–MDXB-6-OPEN–&gt;
 
 Module 1 built the baseline pipeline and introduced the RAG triad at a
 high level. Now we go deep: what exactly are feedback functions, how do
@@ -61,7 +61,7 @@ they work under the hood, and how do you use them to *diagnose*
 problems—not just detect them? This chapter gives you the evaluation
 toolkit that drives every improvement in Modules 3 and 4.
 
-</NarrativeBox>
+&lt;!–MDXB-6-CLOSE–&gt;
 
 # Feedback Functions: The Core Abstraction
 
@@ -134,7 +134,7 @@ The specific evaluation logic, including:
 
 # Answer Relevance
 
-<KeyConcept title="Answer Relevance" los="BEA-2.2">
+&lt;!–MDXB-15-OPEN–&gt;
 
 Answer relevance checks whether the **final response** is relevant
 to the **user’s query**. It uses only two inputs—the query and
@@ -155,7 +155,7 @@ the response—making it the simplest of the three RAG triad metrics.
 correctness—only topicality. The response can be on-topic but entirely
 fabricated. Groundedness is needed to verify factual support.
 
-</KeyConcept>
+&lt;!–MDXB-15-CLOSE–&gt;
 
 
 
@@ -185,7 +185,7 @@ f_qa_relevance = Feedback(
 
 # Context Relevance
 
-<KeyConcept title="Context Relevance" los="BEA-2.2">
+&lt;!–MDXB-16-OPEN–&gt;
 
 Context relevance evaluates the **retrieval step**: given a query,
 how relevant is each piece of retrieved context? Unlike answer relevance,
@@ -206,7 +206,7 @@ chunks that the user never sees directly.
 perfect chunks and five irrelevant ones still average to 0.5. Inspect
 per-chunk scores, not just the aggregate, to detect retrieval failures.
 
-</KeyConcept>
+&lt;!–MDXB-16-CLOSE–&gt;
 
 
 
@@ -236,7 +236,7 @@ f_context_relevance = Feedback(
 
 
 
-<ConceptBox>
+&lt;!–MDXB-7-OPEN–&gt;
 
 **Key Difference from Answer Relevance.**
 Context relevance uses **intermediate results** (the retrieved
@@ -244,7 +244,7 @@ chunks), not just the final output. This demonstrates the full power
 of feedback functions—they can access inputs, outputs, *and*
 intermediate results at any point in the execution pipeline.
 
-</ConceptBox>
+&lt;!–MDXB-7-CLOSE–&gt;
 
 
 
@@ -254,7 +254,7 @@ intermediate results at any point in the execution pipeline.
 
 # Groundedness
 
-<KeyConcept title="Groundedness" los="BEA-2.2">
+&lt;!–MDXB-17-OPEN–&gt;
 
 Groundedness checks whether each **statement in the final response**
 is supported by the **retrieved context**. It is the metric that
@@ -265,7 +265,7 @@ the LLM’s pre-training knowledge happens to overlap with irrelevant
 retrieved context. Cross-check against context relevance—high
 groundedness with low context relevance is a red flag for a weak evaluator.
 
-</KeyConcept>
+&lt;!–MDXB-17-CLOSE–&gt;
 
 
 
@@ -290,7 +290,7 @@ The groundedness evaluation follows a four-step process:
 
 ## Example of a Failure Mode
 
-<NarrativeBox title="Diagnosing Ungrounded Statements">
+&lt;!–MDXB-8-OPEN–&gt;
 
 **Query**: “How can altruism be beneficial in building a career?”
 
@@ -305,7 +305,7 @@ rather than the supplied context.
 *ungrounded* answer. The LLM is making up reasonable-sounding
 claims that happen not to be supported by the evidence.
 
-</NarrativeBox>
+&lt;!–MDXB-8-CLOSE–&gt;
 
 
 
@@ -323,14 +323,14 @@ f_groundedness = Feedback(
 
 # Why Context Relevance Drives Everything
 
-<ConceptBox>
+&lt;!–MDXB-9-OPEN–&gt;
 
 **The Cascade Effect.**
 Context relevance is typically the first metric to optimise. When it
 improves, groundedness often follows. But the relationship is not
 monotonic—there is an optimal range.
 
-</ConceptBox>
+&lt;!–MDXB-9-CLOSE–&gt;
 
 | **Context Relevance** | **Effect on Groundedness** | **Explanation** |
 |:---|:---|:---|
@@ -373,7 +373,7 @@ the LLM better raw material to work with.
 
 
 
-<ConceptBox>
+&lt;!–MDXB-10-OPEN–&gt;
 
 **A Notable Research Finding.**
 LLM evaluation agreement with human evaluation is approximately
@@ -382,7 +382,7 @@ LLM evaluation agreement with human evaluation is approximately
 as adding another human annotator—at a fraction of the cost and
 with infinite scalability.
 
-</ConceptBox>
+&lt;!–MDXB-10-CLOSE–&gt;
 
 
 
@@ -414,7 +414,7 @@ with infinite scalability.
 
 
 
-<NarrativeBox title="Evaluation Provider Too Weak">
+&lt;!–MDXB-11-OPEN–&gt;
 
 If feedback function scores seem inconsistent or the CoT reasoning
 contains obvious errors, the evaluation provider may be too weak
@@ -431,7 +431,7 @@ for your domain. **Symptoms:**
 GPT-4) or use a domain-specific evaluation model. Verify by manually
 scoring 10 records and comparing with the automated scores.
 
-</NarrativeBox>
+&lt;!–MDXB-11-CLOSE–&gt;
 
 
 
@@ -441,7 +441,7 @@ scoring 10 records and comparing with the automated scores.
 
 # Chain-of-Thought Reasoning in Evaluations
 
-<ConceptBox>
+&lt;!–MDXB-12-OPEN–&gt;
 
 **Why CoT Matters for Evaluation.**
 Chain-of-thought reasoning in feedback functions does not just improve
@@ -450,7 +450,7 @@ score. When a context relevance score is 0.3, the CoT explains
 *why*: “The retrieved passage discusses project management but
 the query asks about career-building through altruism.”
 
-</ConceptBox>
+&lt;!–MDXB-12-CLOSE–&gt;
 
 
 
@@ -520,7 +520,7 @@ The dashboard provides four views:
 
 # The Iterative Evaluation Workflow
 
-<PipelineBox title="Workflow: Evaluate and Iterate">
+&lt;!–MDXB-13-OPEN–&gt;
 
 1.  **Start with basic RAG** — Evaluate with the RAG triad.
     Establish baseline metrics.
@@ -540,9 +540,9 @@ The dashboard provides four views:
 6.  **Repeat** — Evaluation is never “done.” Each
     improvement may reveal new failure modes at the record level.
 
-</PipelineBox>
+&lt;!–MDXB-13-CLOSE–&gt;
 
-<DecisionTree title="Decision: Which Metric to Fix First?">
+&lt;!–MDXB-30-OPEN–&gt;
 
 - **Yes**  
 
@@ -556,7 +556,7 @@ The dashboard provides four views:
 
 - **No—all three metrics are high**  
 
-</DecisionTree>
+&lt;!–MDXB-30-CLOSE–&gt;
 
 
 
@@ -579,7 +579,7 @@ agreement with human evaluators, making them a practical and scalable
 alternative. The evaluation workflow is iterative: evaluate, identify
 failure modes at the record level, improve retrieval, re-evaluate.
 
-<KeyConcept title="Feedback Functions: The Universal Evaluation Pattern" los="BEA-2.1">
+&lt;!–MDXB-18-OPEN–&gt;
 
 **Core Insight:** Every TruLens feedback function follows the same pattern:
 provider (the LLM doing evaluation), function definition (what to score), input
@@ -597,9 +597,9 @@ GPT-3.5 may over-score groundedness (false positives). Chain-of-thought variants
 improve accuracy but increase latency and cost by 2–3×. Always calibrate
 against human judgments on a small sample.
 
-</KeyConcept>
+&lt;!–MDXB-18-CLOSE–&gt;
 
-<InterviewContext title="Designing LLM-as-Judge Evaluation Pipelines" los="BEA-2.1">
+&lt;!–MDXB-19-OPEN–&gt;
 
 **Why interviewers ask this:** Google DeepMind, Anthropic, and
 Amazon Alexa teams ask candidates to design evaluation systems for
@@ -629,18 +629,18 @@ a single black-box call?
 without discussing calibration against human judgments or acknowledging
 that weak evaluators produce false positives on groundedness.
 
-</InterviewContext>
+&lt;!–MDXB-19-CLOSE–&gt;
 
-<Problem title="Custom Feedback Function Design" los="BEA-2.1">
+&lt;!–MDXB-20-OPEN–&gt;
 
 Design a TruLens feedback function that scores whether an LLM response
 respects a budget constraint (e.g., recommendations must cost &lt;$10,000).
 Specify the provider, function definition, input selectors, and explain
 what aggregation strategy you would use.
 
-</Problem>
+&lt;!–MDXB-20-CLOSE–&gt;
 
-<Solution>
+&lt;!–MDXB-24-OPEN–&gt;
 
 **Approach:**
 **Provider:** — requires reasoning
@@ -665,18 +665,18 @@ for any evaluation property. The choice of aggregation function (mean vs. min
 vs. max) depends on whether violations are tolerable on average or must never
 occur.
 
-</Solution>
+&lt;!–MDXB-24-CLOSE–&gt;
 
-<Problem title="Cascade Effect Prediction" los="BEA-2.4">
+&lt;!–MDXB-21-OPEN–&gt;
 
 Your baseline RAG system scores Context Relevance  = 0.48,
 Groundedness  = 0.61. After implementing sentence-window retrieval,
 Context Relevance rises to 0.89. Predict the new Groundedness score
 range and explain why.
 
-</Problem>
+&lt;!–MDXB-21-CLOSE–&gt;
 
-<Solution>
+&lt;!–MDXB-25-OPEN–&gt;
 
 **Approach:**
 **Predicted Groundedness:** 0.85–0.95.
@@ -695,18 +695,18 @@ of poor retrieval, not a synthesis problem. Fix retrieval first, always.
 (same LLM, same prompt). This confirms that low groundedness was a *symptom*
 of poor retrieval, not a synthesis problem.
 
-</Solution>
+&lt;!–MDXB-25-CLOSE–&gt;
 
-<Problem title="Evaluation Provider Selection" los="BEA-2.5">
+&lt;!–MDXB-22-OPEN–&gt;
 
 Compare LLM-based evaluation (GPT-4) vs. human evaluation for a RAG
 system serving medical information. LLM evaluators achieve 80–85%
 agreement with humans. Should you use LLM evaluation, human evaluation,
 or both? Justify your answer.
 
-</Problem>
+&lt;!–MDXB-22-CLOSE–&gt;
 
-<Solution>
+&lt;!–MDXB-26-OPEN–&gt;
 
 **Approach:**
 **Answer:** Both, in a calibrated pipeline.
@@ -728,9 +728,9 @@ medical RAG has high stakes—incorrect information can cause harm.
 **Key Insight:** LLM evaluation scales; human evaluation validates. Neither
 alone is sufficient for high-stakes domains.
 
-</Solution>
+&lt;!–MDXB-26-CLOSE–&gt;
 
-<Vignette title="RAG Evaluation Pipeline for Production">
+&lt;!–MDXB-29-OPEN–&gt;
 
 \[BEA-2.1, BEA-2.4\]
 A fintech startup deploys a RAG system over SEC filings for investor queries.
@@ -752,9 +752,9 @@ be accurate.” Evaluate this approach from a product and engineering perspectiv
 **Question 3:** Propose a two-phase improvement plan. What metrics would you
 track to know each phase succeeded?
 
-</Vignette>
+&lt;!–MDXB-29-CLOSE–&gt;
 
-<Solution>
+&lt;!–MDXB-27-OPEN–&gt;
 
 **Approach:**
 **Q1:** Context relevance (0.43, 58% below threshold) is the root cause.
@@ -782,7 +782,7 @@ than no answer. From engineering, the retrieval system is fundamentally broken
 
 **Answer:** Context relevance (0.43) is the root cause. Fix retrieval: add financial-domain embeddings, hybrid search, and SEC-specific chunking. The disclaimer signals retrieval failure and should be replaced by a citation mechanism.
 
-</Solution>
+&lt;!–MDXB-27-CLOSE–&gt;
 
 
 
@@ -790,16 +790,16 @@ than no answer. From engineering, the retrieval system is fundamentally broken
 
 
 
-<Problem title="Anomalous Metric Pattern Diagnosis" los="BEA-2.3">
+&lt;!–MDXB-23-OPEN–&gt;
 
 A RAG system produces the following scores on a single record: Answer
 Relevance  = 0.92, Context Relevance  = 0.35, Groundedness  = 0.88. This
 pattern is anomalous—explain why high groundedness with low context relevance
 is suspicious. What is the most likely explanation?
 
-</Problem>
+&lt;!–MDXB-23-CLOSE–&gt;
 
-<Solution>
+&lt;!–MDXB-28-OPEN–&gt;
 
 **Approach:**
 **Why it is anomalous:** The expected cascade is: low context relevance
@@ -825,9 +825,9 @@ Always calibrate automated scores against manual review on 10–20 records.
 
 **Answer:** Metric scores are only as trustworthy as their evaluator. Always calibrate automated scores against manual review on 10–20 records.
 
-</Solution>
+&lt;!–MDXB-28-CLOSE–&gt;
 
-<NarrativeBox title="Self-Check: M2 — RAG Triad of Metrics">
+&lt;!–MDXB-14-OPEN–&gt;
 
 **Answer from memory before checking the chapter.**
 
@@ -857,7 +857,7 @@ Always calibrate automated scores against manual review on 10–20 records.
 8.  Why are chain-of-thought variants preferred over plain
     scoring for feedback functions? *(BEA-2.8)*
 
-</NarrativeBox>
+&lt;!–MDXB-14-CLOSE–&gt;
 
 {/* CARD-PLACEMENT-AUTOSTART */}
 

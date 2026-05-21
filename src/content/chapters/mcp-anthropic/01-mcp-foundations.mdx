@@ -1,0 +1,466 @@
+---
+book: mcp-anthropic
+title: MCP Foundations
+chapter: 1
+description: The Model Context Protocol is an open-source standard that replaces
+  the $N  M$ integration problem with a universal server–client
+  architecture—build once, connect everywhere.
+learning_outcomes:
+  - id: MCP-1.1
+    verb: define
+    text: the Model Context Protocol and articulate the $N  M$ integration problem
+      it solves
+  - id: MCP-1.2
+    verb: explain
+    text: "the three-layer MCP architecture: host, client, and server"
+  - id: MCP-1.3
+    verb: analyze
+    text: the three MCP primitives—tools, resources, and prompts—and when to use each
+  - id: MCP-1.4
+    verb: compare
+    text: "MCP transports: stdio for local servers, SSE and Streamable HTTP for
+      remote"
+  - id: MCP-1.5
+    verb: evaluate
+    text: when MCP is appropriate versus direct function calling
+  - id: MCP-1.6
+    verb: explain
+    text: the MCP initialization and message exchange lifecycle
+sources: []
+tools_compared:
+  - AI Engineer --- All companies --- L4/L5
+last_verified: 2026-05-21
+volatility: architectural-pattern
+---
+
+{/* TODO: per-chapter polish pass — see plan decision Q1 round 3 */}
+
+# Why MCP?
+
+
+
+<Sidenote category="interview">MCP appears in AI Eng job postings (2025+). Know the exact problem statement: N x M integrations -> N + M.</Sidenote>
+
+
+
+
+
+<Term name="Model Context Protocol (MCP)" los="MCP-1.1">
+  An open-source standard<Citation src="mcp2024spec" /> that replaces $N  M$ custom integrations with a universal client–server architecture. Each application implements one MCP client, each tool implements one MCP server; they interoperate universally.
+</Term>
+<AnkiCard type="term" front={"Model Context Protocol (MCP)"} back={"An open-source standard[mcp2024spec] that replaces $N  M$ custom integrations with a universal client–server architecture. Each application implements one MCP client, each tool implements one MCP server; they interoperate universally."} los="MCP-1.1" />
+
+
+
+The course<Citation src="dlai_mcp_course_2025" /> opens with a core principle: *models are only as good as the context provided to them*.
+A frontier model without the ability to connect to external data sources and tools is limited
+to what it already knows. MCP standardizes how LLM applications connect to the outside world<Citation src="anthropic2024mcp" />.
+
+**The problem MCP solves:** Before MCP, every LLM application that needed tool access
+built its own integration. *N* applications talking to *M* data sources required *N* × *M*
+custom integrations—each with its own schema, authentication, and error handling.
+MCP reduces this to *N* + *M*: each application implements one MCP client, each tool implements
+one MCP server, and they interoperate universally.
+
+&lt;!–MDXB-9-OPEN–&gt;
+
+**Core Insight:** MCP is the USB-C of AI tool integration. Just as REST standardized
+how web applications communicate with back ends, MCP standardizes how AI applications
+connect to data sources. Everything you can do with MCP, you can do without—but without
+standardization, teams rebuild the same integrations differently for every application.
+
+**Why It Matters:** Build a GitHub MCP server once, and it works with Claude Desktop,
+Cursor, Windsurf, your custom agent, or any MCP-compatible client—zero code changes.
+
+**When It Breaks:** For one tool and one application, inline function calling is simpler.
+MCP’s value scales with the combinatorial product of tools and clients.
+
+&lt;!–MDXB-9-CLOSE–&gt;
+
+
+
+<Sidenote category="pattern">Rule of thumb: 1 tool, 1 app $$ function calling. 3+ tools OR 2+ apps $$ MCP pays for itself.</Sidenote>
+
+
+
+The course demonstrates this with a live demo: Claude Desktop connected to a GitHub MCP server
+and an Asana MCP server simultaneously. With just a few lines of configuration, the user
+reads issues from GitHub using natural language and triages them into Asana tasks—reading
+from one data source and writing to another, with human-in-the-loop verification.
+
+
+
+<Sidenote category="formula">MCP is model-agnostic, open-source, and works across any LLM provider. Not Anthropic-specific.</Sidenote>
+
+
+
+**MCP ecosystem participants:**
+
+- **Application developers:** Connect to any MCP server with minimal code
+
+- **API/tool developers:** Build the MCP server once, adopted everywhere
+
+- **End users:** Bring a server URL and gain data access—no coding required
+
+- **Enterprises:** Separate concerns with standalone, reusable integrations
+
+The analogy to LSP (Language Server Protocol, Microsoft 2016) is instructive<Citation src="microsoft2024lsp" />: LSP standardized
+how IDEs interact with language-specific tools, eliminating the need to write extensions
+per-IDE per-language. MCP applies the same idea to AI tool integration.
+
+# MCP Architecture
+
+
+
+<Sidenote category="interview">Draw the three-layer diagram from memory: Host $$ Client(s) $$ Server(s). Each client has a 1:1 connection to one server.</Sidenote>
+
+
+
+
+
+<Term name="MCP Host" los="MCP-1.2">
+  The LLM application (e.g., Claude Desktop, Cursor) that contains and manages one or more MCP clients. Responsible for security, user consent, and the LLM integration.
+</Term>
+<AnkiCard type="term" front={"MCP Host"} back={"The LLM application (e.g., Claude Desktop, Cursor) that contains and manages one or more MCP clients. Responsible for security, user consent, and the LLM integration."} los="MCP-1.2" />
+
+
+
+MCP follows a client–server architecture with three distinct roles:
+
+1.  **MCP Host:** The LLM application that wants to access external data
+    (e.g., Claude Desktop, Cursor, a custom agent). The host contains and manages
+    one or more MCP clients.
+
+2.  **MCP Client:** The protocol handler inside the host. Each client maintains
+    a *1:1 connection* with exactly one MCP server. The client discovers capabilities,
+    routes tool calls, and returns results.
+
+3.  **MCP Server:** A lightweight program that exposes tools, resources, and/or prompts
+    via the MCP protocol. Servers are separate processes—by design, for isolation
+    and language independence.
+
+
+
+<Sidenote category="warning">MCP clients and servers maintain 1:1 connections. A host with 3 servers runs 3 client instances, not one client with 3 connections.</Sidenote>
+
+
+
+&lt;!–MDXB-10-OPEN–&gt;
+
+**Core Insight:** The host manages security, user consent, and the LLM. The client
+manages protocol communication. The server manages tool logic. This separation of concerns
+means a server author never touches LLM code, and an application author never touches
+tool implementation.
+
+**Why It Matters:** Any MCP-compatible host (Claude Desktop, Cursor, Windsurf)
+can connect to any MCP server without coordination between the server author and the host author.
+
+**When It Breaks:** The host controls the human-in-the-loop experience. Different hosts
+implement different permission models, so the same server may behave differently across hosts.
+
+&lt;!–MDXB-10-CLOSE–&gt;
+
+# The Three MCP Primitives
+
+
+
+<Sidenote category="pattern">Three primitives: Tools (actions, like POST), Resources (data, like GET), Prompts (templates, user-controlled). Tools are most common.</Sidenote>
+
+
+
+
+
+<Term name="MCP Primitive" los="MCP-1.3">
+  One of three capability types an MCP server exposes: tools (actions with possible side effects), resources (read-only data), and prompts (reusable workflow templates). Tools are model-controlled, resources are app-controlled, prompts are user-controlled.
+</Term>
+<AnkiCard type="term" front={"MCP Primitive"} back={"One of three capability types an MCP server exposes: tools (actions with possible side effects), resources (read-only data), and prompts (reusable workflow templates). Tools are model-controlled, resources are app-controlled, prompts are user-controlled."} los="MCP-1.3" />
+
+
+
+MCP servers expose three types of capabilities:
+
+## Tools
+
+Functions the LLM can invoke. Tools allow retrieving data, searching, sending messages,
+updating records—any action that may have side effects. The LLM decides *when*
+to call a tool based on the user’s request.
+
+
+
+```cypher
+@mcp.tool()
+def search_papers(topic: str, max_results: int = 5) -> str:
+    """Search arxiv for papers on a given topic."""
+    results = arxiv.Search(query=topic, max_results=max_results)
+    return format_results(results)
+```
+
+
+
+## Resources
+
+Read-only data or context exposed by the server. Resources are analogous to GET requests—the
+application can choose to consume them, but they don’t perform actions. Examples include
+database records, API responses, files, and PDFs. Resources can be static or dynamic, and
+can use templated URIs for parameterized access (e.g., `docs://{doc_id}`).
+
+## Prompts
+
+Pre-defined prompt templates that live on the server. Prompts remove the burden of prompt
+engineering from the user: instead of crafting the perfect prompt, the user selects a template,
+provides dynamic data, and the server returns a thoroughly evaluated prompt.
+
+A common interview question: “What’s the difference between MCP tools, resources, and prompts?”
+
+**Strong answer:** Tools perform actions with possible side effects (search, create, modify).
+Resources provide read-only data for context injection. Prompts are reusable templates
+that standardize LLM interactions. The key distinction: tools can change state, resources
+cannot, and prompts are user-controlled workflow templates.
+
+**Meta-signal:** Shows you understand MCP’s security model—resources are always safe;
+tools require permission checks.
+
+
+
+<Sidenote category="formula">SDK pattern: `@mcp.tool()`, `@mcp.resource("uri://...")`, `@mcp.prompt()`. Decorators auto-generate schemas from type hints and docstrings.</Sidenote>
+
+
+
+# Transport Layer
+
+
+
+<Sidenote category="crossref">Production transport selection covered in Ch 5 (remote deployment).</Sidenote>
+
+
+
+
+
+<Term name="MCP Transport" los="MCP-1.4">
+  The layer handling message flow between client and server. Three options: stdio (local subprocess), SSE (stateful HTTP), and Streamable HTTP (stateful or stateless). Transport choice is independent of tool logic.
+</Term>
+<AnkiCard type="term" front={"MCP Transport"} back={"The layer handling message flow between client and server. Three options: stdio (local subprocess), SSE (stateful HTTP), and Streamable HTTP (stateful or stateless). Transport choice is independent of tool logic."} los="MCP-1.4" />
+
+
+
+The transport handles how messages flow between client and server<Citation src="jsonrpc2010spec" />:
+
+- **stdio (Standard I/O):** Client launches server as a subprocess.
+  Communication via stdin/stdout. Best for local servers and development.
+
+- **HTTP + SSE (Server-Sent Events):** Stateful HTTP connection<Citation src="sse2024spec" />.
+  Server can push events to the client. Used for remote servers.
+
+- **Streamable HTTP:** Supports SSE upgrades and standard HTTP
+  POST<Citation src="mcp2025streamablehttp" />. Recommended going forward, though
+  SDK support is still rolling out.
+
+
+
+<Sidenote category="warning">Streamable HTTP is the future standard but not yet supported in all SDKs. Course examples use stdio (local) and SSE (remote).</Sidenote>
+
+
+
+## Connection Lifecycle
+
+When a client connects to a server, three phases occur:
+
+1.  **Initialization:** Client sends an initialize request; server responds with
+    capabilities; client sends a notification confirming initialization.
+
+2.  **Message exchange:** Clients send requests, servers respond. Both sides
+    can send notifications. Servers can request sampling from clients.
+
+3.  **Termination:** The connection is closed cleanly.
+
+# MCP vs. Direct Function Calling
+
+
+
+<Sidenote category="interview">Be ready for: "Why not just use OpenAI function calling?" Have 3 concrete reasons: reusability, dynamic discovery, process isolation.</Sidenote>
+
+
+
+| **Aspect**  | **Function Calling**    | **MCP**                          |
+|:------------|:------------------------|:---------------------------------|
+| Scope       | One app, inline tools   | Universal protocol               |
+| Reusability | Copy-paste between apps | Write once, use anywhere         |
+| Discovery   | Hard-coded tool list    | Dynamic via `list_tools()`       |
+| Transport   | In-process              | stdio or HTTP (separate process) |
+| Security    | App-managed             | Protocol-level process isolation |
+| Ecosystem   | Vendor-specific         | Open standard, growing fast      |
+
+&lt;!–MDXB-11-OPEN–&gt;
+
+**Classify: MCP or Function Calling?**
+
+For each scenario, choose MCP or direct function calling and justify your decision:
+
+1.  A quick hackathon prototype with 2 tools for one chatbot.
+
+2.  A company-wide platform: 15 tools used by 6 different AI applications.
+
+3.  An enterprise where teams build tools independently and share across applications.
+
+4.  A personal Claude Desktop setup with one custom tool for your own use.
+
+&lt;!–MDXB-11-CLOSE–&gt;
+
+&lt;!–MDXB-13-OPEN–&gt;
+
+**Approach:**
+
+1.  **Function calling.** Speed matters; 2 tools, 1 app—MCP overhead not justified.
+
+2.  **MCP.** 15 × 6 = 90 integrations vs. 15 + 6 = 21 with MCP.
+
+3.  **MCP.** Teams build servers independently; clients discover tools dynamically.
+    No cross-team coordination needed.
+
+4.  **MCP.** Even for one tool, Claude Desktop natively supports MCP config.
+    The infrastructure cost is near zero for local stdio servers.
+
+**Key Insight:** The decision hinges on the product of tools × applications.
+Below roughly 6, function calling wins on simplicity. Above 6, MCP wins on reusability.
+The exception: if your host already supports MCP natively (Claude Desktop, Cursor),
+even simple setups benefit.
+
+**Answer:** The decision hinges on the product of tools × applications. Below roughly 6, function calling wins on simplicity.
+
+&lt;!–MDXB-13-CLOSE–&gt;
+
+&lt;!–MDXB-12-OPEN–&gt;
+
+A data platform team is designing an MCP server for their analytics stack.
+Classify each capability as a tool, resource, or prompt, and justify your
+choice. State whether each can have side effects.
+
+1.  `run_sql_query`: Execute a SQL query against the data warehouse
+
+2.  `table_schema`: Return the schema of a specified table
+
+3.  `dashboard_metrics`: Current KPI values (DAU, revenue, churn)
+
+4.  `data_quality_check`: Multi-step workflow: profile a table, flag anomalies, suggest fixes
+
+5.  `create_materialized_view`: Create a new materialized view from a query
+
+6.  `query_templates`: Library of common SQL patterns (cohort analysis, funnel, retention)
+
+&lt;!–MDXB-12-CLOSE–&gt;
+
+&lt;!–MDXB-14-OPEN–&gt;
+
+**Approach:**
+**Tools** (dynamic queries or side effects):
+
+- `run_sql_query` — Tool. Accepts dynamic query parameters; read
+  queries have no side effects, but write queries can mutate data.
+  Side effects: possible.
+
+- `create_materialized_view` — Tool. Mutation: creates a persistent
+  database object. Side effects: yes.
+
+**Resources** (read-only context):
+
+- `table_schema` — Resource. Static metadata the LLM needs as
+  background context to write correct SQL. Side effects: none.
+
+- `dashboard_metrics` — Resource. Snapshot of current state,
+  refreshed periodically. Useful as ambient context for
+  data-informed decisions. Side effects: none.
+
+- `query_templates` — Resource. A static library the LLM
+  references when constructing queries. Side effects: none.
+
+**Prompts** (workflow templates):
+
+- `data_quality_check` — Prompt. Defines a multi-step workflow
+  (profile → detect anomalies → suggest fixes) that the LLM
+  follows. The prompt orchestrates tool calls; the prompt itself has
+  no side effects.
+
+**Key Insight:** The deciding factor is control flow. If the LLM
+decides when and how to invoke it, it’s a tool. If it provides passive
+context, it’s a resource. If it prescribes a multi-step workflow for the
+LLM to follow, it’s a prompt.
+
+**Answer:** The deciding factor is control flow. If the LLM
+decides when and how to invoke it, it’s a tool.
+
+&lt;!–MDXB-14-CLOSE–&gt;
+
+&lt;!–MDXB-8-OPEN–&gt;
+
+1.  What *N* × *M* problem does MCP solve? Give a concrete example with numbers.
+
+2.  Draw the MCP architecture: host, client, server. What role does each play?
+
+3.  Name the three MCP primitives. For each, give one example and state whether it can have side effects.
+
+4.  Compare stdio, SSE, and Streamable HTTP transports. When would you use each?
+
+5.  A company has 10 tools and 4 LLM apps. How many integrations with function calling vs. MCP?
+
+6.  Describe the three phases of the MCP connection lifecycle.
+
+7.  Define the Model Context Protocol in one sentence and
+    explain the *N* × *M* integration problem it solves.
+
+8.  Name the three layers of the MCP architecture and describe
+    what each is responsible for.
+
+9.  Compare stdio, SSE, and Streamable HTTP transports: when
+    would you choose each one?
+
+10. Describe the initialization and message exchange lifecycle
+    when an MCP client first connects to a server.
+
+&lt;!–MDXB-8-CLOSE–&gt;
+
+{/* CARD-PLACEMENT-AUTOSTART */}
+
+## Review
+
+{/* CARD-PLACEMENT-TODO: polish pass should move these cards inline */}
+{/* near the concepts they test, per Q-R4.4 hybrid placement.       */}
+
+### Checkpoint cards (10)
+
+<AnkiCard type="checkpoint" id="chapters-vol0-ch01-CHECKPOINT-MODULE_1_CHECKPOINT_Q1" los="" front={"What $N \\times M$ problem does MCP solve? Give a concrete example with numbers."} back={"Self-check from: Module 1 Checkpoint\n\n(Answer from memory, then verify against the chapter text.)"} />
+
+<AnkiCard type="checkpoint" id="chapters-vol0-ch01-CHECKPOINT-MODULE_1_CHECKPOINT_Q2" los="" front={"Draw the MCP architecture: host, client, server. What role does each play?"} back={"Self-check from: Module 1 Checkpoint\n\n(Answer from memory, then verify against the chapter text.)"} />
+
+<AnkiCard type="checkpoint" id="chapters-vol0-ch01-CHECKPOINT-MODULE_1_CHECKPOINT_Q3" los="" front={"Name the three MCP primitives. For each, give one example and state whether it can have side effects."} back={"Self-check from: Module 1 Checkpoint\n\n(Answer from memory, then verify against the chapter text.)"} />
+
+<AnkiCard type="checkpoint" id="chapters-vol0-ch01-CHECKPOINT-MODULE_1_CHECKPOINT_Q4" los="" front={"Compare stdio, SSE, and Streamable HTTP transports. When would you use each?"} back={"Self-check from: Module 1 Checkpoint\n\n(Answer from memory, then verify against the chapter text.)"} />
+
+<AnkiCard type="checkpoint" id="chapters-vol0-ch01-CHECKPOINT-MODULE_1_CHECKPOINT_Q5" los="" front={"A company has 10 tools and 4 LLM apps. How many integrations with function calling vs. MCP?"} back={"Self-check from: Module 1 Checkpoint\n\n(Answer from memory, then verify against the chapter text.)"} />
+
+<AnkiCard type="checkpoint" id="chapters-vol0-ch01-CHECKPOINT-MODULE_1_CHECKPOINT_Q6" los="" front={"Describe the three phases of the MCP connection lifecycle."} back={"Self-check from: Module 1 Checkpoint\n\n(Answer from memory, then verify against the chapter text.)"} />
+
+<AnkiCard type="checkpoint" id="chapters-vol0-ch01-CHECKPOINT-MODULE_1_CHECKPOINT_Q7" los="MCP-1.1" front={"Define the Model Context Protocol in one sentence and\n explain the $N \\times M$ integration problem it solves."} back={"Self-check from: Module 1 Checkpoint\n\n(Answer from memory, then verify against the chapter text.)"} />
+
+<AnkiCard type="checkpoint" id="chapters-vol0-ch01-CHECKPOINT-MODULE_1_CHECKPOINT_Q8" los="MCP-1.2" front={"Name the three layers of the MCP architecture and describe\n what each is responsible for."} back={"Self-check from: Module 1 Checkpoint\n\n(Answer from memory, then verify against the chapter text.)"} />
+
+<AnkiCard type="checkpoint" id="chapters-vol0-ch01-CHECKPOINT-MODULE_1_CHECKPOINT_Q9" los="MCP-1.4" front={"Compare stdio, SSE, and Streamable HTTP transports: when\n would you choose each one?"} back={"Self-check from: Module 1 Checkpoint\n\n(Answer from memory, then verify against the chapter text.)"} />
+
+<AnkiCard type="checkpoint" id="chapters-vol0-ch01-CHECKPOINT-MODULE_1_CHECKPOINT_Q10" los="MCP-1.6" front={"Describe the initialization and message exchange lifecycle\n when an MCP client first connects to a server."} back={"Self-check from: Module 1 Checkpoint\n\n(Answer from memory, then verify against the chapter text.)"} />
+
+### Keyconcept cards (2)
+
+<AnkiCard type="keyconcept" id="chapters-vol0-ch01-CONCEPT-THE_N_M_PROBLEM" los="" front={"Key Concept: The $N \\times M$ Problem"} back={"Core Insight: MCP is the USB-C of AI tool integration. Just as REST standardized\nhow web applications communicate with back ends, MCP standardizes how AI applications\nconnect to data sources. Everything you can do with MCP, you can do without—but without\nstandardization, teams rebuild the same integrations differently for every application.\n\nWhy It Matters: Build a GitHub MCP server once, and it works with Claude Desktop,\nCursor, Windsurf, your custom agent, or any MCP-compatible client—zero code changes.\n\nWhen It Breaks: For one tool and one application, inline function calling is simpler."} />
+
+<AnkiCard type="keyconcept" id="chapters-vol0-ch01-CONCEPT-HOSTCLIENTSERVER_SEPARATION" los="" front={"Key Concept: Host--Client--Server Separation"} back={"Core Insight: The host manages security, user consent, and the LLM. The client\nmanages protocol communication. The server manages tool logic. This separation of concerns\nmeans a server author never touches LLM code, and an application author never touches\ntool implementation.\n\nWhy It Matters: Any MCP-compatible host (Claude Desktop, Cursor, Windsurf)\ncan connect to any MCP server without coordination between the server author and the host author.\n\nWhen It Breaks: The host controls the human-in-the-loop experience."} />
+
+### Problem cards (2)
+
+<AnkiCard type="problem" id="chapters-vol0-ch01-PROB-CLASSIFY_MCP_OR_FUNCTION_CALLING" los="MCP-1.5" front={"Classify: MCP or Function Calling?\n\nFor each scenario, choose MCP or direct function calling and justify your decision:\n\n- A quick hackathon prototype with 2 tools for one chatbot.\n\n- A company-wide platform: 15 tools used by 6 different AI applications.\n\n- An enterprise where teams build tools independently and share across applications.\n\n- A personal Claude Desktop setup with one custom tool for your own use."} back={"Approach:\n\n- Function calling. Speed matters; 2 tools, 1 app—MCP overhead not justified.\n\n- MCP. $15 \\times 6 = 90$ integrations vs. $15 + 6 = 21$ with MCP.\n\n- MCP. Teams build servers independently; clients discover tools dynamically.\n No cross-team coordination needed.\n\n- MCP. Even for one tool, Claude Desktop natively supports MCP config.\n The infrastructure cost is near zero for local stdio servers.\n\nKey Insight: The decision hinges on the product of tools $\\times$ applications.\nBelow roughly 6, function calling wins on simplicity. Above 6, MCP wins on reusability.\nThe exception: if your host already supports MCP natively (Claude Desktop, Cursor),\neven simple setups benefit.\n\nAnswer: The decision hinges on the product of tools $\\times$ applications. Below roughly 6, function calling wins on simplicity."} />
+
+<AnkiCard type="problem" id="chapters-vol0-ch01-PROB-A_DATA_PLATFORM_TEAM_IS_DESIGNING_AN_MCP_SERVER_FO" los="MCP-1.3" front={"A data platform team is designing an MCP server for their analytics stack.\nClassify each capability as a tool, resource, or prompt, and justify your\nchoice. State whether each can have side effects.\n\n- run_sql_query: Execute a SQL query against the data warehouse\n\n- table_schema: Return the schema of a specified table\n\n- dashboard_metrics: Current KPI values (DAU, revenue, churn)\n\n- data_quality_check: Multi-step workflow: profile a table, flag anomalies, suggest fixes\n\n- create_materialized_view: Create a new materialized view from a query\n\n- query_templates: Library of common SQL patterns (cohort analysis, funnel, retention)"} back={"Approach:\nTools (dynamic queries or side effects):\n\n- run_sql_query — Tool. Accepts dynamic query parameters; read\n queries have no side effects, but write queries can mutate data.\n Side effects: possible.\n\n- create_materialized_view — Tool. Mutation: creates a persistent\n database object. Side effects: yes.\n\nResources (read-only context):\n\n- table_schema — Resource. Static metadata the LLM needs as\n background context to write correct SQL. Side effects: none.\n\n- dashboard_metrics — Resource. Snapshot of current state,\n refreshed periodically. Useful as ambient context for\n data-informed decisions. Side effects: none.\n\n- query_templates — Resource. A static library the LLM\n references when constructing queries. Side effects: none.\n\nPrompts (workflow templates):\n\n- data_quality_check — Prompt. Defines a multi-step workflow\n (profile $\\to$ detect anomalies $\\to$ suggest fixes) that the LLM\n follows. The prompt orchestrates tool calls; the prompt itself has\n no side effects.\n\nKey Insight: The deciding factor is control flow. If the LLM\ndecides when and how to invoke it, it's a tool. If it provides passive\ncontext, it's a resource. If it prescribes a multi-step workflow for the\nLLM to follow, it's a prompt.\n\nAnswer: The deciding factor is control flow. If the LLM\ndecides when and how to invoke it, it's a tool."} />
+
+### Interview cards (1)
+
+<AnkiCard type="interview" id="chapters-vol0-ch01-INT-A_COMMON_INTERVIEW_QUESTION_WHATS_THE_DIFFERENCE_B" los="" front={"Interview: A common interview question: What's the difference between MCP tools,..."} back={"A common interview question: \"What's the difference between MCP tools, resources, and prompts?\"\n\nStrong answer: Tools perform actions with possible side effects (search, create, modify).\nResources provide read-only data for context injection. Prompts are reusable templates\nthat standardize LLM interactions. The key distinction: tools can change state, resources\ncannot, and prompts are user-controlled workflow templates.\n\nMeta-signal: Shows you understand MCP's security model—resources are always safe;\ntools require permission checks."} />
+
+{/* CARD-PLACEMENT-AUTOEND */}

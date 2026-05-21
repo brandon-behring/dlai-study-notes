@@ -1,0 +1,803 @@
+---
+book: finetuning-llms
+title: Instruction Fine-Tuning and Data Preparation
+chapter: 2
+description: Instruction fine-tuning converts a base language model into a
+  chatbot by training on instruction-response pairs—the technique that turned
+  GPT-3 into ChatGPT—while data quality outranks data quantity for effective
+  fine-tuning.
+learning_outcomes:
+  - id: FT-2.1
+    verb: explain
+    text: what instruction fine-tuning is, how it differs from pre-training, and why
+      it enables generalization to unseen tasks
+  - id: FT-2.2
+    verb: apply
+    text: prompt templates and the Alpaca method to convert raw data into
+      instruction-response pairs suitable for fine-tuning
+  - id: FT-2.3
+    verb: apply
+    text: the `AutoTokenizer` pipeline—encoding, padding, and truncation—to prepare
+      text data for model training
+  - id: FT-2.4
+    verb: compare
+    text: the data quality hierarchy (quality $>$ diversity $>$ real $>$ quantity)
+      and its implications for fine-tuning dataset construction
+  - id: FT-2.5
+    verb: design
+    text: a data preparation pipeline from raw instruction-response pairs through
+      tokenization, padding, truncation, and train/test splitting
+sources: []
+tools_compared:
+  - ML Engineer / AI Engineer --- All companies --- L4/L5
+last_verified: 2026-05-21
+volatility: architectural-pattern
+---
+
+{/* TODO: per-chapter polish pass — see plan decision Q1 round 3 */}
+
+&lt;!–MDXB-12-OPEN–&gt;
+
+Chapter 1 established what fine-tuning is at a high level: taking a pre-trained
+model and specializing it with your own data. Now we get specific. This chapter
+covers *instruction fine-tuning*—the variant that transformed GPT-3 into
+ChatGPT—and the end-to-end data pipeline that feeds it. By the end, you will
+know how to structure your data, tokenize it, and apply the quality principles
+that separate a useful fine-tuned model from one that parrots garbage.
+
+&lt;!–MDXB-12-CLOSE–&gt;
+
+Before reading, consider:
+
+1.  Why can a model fine-tuned only on factual Q&A pairs also answer code questions it was never trained on?
+
+2.  If you double your training dataset but the new half is noisy, does the model get better or worse?
+
+3.  What happens if you feed a model tokens from the wrong tokenizer?
+
+# Instruction Fine-Tuning
+
+
+
+<Sidenote category="interview">Instruction FT is the technique that turned GPT-3 into ChatGPT. Name this origin story—interviewers test whether you know the lineage.</Sidenote>
+
+
+
+
+
+<Term name="Instruction Fine-Tuning" los="FT-2.1">
+  A variant of fine-tuning that trains a language model on instruction-response pairs, teaching it to follow natural-language instructions and behave as a chatbot rather than a text-completion engine<Citation src="ouyang2022instructgpt" />.
+</Term>
+<AnkiCard type="term" front={"Instruction Fine-Tuning"} back={"A variant of fine-tuning that trains a language model on instruction-response pairs, teaching it to follow natural-language instructions and behave as a chatbot rather than a text-completion engine[ouyang2022instructgpt]."} los="FT-2.1" />
+
+
+
+Instruction fine-tuning is the single most impactful post-training technique in
+the modern LLM stack. Before it, GPT-3 was a powerful text-completion engine
+accessible mainly to researchers who knew how to craft prompts. After instruction
+fine-tuning, the same model became ChatGPT—a conversational interface that
+“dramatically increased AI adoption from just a few researchers … to millions
+and millions of people”<Citation src="dlai-ft-course" />.
+
+
+
+<Sidenote category="pattern">Fine-tuning loop: (1) data prep, (2) training, (3) evaluation. Iterate. Data prep is where task-specific differences live.</Sidenote>
+
+
+
+The key idea is simple: rather than training on raw internet text (pre-training),
+you train on *pairs* of instructions and desired responses. The model learns
+a new *behavior*—following instructions—that generalizes beyond the
+specific examples it saw.
+
+## Data Sources for Instruction Pairs
+
+Instruction-response data is often already available within organizations:
+
+- **FAQs:** Existing question-answer pages map directly to instruction-response
+  format.
+
+- **Customer support conversations:** Real dialogue with natural instruction
+  and resolution patterns.
+
+- **Slack messages:** Internal knowledge exchanges that capture domain-specific
+  Q&A<Citation src="dlai-ft-course" />.
+
+When dialogue data does not exist in a ready-made format, you can convert existing
+documents using a **prompt template**. A README, for instance, can be
+restructured into question-answer pairs where the question asks about the documented
+feature and the answer is extracted from the text.
+
+## The Alpaca Method: Synthetic Data Generation
+
+
+
+<Sidenote category="warning">Synthetic data inherits the style biases of the generator. Detectors can flag "LLM-ish" text. Mix synthetic with real data.</Sidenote>
+
+
+
+
+
+<Term name="Alpaca Method" los="FT-2.2">
+  A technique developed at Stanford that uses a stronger LLM (originally ChatGPT) to generate instruction-response pairs for fine-tuning a smaller model, producing 52K training examples for under $500<Citation src="taori2023alpaca" />.
+</Term>
+<AnkiCard type="term" front={"Alpaca Method"} back={"A technique developed at Stanford that uses a stronger LLM (originally ChatGPT) to generate instruction-response pairs for fine-tuning a smaller model, producing 52K training examples for under $500[taori2023alpaca]."} los="FT-2.2" />
+
+
+
+When you have no existing instruction data, you can *generate* it. The Alpaca
+approach from Stanford<Citation src="taori2023alpaca" /> uses a strong model (ChatGPT) to
+produce instruction-response pairs that a weaker model (LLaMA-7B) is then
+fine-tuned on. The result: a small model that follows instructions competently,
+trained on 52K generated examples.
+
+The Alpaca dataset uses two prompt templates—one for instructions that include
+an additional input field (e.g., “add two numbers” with inputs “3 and 4”),
+and one for standalone instructions without extra input. This dual-template
+design ensures the model handles both structured and open-ended tasks.
+
+~~~ python
+# Alpaca prompt template (with input)
+prompt_with_input = """Below is an instruction that
+describes a task, paired with further context.
+Write a response that appropriately completes
+the request.
+
+### Instruction:
+{instruction}
+
+### Input:
+{input}
+
+### Response:
+"""
+~~~
+
+## Generalization to Unseen Tasks
+
+
+
+<Sidenote category="interview">ChatGPT paper finding: instruction-tuned on Q&A, yet answered code questions. This is *behavior transfer*—the format generalizes, not just the facts.</Sidenote>
+
+
+
+One of the most powerful properties of instruction fine-tuning is generalization.
+The ChatGPT paper<Citation src="ouyang2022instructgpt" /> demonstrated that a model
+fine-tuned on factual question-answer pairs could also answer questions about
+*code*—even though no code Q&A pairs were in the fine-tuning data. The
+model already knew about code from pre-training; instruction fine-tuning taught
+it the *behavior* of answering questions, and that behavior transferred
+to domains it had not been explicitly fine-tuned on<Citation src="dlai-ft-course" />.
+
+This matters practically: you do not need fine-tuning data for every domain
+your model will encounter. You need enough data to teach the behavior pattern,
+and the model’s pre-trained knowledge handles the breadth.
+
+&lt;!–MDXB-14-OPEN–&gt;
+
+**Core Insight:** Instruction fine-tuning does not inject new factual
+knowledge into a model. It teaches a new *behavior pattern*—how to
+interpret instructions and produce structured responses. The factual knowledge
+comes from pre-training.
+
+**Why It Matters:** This means you can fine-tune on Q&A pairs about
+topic A and get a model that follows instructions about topic B, provided the
+model saw topic B during pre-training. You need far fewer fine-tuning examples
+than you might expect.
+
+**When It Breaks:** If the model never encountered a domain during
+pre-training, instruction fine-tuning alone cannot teach it that domain’s facts.
+You would need either additional pre-training data or retrieval-augmented
+generation (RAG) to fill the knowledge gap.
+
+&lt;!–MDXB-14-CLOSE–&gt;
+
+# Data Preparation Pipeline
+
+
+
+<Sidenote category="pattern">Pipeline: collect pairs $$ concat with template $$ tokenize $$ pad/truncate $$ train/test split. Five steps, always this order.</Sidenote>
+
+
+
+The fine-tuning pipeline has three phases—data prep, training, and
+evaluation—but data prep is where the task-specific work happens. Training
+and evaluation are largely the same across fine-tuning variants. This section
+covers the full data preparation pipeline from raw text to model-ready
+tensors<Citation src="dlai-ft-course" />.
+
+## Tokenization with AutoTokenizer
+
+
+
+<Term name="Tokenization" los="FT-2.3">
+  The process of converting text into integer token IDs that a model can process. Tokens are sub-word units based on frequency of character co-occurrences—not necessarily whole words. Each model has its own tokenizer and using the wrong one produces garbage<Citation src="dlai-ft-course" />.
+</Term>
+<AnkiCard type="term" front={"Tokenization"} back={"The process of converting text into integer token IDs that a model can process. Tokens are sub-word units based on frequency of character co-occurrences—not necessarily whole words. Each model has its own tokenizer and using the wrong one produces garbage[dlai-ft-course]."} los="FT-2.3" />
+
+
+
+
+
+<Sidenote category="formula">ING $$ token 278. Gerunds (*-ing*) are so common that the suffix gets its own token ID in most tokenizers.</Sidenote>
+
+
+
+Tokenization converts text to numbers. The critical insight: tokens are not
+words. They are sub-word units determined by character co-occurrence frequency.
+The suffix `-ing`, for example, appears in every English gerund, so it
+gets its own token (token ID 278 in the Pythia tokenizer). The word
+“finetuning” is split into sub-word tokens, with “ing” mapping to
+278<Citation src="dlai-ft-course" />.
+
+HuggingFace’s `AutoTokenizer` automatically selects the correct
+tokenizer for a given model:
+
+~~~ python
+from transformers import AutoTokenizer
+
+tokenizer = AutoTokenizer.from_pretrained(
+    "EleutherAI/pythia-70m"
+)
+
+text = "Hi, how are you?"
+encoded = tokenizer(text)
+print(encoded["input_ids"])
+# [12764, 13, 849, 403, 368, 32]
+
+decoded = tokenizer.decode(encoded["input_ids"])
+# "Hi, how are you?"
+~~~
+
+
+
+<Sidenote category="warning">Wrong tokenizer $=$ garbage. Each model expects *its* token-to-ID mapping. AutoTokenizer prevents this by loading the model's own tokenizer.</Sidenote>
+
+
+
+Every model is trained with a specific tokenizer. If you apply model A’s
+tokenizer to model B, the integer IDs will map to completely different
+sub-words, and the model’s outputs will be nonsensical. `AutoTokenizer`
+prevents this by automatically loading the tokenizer associated with whatever
+model name you specify.
+
+## Padding and Truncation
+
+Models operate on fixed-size tensors, so all sequences in a batch must have the
+same length. Two strategies handle variable-length inputs:
+
+**Padding** appends a special token (typically the EOS token, ID 0) to
+shorter sequences until they match the longest sequence in the batch:
+
+~~~ python
+batch = ["Hi, how are you?", "I'm good", "Yes"]
+encoded = tokenizer(batch, padding=True)
+# "Yes" gets padded: [4374, 0, 0, 0, 0, 0]
+~~~
+
+**Truncation** cuts sequences that exceed the model’s maximum context
+length. By default, truncation removes tokens from the right:
+
+~~~ python
+encoded = tokenizer(batch, truncation=True,
+                    max_length=3)
+# "Hi, how are you?" becomes [12764, 13, 849]
+~~~
+
+
+
+<Sidenote category="practice">Set `truncation_side="left"` when the important content (e.g., the response) is at the end of the sequence.</Sidenote>
+
+
+
+A practical subtlety: when your instruction is prepended to the prompt and the
+model’s expected output is at the end, right-truncation cuts the response—the
+part you most need. Setting `truncation_side="left"` preserves the
+response at the cost of trimming the instruction prefix<Citation src="dlai-ft-course" />.
+In practice, you use both padding and truncation together.
+
+## JSONL Format and Dataset Splitting
+
+The standard storage format for fine-tuning data is JSONL (JSON Lines), where
+each line is a self-contained JSON object with structured fields:
+
+~~~ json
+{"instruction": "What is Lamini?",
+ "input": "",
+ "output": "Lamini is an LLM platform..."}
+{"instruction": "Add two numbers",
+ "input": "3 and 4",
+ "output": "7"}
+~~~
+
+After tokenization, the dataset is split into training and test sets. A common
+split is 90/10, with shuffling enabled to prevent ordering biases:
+
+~~~ python
+split_dataset = tokenized_dataset.train_test_split(
+    test_size=0.1, shuffle=True
+)
+# Training: ~1260 examples, Test: ~140 examples
+~~~
+
+
+
+<Sidenote category="crossref">For training loop mechanics (optimizer, learning rate, epochs), see Ch 3.</Sidenote>
+
+
+
+# Data Quality Hierarchy
+
+
+
+<Sidenote category="interview">"How much data do I need?" is the wrong first question. The right one: "How clean is my data?" Lead with the quality hierarchy.</Sidenote>
+
+
+
+Not all data is equally valuable. The course establishes a strict priority
+ordering for fine-tuning data, which inverts the conventional ML wisdom that
+more data is always better<Citation src="dlai-ft-course" />:
+
+1.  **Quality** (highest priority): High-quality input-output pairs
+    produce high-quality model behavior. “Garbage in, garbage out” applies
+    with particular force to fine-tuning because the model will parrot the
+    patterns—including the mistakes—in your training data.
+
+2.  **Diversity**: Data should cover the breadth of your use case. If
+    all examples are identical in structure, the model memorizes rather than
+    generalizes, producing repetitive outputs.
+
+3.  **Real over generated**: Real data captures natural variation that
+    generated data lacks. LLM-generated text has detectable statistical
+    patterns; training on more of the same does not teach new patterns.
+
+4.  **Quantity** (lowest priority): More data helps, but matters far
+    less than the top three factors. Pre-training already provides a strong
+    base—you are not starting from zero.
+
+
+
+<Sidenote category="formula">Rule of thumb: 1,000 high-quality examples often outperform 100K noisy ones for domain-specific fine-tuning.</Sidenote>
+
+
+
+The practical implication: investing time in curating 1,000 excellent
+instruction-response pairs is almost always a better use of resources than
+scraping 100,000 noisy ones. Pre-training has already given the model broad
+language understanding; fine-tuning needs only enough signal to steer behavior
+in the right direction.
+
+&lt;!–MDXB-15-OPEN–&gt;
+
+**Core Insight:** The data quality hierarchy for fine-tuning is
+quality &gt; diversity &gt; real &gt; quantity. Unlike traditional ML where
+more data usually wins, fine-tuning builds on a pre-trained foundation
+that already understands language. You need just enough high-quality signal
+to steer behavior.
+
+**Why It Matters:** This changes how you allocate resources. Instead of
+building massive datasets, invest in annotation quality, domain expert review,
+and diverse coverage of your actual use cases. A weekend of careful curation
+can outperform months of bulk scraping.
+
+**When It Breaks:** When you are fine-tuning for a highly specialized
+domain with vocabulary or concepts absent from pre-training (e.g., proprietary
+internal jargon), you may need more data to compensate for the thin pre-training
+coverage. The hierarchy assumes the base model has reasonable domain exposure.
+
+&lt;!–MDXB-15-CLOSE–&gt;
+
+Interview question: “You have budget for either 50,000 crowdsourced
+instruction-response pairs or 2,000 expert-curated ones. Which do you choose
+for fine-tuning and why?”
+
+**Strong answer:** “The 2,000 expert-curated pairs, almost always. Fine-tuning
+data quality matters more than quantity because the model already has broad language
+understanding from pre-training. We are teaching a behavior pattern, not injecting
+knowledge from scratch. I would prioritize diversity across use cases within those
+2,000 examples, ensure each pair is reviewed by a domain expert, and validate with
+a held-out test set. The 50K crowdsourced set risks noisy labels, inconsistent
+formatting, and the model learning to reproduce those errors. I would consider the
+larger dataset only if the domain is so specialized that 2,000 examples cannot
+cover the necessary diversity.”
+
+**Meta-signal:** This tests whether you understand the quality hierarchy and can
+reason about data economics rather than defaulting to “more data is better.”
+
+&lt;!–MDXB-16-OPEN–&gt;
+
+\[foundation\]\[full\]
+**Convert Raw Examples into Instruction-Response Format**
+
+
+
+<Sidenote category="practice">5 min  Pair formatting  Phone screen</Sidenote>
+
+
+
+You have three raw data sources from a company wiki:
+
+1.  A README paragraph: “Lamini is an LLM platform that allows developers
+    to fine-tune models without managing infrastructure.”
+
+2.  A support ticket: “Customer asked how to increase batch size.
+    Agent replied: Use the `--batch_size` flag in the training config.”
+
+3.  A Slack message: “@alice the API rate limit is 100 req/min for free tier.”
+
+Convert each into a properly formatted instruction-response pair for fine-tuning.
+
+&lt;!–MDXB-16-CLOSE–&gt;
+
+&lt;!–MDXB-22-OPEN–&gt;
+
+**Converted Pairs:**
+
+**Source 1 (README):**
+
+~~~ json
+{"instruction": "What is Lamini?",
+ "input": "",
+ "output": "Lamini is an LLM platform that allows
+  developers to fine-tune models without managing
+  infrastructure."}
+~~~
+
+**Source 2 (Support ticket):**
+
+~~~ json
+{"instruction": "How do I increase the batch size
+  during training?",
+ "input": "",
+ "output": "Use the --batch_size flag in the
+  training configuration file."}
+~~~
+
+**Source 3 (Slack message):**
+
+~~~ json
+{"instruction": "What is the API rate limit for
+  the free tier?",
+ "input": "",
+ "output": "The API rate limit is 100 requests
+  per minute for the free tier."}
+~~~
+
+**Key Insight:** The instruction should be a natural question a user
+would ask. The response should be self-contained—do not assume the reader
+has access to the original source. Remove conversational artifacts
+(“@alice”, ticket metadata) that would teach the model to reproduce
+internal formatting.
+
+&lt;!–MDXB-22-CLOSE–&gt;
+
+&lt;!–MDXB-17-OPEN–&gt;
+
+\[core\]\[full\]
+**Design a Prompt Template for Synthetic Instruction Data**
+
+
+
+<Sidenote category="practice">10 min  Prompt design  Take-home</Sidenote>
+
+
+
+You need to generate 500 instruction-response pairs about Python debugging for
+fine-tuning a coding assistant. Design the prompt you would send to a strong LLM
+(e.g., GPT-4) to generate these pairs in Alpaca format.
+
+1.  Write the system prompt and generation prompt.
+
+2.  Explain why you need both a “with input” and “without input” template.
+
+3.  Identify two failure modes of this approach and how to mitigate them.
+
+&lt;!–MDXB-17-CLOSE–&gt;
+
+&lt;!–MDXB-23-OPEN–&gt;
+
+**Step 1: Prompt Design.**
+
+~~~ text
+System: You are an expert Python developer creating
+training data for a coding assistant. Generate
+instruction-response pairs about Python debugging.
+
+Each pair must have:
+- instruction: A clear task or question
+- input: (optional) Code snippet or error message
+- output: A detailed, correct response
+
+Generate 10 diverse pairs. Alternate between pairs
+that require an input field and pairs that do not.
+
+Format as JSON, one object per line.
+~~~
+
+**Step 2: Two Templates.**
+The “with input” template handles tasks that require context (e.g., “debug
+this code” with a code snippet as input). The “without input” template
+handles self-contained questions (e.g., “what does a KeyError mean?”). The
+Alpaca paper uses both templates so the model learns to handle both structured
+and open-ended tasks—omitting either would leave a behavioral gap.
+
+**Step 3: Failure Modes.**
+
+- **Style homogeneity:** Generated pairs inherit the LLM’s writing
+  style. *Mitigation:* Mix generated with real data, vary the system
+  prompt across batches, and post-filter for diversity.
+
+- **Factual errors:** The generating LLM may produce incorrect code
+  or debugging advice. *Mitigation:* Run automated validation
+  (execute generated code snippets) and sample manual review by a developer.
+
+**Key Insight:** Synthetic data generation trades annotation cost for
+quality risk. The Alpaca approach works because a strong model generates data
+for a weaker model, but the generated data still needs validation—LLMs
+confidently produce plausible-sounding but incorrect outputs.
+
+&lt;!–MDXB-23-CLOSE–&gt;
+
+&lt;!–MDXB-18-OPEN–&gt;
+
+\[applied\]\[full\]
+**Predict and Debug Tokenization Artifacts**
+
+
+
+<Sidenote category="practice">5 min  Tokenizer mechanics  Phone screen</Sidenote>
+
+
+
+You tokenize the sentence “Fine-tuning improves everything” with a Pythia-70M
+tokenizer and get token IDs `[21293, 14, 85, 8917, 15283, 2889, 2621]`.
+
+1.  Explain why “Fine-tuning” produces multiple tokens while “everything”
+    produces one.
+
+2.  Your colleague swaps in a LLaMA tokenizer without changing the model.
+    What happens during inference?
+
+3.  You notice the padding token ID is 0 (same as the EOS token). Is this
+    a problem? When?
+
+&lt;!–MDXB-18-CLOSE–&gt;
+
+&lt;!–MDXB-24-OPEN–&gt;
+
+**Part 1: Sub-word Splitting.**
+“Fine-tuning” is split because the hyphen creates a boundary, and the tokenizer
+treats “Fine”, “-”, “tun”, and “ing” as separate sub-word units based on
+their frequency in the training corpus. “Everything” is common enough to have
+its own single token. Tokenizers are frequency-based: common sequences get
+dedicated tokens; rare sequences are decomposed into sub-words.
+
+**Part 2: Wrong Tokenizer.**
+The model will produce garbage. Each model is trained with a specific mapping
+from token IDs to sub-word embeddings. LLaMA’s token 278 maps to a different
+sub-word than Pythia’s token 278. The model receives an embedding sequence
+that does not correspond to the actual input text, producing incoherent output.
+`AutoTokenizer.from_pretrained("model_name")` prevents this by loading
+the model’s own tokenizer.
+
+**Part 3: Padding = EOS.**
+Using the same token for padding and end-of-sequence is common practice (the
+course uses this approach). It is not a problem during training when you use
+an attention mask that tells the model to ignore padded positions. It
+*becomes* a problem if you forget to pass the attention mask—the model
+would treat padding tokens as legitimate EOS signals and truncate its
+generation prematurely.
+
+**Key Insight:** Tokenizers are model-specific contracts, not generic
+text processors. “Auto” in `AutoTokenizer` is not convenience—it
+is a correctness requirement.
+
+&lt;!–MDXB-24-CLOSE–&gt;
+
+&lt;!–MDXB-19-OPEN–&gt;
+
+\[core\]\[full\]
+**Audit a Fine-Tuning Dataset**
+
+
+
+<Sidenote category="practice">10 min  Quality audit  On-site</Sidenote>
+
+
+
+A team hands you a 10,000-example fine-tuning dataset for a customer support
+chatbot. Spot-checking reveals these issues:
+
+1.  40% of examples have the same boilerplate response: “Thank you for
+    contacting us. Your request has been received.”
+
+2.  15% contain responses copied from ChatGPT output used to backfill
+    gaps in the data.
+
+3.  5% have the instruction and response columns swapped.
+
+4.  The remaining 40% are high-quality, diverse, real customer interactions.
+
+Rank these issues by severity and propose a remediation plan.
+
+&lt;!–MDXB-19-CLOSE–&gt;
+
+&lt;!–MDXB-25-OPEN–&gt;
+
+**Severity Ranking:**
+
+**1. Column swap (5%, Critical):** The model will learn to produce questions
+when given answers and vice versa. Even 5% of inverted examples can degrade
+instruction-following behavior. *Fix:* Automated detection—check if the
+“instruction” field contains answer-like patterns (long text, affirmative
+statements) and the “response” field contains question marks.
+
+**2. Boilerplate responses (40%, High):** The model will memorize the
+template and produce “Thank you for contacting us” for every query. This
+kills diversity. *Fix:* Deduplicate by response text. Keep at most 2–3
+examples of each boilerplate pattern to teach the model that such responses
+exist, but do not let them dominate the distribution.
+
+**3. ChatGPT backfill (15%, Medium):** Generated responses have
+homogeneous style and may contain hallucinated details. *Fix:* Flag all
+generated examples for manual review. Replace with real responses where
+possible. If some must stay, ensure they are a minority (&lt;10%) of the
+final dataset.
+
+**4. Resulting dataset:** After remediation, the clean dataset is
+approximately 4,000–4,500 examples from the original 40% plus a small
+curated subset of the others. This is fine—quality over quantity.
+
+**Key Insight:** Apply the quality hierarchy as a diagnostic tool.
+The column swap is a *quality* issue (corrupted data). The boilerplate
+is a *diversity* issue. The ChatGPT backfill is a *real vs. generated* issue. Fixing them in priority order (quality first) yields the
+largest improvement per unit of effort.
+
+&lt;!–MDXB-25-CLOSE–&gt;
+
+&lt;!–MDXB-20-OPEN–&gt;
+
+\[foundation\]\[full\]
+Your company has a base LLM and 500 customer-support transcripts (question +
+agent reply). The PM wants the model to answer support questions directly
+instead of completing text. Explain what instruction fine-tuning is, how it
+differs from pre-training, and outline the three steps to convert these
+transcripts into a working fine-tuned model.
+
+&lt;!–MDXB-20-CLOSE–&gt;
+
+&lt;!–MDXB-26-OPEN–&gt;
+
+**Approach:** Define instruction fine-tuning, contrast with pre-training,
+then walk through the data-to-model pipeline.
+
+*Instruction fine-tuning* is supervised training on (instruction, response)
+pairs that teaches a pre-trained model to follow directions rather than merely
+complete text. Pre-training uses a self-supervised next-token objective on raw
+web text; instruction fine-tuning uses a supervised objective on curated
+prompt–completion pairs.
+
+**Step 1 — Data preparation:** Reformat each transcript into an
+instruction–response pair: the customer question becomes the prompt, the agent
+reply becomes the completion. Apply the Alpaca template so the model sees a
+consistent `### Instruction: / ### Response:` structure.
+
+**Step 2 — Tokenization:** Use `AutoTokenizer.from_pretrained()`
+with the base model’s tokenizer. Pad sequences to uniform length
+(`padding="max_length"`) and truncate from the left
+(`truncation_side="left"`) so the response is never cut off.
+
+**Step 3 — Training:** Fine-tune with a cross-entropy loss on the
+response tokens only (mask the instruction tokens). Even 500 high-quality
+examples can shift the model’s behavior from completion to answering.
+
+**Key Insight:** Instruction fine-tuning does not teach the model new
+knowledge—it reshapes the *format* of existing knowledge from
+completion to question-answering.
+
+**Answer:** Instruction fine-tuning is supervised training on
+(instruction, response) pairs. Three steps: format transcripts as Alpaca-style
+pairs, tokenize with the correct tokenizer, and fine-tune on response tokens.
+
+&lt;!–MDXB-26-CLOSE–&gt;
+
+&lt;!–MDXB-21-OPEN–&gt;
+
+\[applied\]\[full\]
+**Design a Complete Fine-Tuning Data Pipeline**
+
+
+
+<Sidenote category="practice">15 min  Pipeline design  On-site system design</Sidenote>
+
+
+
+You are building a customer-support chatbot for a SaaS company. You have access
+to three raw data sources:
+
+1.  800 Zendesk tickets (customer question + agent resolution).
+
+2.  150 internal FAQ entries (question + answer).
+
+3.  The company’s product documentation (200 pages, unstructured).
+
+Design the complete data preparation pipeline from these raw sources to
+model-ready tensors. For each stage, specify the tool or technique, the
+expected output format, and one decision you must make.
+
+&lt;!–MDXB-21-CLOSE–&gt;
+
+&lt;!–MDXB-27-OPEN–&gt;
+
+**Approach:** Walk through the five-stage pipeline
+(collect → template → tokenize → pad/truncate → split),
+grounding each stage in the concrete data sources.
+
+**Stage 1 — Collect and convert to instruction-response pairs.**
+Zendesk tickets map directly: customer question → instruction, agent reply
+→ response. FAQs map one-to-one. Product docs require conversion: use an
+LLM (Alpaca method) to generate Q&A pairs from documentation paragraphs.
+*Decision:* How many synthetic pairs to generate from docs—cap at
+∼200 to keep real data dominant (real &gt; generated in the quality
+hierarchy).
+
+**Stage 2 — Apply prompt template.**
+Concatenate each pair into Alpaca format (`### Instruction: / ### Response:`). Use the “with input” template for tickets that include product
+context; “without input” for standalone FAQ questions.
+*Decision:* Whether to include the ticket metadata (priority, product area)
+in the input field—yes if you want the model to condition on context.
+
+**Stage 3 — Tokenize.**
+Use `AutoTokenizer.from_pretrained("model_name")` to ensure the
+correct tokenizer. Encode each concatenated prompt into token IDs.
+*Decision:* Which base model to fine-tune—this determines the tokenizer
+and maximum context length.
+
+**Stage 4 — Pad and truncate.**
+Set `padding="max_length"` and `truncation=True`. Use
+`truncation_side="left"` so the response (at the end) is never cut.
+*Decision:* `max_length`—set to the 95th percentile of sequence
+lengths to balance coverage and memory.
+
+**Stage 5 — Train/test split.**
+Split 90/10 with `shuffle=True`. Stratify by source (Zendesk vs. FAQ
+vs. synthetic) to ensure the test set represents all data types.
+*Decision:* Whether to hold out an additional validation set for
+hyperparameter tuning (recommended if &gt;1,000 total examples).
+
+**Key Insight:** The pipeline is always the same five stages. What changes
+per project is the *decisions* at each stage—template format, truncation
+side, split strategy. Knowing the pipeline structure lets you focus on the
+domain-specific choices rather than reinventing the workflow.
+
+**Answer:** Five stages: (1) convert sources to instruction-response JSONL,
+(2) apply Alpaca template, (3) tokenize with AutoTokenizer, (4) pad/truncate
+with left truncation, (5) shuffle and split 90/10. Total: ∼1,150
+high-quality examples, dominated by real data.
+
+&lt;!–MDXB-27-CLOSE–&gt;
+
+&lt;!–MDXB-13-OPEN–&gt;
+
+1.  What is instruction fine-tuning, and how does it differ from standard pre-training?
+
+2.  Name three readily available sources of instruction-response pair data within a typical organization.
+
+3.  What is the Alpaca method? What are its two prompt template variants and why are both needed?
+
+4.  Explain why a model fine-tuned on factual Q&A can also answer code questions it was never fine-tuned on.
+
+5.  What does `AutoTokenizer.from_pretrained()` do, and why is using the correct tokenizer critical?
+
+6.  Explain padding and truncation: when do you need each, and what does `truncation_side="left"` accomplish?
+
+7.  State the data quality hierarchy in order. Why does pre-training make “quantity” the lowest priority?
+
+8.  Sketch the five steps of the data preparation pipeline from raw instruction-response pairs to model-ready tensors.
+
+9.  evaluate a candidate fine-tuning dataset by applying the quality
+    hierarchy (quality &gt; diversity &gt; real &gt; quantity) to diagnose
+    specific deficiencies—boilerplate dominance, synthetic homogeneity,
+    column swaps—and prioritize remediation by expected impact.
+
+&lt;!–MDXB-13-CLOSE–&gt;
