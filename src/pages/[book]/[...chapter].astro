@@ -7,6 +7,7 @@
  * frontmatter into the layout context.
  */
 import Chapter from '@brandon_m_behring/book-scaffold-astro/layouts/Chapter.astro';
+import Provenance from '@brandon_m_behring/book-scaffold-astro/components/Provenance.astro';
 import { getCollection, render } from 'astro:content';
 import { mdxComponents } from '../../components/mdx';
 
@@ -45,6 +46,7 @@ const parentBook = allBooks.find((b) => b.data.book === chapter.data.book);
   </p>
 
   <Content components={mdxComponents} />
+  <Provenance data={chapter.data.provenance ?? null} />
 </Chapter>
 
 <style>

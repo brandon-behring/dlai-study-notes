@@ -13,6 +13,9 @@
  */
 import { z, defineCollection } from 'astro:content';
 import { glob } from 'astro/loaders';
+// v4.8.0: per-chapter provenance audit trail (plain Zod schema from the package
+// main entry — safe to import here; not the astro:content-bound /schemas subpath).
+import { provenanceSchema } from '@brandon_m_behring/book-scaffold-astro';
 
 // ===== Book-level metadata =====
 //
@@ -64,6 +67,9 @@ const chaptersCollection = defineCollection({
     volatility: z.enum(['stable-principle', 'architectural-pattern', 'feature-surface'])
       .default('architectural-pattern'),
     draft: z.boolean().default(false),
+    // v4.8.0: optional process-as-artifact audit trail (rendered by Provenance.astro
+    // in [book]/[...chapter].astro). Opt-out: absent → fallback.
+    provenance: provenanceSchema,
   }),
 });
 
