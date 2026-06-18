@@ -1,0 +1,35 @@
+---
+id: fri-4-forgetting
+type: mcq
+chapter: 4
+domain: data-and-grading
+bloom_level: analyze
+objective_id: FRI-4.2
+difficulty: '3'
+tags: [data, sft]
+options:
+  - id: a
+    text: Reward hacking, where the model found an exploit in an automated grader
+  - id: b
+    text: Over-generalization from the narrow counterexample set, a form of catastrophic forgetting that pushed "avoid wrong claims about us" into "avoid discussing other companies"
+    correct: true
+  - id: c
+    text: The 150 examples were too few to change behavior, so the new refusal is unrelated noise
+  - id: d
+    text: Test-set leakage into the counterexample data, which inflated the apparent fix
+---
+import Rationale from '@brandon_m_behring/book-scaffold-astro/components/Rationale.astro';
+
+You add 150 counterexamples to fix a support model that kept citing the wrong refund
+window. After retraining, wrong-citation errors drop sharply, but the model now refuses to
+discuss competitor products at all. The most likely cause is…
+
+<Rationale title="Why">
+The counterexamples narrowly taught the model not to make wrong claims about its *own*
+policies, and it over-generalized that into refusing any discussion of other companies —
+**catastrophic forgetting** of a capability the new data never covered, which is why the
+full eval suite must run after every targeted addition. Reward hacking describes RL reward
+exploitation, not an SFT counterexample round. The 150 examples clearly were enough to move
+behavior, since the wrong-citation rate dropped. Test-set leakage would inflate scores
+rather than create a brand-new refusal.
+</Rationale>

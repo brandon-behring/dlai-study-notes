@@ -1,0 +1,14 @@
+---
+term: Composite Reward
+aliases: [composite reward score, reward shaping]
+domain: data-and-grading
+see: [verifier, reward-model, reward-hacking]
+tags: [rl, reward]
+---
+
+A weighted blend of scores across multiple dimensions (correctness, helpfulness, safety,
+conciseness), each scored by whatever mechanism fits — verifiers for correctness, learned
+models for helpfulness, rule-based checks for safety. Keep **one dominant term** (usually
+correctness, over half the weight) so gaming a secondary axis cannot dominate the total.
+The weights are hyperparameters: small changes cause large behavioral shifts, so tune
+them systematically.

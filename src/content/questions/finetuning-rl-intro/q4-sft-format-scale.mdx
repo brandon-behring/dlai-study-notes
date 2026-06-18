@@ -1,0 +1,23 @@
+---
+id: fri-4-sft-format-scale
+type: free
+chapter: 4
+domain: data-and-grading
+bloom_level: apply
+objective_id: FRI-4.1
+difficulty: '1'
+tags: [sft, data]
+answer: >
+  Start small — about 20 to 50 examples. The model already knows the content; you are only
+  changing the output shape, which sits at the bottom of the SFT scale ladder where
+  formatting and structure are learned. Spending thousands of examples here wastes
+  annotation budget and risks overfitting to your exact phrasings, which can degrade the
+  model's general ability. Fine-tune on the small set, evaluate, and add more only if the
+  format is not reliably followed. Common wrong answer: "a few thousand, to be safe" — that
+  confuses changing behavior with changing format, and over-trains a problem that 20 to 50
+  demonstrations usually solve.
+---
+
+A model already produces correct answers but returns them as prose, while your application
+needs strict JSON. Roughly how many SFT examples would you start with, and why that scale
+rather than thousands?

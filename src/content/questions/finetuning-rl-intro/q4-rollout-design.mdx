@@ -1,0 +1,24 @@
+---
+id: fri-4-rollout-design
+type: free
+chapter: 4
+domain: data-and-grading
+bloom_level: apply
+objective_id: FRI-4.3
+difficulty: '2'
+tags: [rl, reward]
+answer: >
+  Start around 10K to 20K prompts — the default starting band, enough signal without
+  frontier-scale cost — and sample about 8 outputs per prompt, the standard default that
+  balances gradient signal against compute (more outputs sharpen the estimate but cost
+  linearly). For the reward, use a verifier rather than a learned reward model: competition
+  math has a checkable ground-truth answer, so a deterministic numeric check is cheaper,
+  reproducible, and ungameable, with no reward-model drift to track. Scale prompts toward
+  100K only after the pipeline shows gains. Common wrong answer: "train a reward model on
+  human ratings of the solutions" — that adds cost and a gameable proxy for a task that
+  already has objective ground truth a verifier can check directly.
+---
+
+You are setting up an RL run to improve a model on competition math (problems with known
+numeric answers). How many rollout prompts would you start with, how many outputs per
+prompt, and what reward signal would you choose? Justify each.

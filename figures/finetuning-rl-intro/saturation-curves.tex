@@ -1,0 +1,67 @@
+% Post-training data saturation curves — SFT vs RL-preference vs RL-rollouts.
+% pgfplots line chart on a log-x scale. Data lines use the DiagSeries palette
+% (both-theme legible, NOT remapped); axis/ticks/labels/legend are black →
+% remapped to --diagram-ink by build-figures so they flip in dark mode. Distinct
+% marks (square / triangle / circle) give colorblind-safe redundancy with color.
+\documentclass[tikz, border=8pt]{standalone}
+\input{../_shared/preamble.tex}
+\begin{document}
+\begin{tikzpicture}
+\begin{axis}[
+    width=11cm, height=7cm,
+    xmode=log,
+    xlabel={Number of examples},
+    ylabel={Performance (\% of saturation)},
+    xmin=10, xmax=2000000,
+    ymin=0, ymax=105,
+    grid=major,
+    grid style={gray!25},
+    legend style={at={(0.02,0.98)}, anchor=north west, font=\small,
+        draw=none, fill=white, fill opacity=0.85},
+    xtick={10,100,1000,10000,100000,1000000},
+    xticklabels={10,100,1K,10K,100K,1M},
+    ytick={0,20,40,60,80,100},
+    every axis plot/.append style={thick, mark size=1.6pt},
+    tick label style={font=\small},
+    label style={font=\small},
+]
+    % SFT — saturates earliest (thousands)
+    \addplot[DiagSeries1, mark=square*, smooth]
+        coordinates {
+            (20,15) (50,35) (100,52) (500,72) (1000,82)
+            (5000,90) (10000,94) (50000,97) (100000,98)
+        };
+    \addlegendentry{Fine-tuning (SFT)}
+
+    % RL preference data — middle
+    \addplot[DiagSeries2, mark=triangle*, smooth]
+        coordinates {
+            (100,8) (500,20) (1000,32) (5000,50) (10000,62)
+            (50000,78) (100000,88) (500000,94) (1000000,97)
+        };
+    \addlegendentry{RL preference data}
+
+    % RL rollouts — saturates latest (100K--1M+)
+    \addplot[DiagSeries3, mark=o, smooth]
+        coordinates {
+            (1000,5) (5000,15) (10000,25) (50000,42)
+            (100000,58) (500000,76) (1000000,88) (2000000,94)
+        };
+    \addlegendentry{RL rollouts}
+
+    % Scale-regime annotations — black text themes to --diagram-ink; dashed
+    % guides are neutral gray (legible on both surfaces).
+    \draw[gray, dashed, thin] (axis cs:20,0) -- (axis cs:20,105);
+    \node[font=\tiny, rotate=90, anchor=south] at (axis cs:20,52) {Formatting};
+
+    \draw[gray, dashed, thin] (axis cs:100,0) -- (axis cs:100,105);
+    \node[font=\tiny, rotate=90, anchor=south] at (axis cs:100,52) {Behavioral shifts};
+
+    \draw[gray, dashed, thin] (axis cs:1000,0) -- (axis cs:1000,105);
+    \node[font=\tiny, rotate=90, anchor=south] at (axis cs:1000,52) {Domain-specific};
+
+    \draw[gray, dashed, thin] (axis cs:50000,0) -- (axis cs:50000,105);
+    \node[font=\tiny, rotate=90, anchor=south] at (axis cs:50000,52) {Frontier scale};
+\end{axis}
+\end{tikzpicture}
+\end{document}

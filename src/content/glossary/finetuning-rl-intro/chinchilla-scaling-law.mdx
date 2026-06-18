@@ -1,0 +1,13 @@
+---
+term: Chinchilla Scaling Law
+aliases: [Chinchilla rule, compute-optimal scaling]
+domain: data-and-grading
+see: [pre-training, sft-data-scale]
+tags: [scaling, pretraining]
+---
+
+Compute-optimal **pre-training** uses roughly **20 tokens per parameter** — a 7B model
+wants about 140B tokens. It sets the *pre-training* data appetite and is a frequent
+interview prompt. Post-training ignores it: it saturates with **thousands** of curated
+examples, not billions of tokens. Note that most production models are now deliberately
+trained *beyond* Chinchilla-optimal, because extra data keeps paying off at inference time.

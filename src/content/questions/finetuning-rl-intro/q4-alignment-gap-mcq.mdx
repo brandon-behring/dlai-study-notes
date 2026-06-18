@@ -1,0 +1,33 @@
+---
+id: fri-4-alignment-gap
+type: mcq
+chapter: 4
+domain: data-and-grading
+bloom_level: analyze
+objective_id: FRI-4.3
+difficulty: '2'
+tags: [rl, reward]
+options:
+  - id: a
+    text: The supervised loss recorded during the earlier SFT stage
+  - id: b
+    text: The tokenizer's vocabulary coverage on the evaluation set
+  - id: c
+    text: The KL divergence from the reference policy, whose spike would confirm the policy is drifting to exploit the reward model
+    correct: true
+  - id: d
+    text: The warmup length of the learning-rate schedule
+---
+import Rationale from '@brandon_m_behring/book-scaffold-astro/components/Rationale.astro';
+
+During RL, your reward-model score climbs for 200 steps while held-out human-preference
+scores stay flat and outputs keep getting longer. The single most diagnostic signal to
+check next is…
+
+<Rationale title="Why">
+Reward rising while human preference stays flat and length grows is the signature of
+**reward hacking**, and the confirming signal is **KL divergence** from the reference
+policy — a spike shows the policy is diverging to chase the proxy rather than genuinely
+improving (a widening alignment gap). The earlier SFT loss, the tokenizer's coverage, and
+the warmup length say nothing about whether the *current* policy is gaming the reward model.
+</Rationale>

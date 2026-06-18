@@ -1,0 +1,26 @@
+---
+id: fri-4-cai-when
+type: free
+chapter: 4
+domain: data-and-grading
+bloom_level: analyze
+objective_id: FRI-4.5
+difficulty: '2'
+tags: [safety, alignment]
+answer: >
+  This is a strong case for Constitutional AI and RLAIF. The constraint is exactly the one
+  CAI was built for: human preference labeling is expensive and does not scale to thousands
+  of scenarios, while a written constitution lets the model critique and revise its own
+  outputs and generate its own preference labels at far lower cost and with more consistency.
+  The safeguard to keep: calibrate the AI feedback against a human-labeled validation set. AI
+  feedback can drift systematically from human values, and a model judging itself can entrench
+  its own blind spots, so spend the limited human budget not on labeling everything but on
+  auditing whether the AI's judgments track human preference. Common wrong answer: "avoid
+  RLAIF and just label what you can by hand" — a few hundred hours cannot cover thousands of
+  scenarios, so you would get thin, inconsistent coverage where CAI plus a human-validated
+  check gives broad coverage with a drift guard.
+---
+
+Your team must improve a model's harmlessness across thousands of sensitive scenarios, but
+has budget for only a few hundred hours of human labeling. Argue for or against using
+Constitutional AI / RLAIF here, and name the one safeguard you would keep.

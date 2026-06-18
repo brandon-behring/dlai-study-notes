@@ -1,0 +1,27 @@
+---
+id: fri-4-synthetic-pipeline
+type: free
+chapter: 4
+domain: data-and-grading
+bloom_level: apply
+objective_id: FRI-4.4
+difficulty: '3'
+tags: [synthetic-data, data]
+answer: >
+  Generate, filter, transform, score — with filtering as the quality-critical step.
+  Generate: build templates with variable slots (question type, user persona, difficulty)
+  seeded from the 200 real tickets and the API docs, sampling at varied temperature to
+  produce thousands of candidate question-answer pairs. Filter: this is where quality is
+  created — apply multi-axis rejection sampling (correctness against the docs, relevance,
+  fluency) plus collapse detection to drop near-duplicates, expecting to keep only 10 to
+  20%. Transform: restyle survivors across tones and difficulty so the set is not monochrome.
+  Score: assign multi-axis quality scores to weight or rank examples for the final mix. Keep
+  the 200 real tickets in the mix as a grounding anchor. Common wrong answer: "generate 50K
+  examples and train on all of them" — unfiltered synthetic data is dangerously easy to
+  produce badly, and skipping the filter is the classic way to train on thousands of
+  confident, wrong, near-duplicate examples.
+---
+
+A startup needs a model that answers questions about its niche API, but has only about 200
+real support tickets. Design a synthetic data pipeline to reach a usable training set,
+naming each of the four operations and the single step most responsible for quality.

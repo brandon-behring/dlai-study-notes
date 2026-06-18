@@ -1,0 +1,33 @@
+---
+id: fri-4-saturation
+type: mcq
+chapter: 4
+domain: data-and-grading
+bloom_level: analyze
+objective_id: FRI-4.1
+difficulty: '2'
+tags: [data, rl]
+options:
+  - id: a
+    text: A rollout carries only a sparse scalar reward, so each example teaches less than an SFT pair's full target output, and many more are needed to accumulate the same signal
+    correct: true
+  - id: b
+    text: Rollouts are longer sequences, so they consume more tokens per example and train more slowly
+  - id: c
+    text: RL optimizers require smaller learning rates than SFT, which slows convergence
+  - id: d
+    text: Reward models are noisiest early in training, which delays downstream RL progress
+---
+import Rationale from '@brandon_m_behring/book-scaffold-astro/components/Rationale.astro';
+
+On the data-saturation curves, RL rollouts need far more examples than SFT to reach
+comparable performance. The best explanation is that…
+
+<Rationale title="Why">
+A rollout's learning signal is a single **scalar reward**, far sparser than an SFT
+example's full target sequence, so RL must see many more examples to accumulate comparable
+signal — exactly why the rollout curve saturates last. Sequence length and optimizer
+learning rates change compute cost and step size, not the signal-per-example gap that
+drives the data requirement. Early reward-model noise is a real stability concern, but it
+affects training reliability rather than how much data rollouts fundamentally need.
+</Rationale>

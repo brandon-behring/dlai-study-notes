@@ -1,0 +1,13 @@
+---
+term: Data Flywheel
+aliases: [production data flywheel]
+domain: data-and-grading
+see: [synthetic-data, counterexample-mining, iterative-data-refinement]
+tags: [data, production]
+---
+
+A self-reinforcing production cycle: deploy → collect real user queries → identify
+failure patterns → generate synthetic counterexamples → retrain → redeploy. It
+*accelerates* as the model improves, because a better model generates higher-quality
+synthetic data for the next turn — turning live traffic into a renewable training-data
+source rather than a one-time collection effort.

@@ -1,0 +1,13 @@
+---
+term: Offline vs Online Preference Learning
+aliases: [offline RL, online RL]
+domain: data-and-grading
+see: [dpo, ppo, grpo]
+tags: [rl]
+---
+
+A data-flow distinction. **Offline** methods (DPO) train on a *fixed* preference set
+collected once. **Online** methods (PPO, GRPO) score *freshly generated* rollouts against
+the current policy in real time. Online is more expensive but avoids the distribution
+shift between stale data and a policy that has since moved — the reason on-policy methods
+often reach higher ceilings despite the extra cost.

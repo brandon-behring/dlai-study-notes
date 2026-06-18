@@ -1,0 +1,13 @@
+---
+term: Rollout
+aliases: [RL rollout]
+domain: data-and-grading
+see: [trajectory, advantage, grpo]
+tags: [rl, data]
+---
+
+An RL training datum: an input prompt, a generated output (the "roll"), and a **scalar
+reward**. Multiple outputs are typically sampled per prompt (about **8** by default),
+forming a set the RL algorithm uses to learn which outputs are preferred. Unlike an SFT
+input–output pair, a rollout carries a *graded* signal rather than a gold target — which
+is why RL data saturates much later than SFT data.

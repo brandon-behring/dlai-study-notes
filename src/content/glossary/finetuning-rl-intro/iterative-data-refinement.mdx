@@ -1,0 +1,13 @@
+---
+term: Iterative Data Refinement
+aliases: [iterative data loop]
+domain: data-and-grading
+see: [error-analysis, counterexample-mining, catastrophic-forgetting]
+tags: [data, workflow]
+---
+
+A four-step cycle that treats data curation as continuous engineering: **(1)** train,
+**(2)** evaluate on held-out sets, **(3)** identify the worst failure patterns, **(4)**
+add targeted counterexamples — then repeat until metrics plateau. The discipline is to
+re-run the *full* eval suite each round, so a fix for one failure mode does not silently
+regress another (catastrophic forgetting).

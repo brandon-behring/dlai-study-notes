@@ -1,0 +1,25 @@
+---
+id: fri-4-filter-fails
+type: free
+chapter: 4
+domain: data-and-grading
+bloom_level: analyze
+objective_id: FRI-4.6
+difficulty: '3'
+tags: [filtering, synthetic-data]
+answer: >
+  Rejection sampling fails when the threshold is set on a single axis: filter only on length
+  or fluency and you keep confident, well-written, wrong answers while biasing the
+  distribution. LLM-as-judge fails on the judge's own biases — it tends to reward verbose,
+  confident, or self-similar outputs, so a fluent wrong answer scores well. Majority vote
+  fails when a shared misconception makes the wrong answer the consensus, so the samples
+  agree and reinforce the error. The implication: no single filter is sufficient — combine
+  them on orthogonal axes (a correctness check the judge cannot fake, a diversity or collapse
+  check, a consensus check) so a candidate must clear several independent hurdles. Common
+  wrong answer: "use the strongest LLM judge and trust it" — a single judge concentrates its
+  biases instead of cancelling them.
+---
+
+For each filtering method — rejection sampling, LLM-as-judge, and majority vote — give one
+realistic situation where it would pass low-quality data. What does this imply about how to
+combine them?

@@ -1,0 +1,14 @@
+---
+term: Data Mixing Ratio
+aliases: [data mix]
+domain: data-and-grading
+see: [sft-data-scale, catastrophic-forgetting]
+tags: [data]
+---
+
+The proportion of task-specific vs general-purpose data in a training mix, tuned to the
+target capability (a math model might run 60–80% task-specific; a safety-critical one
+30–50%). There is no universal optimum: keep **20–40% general data** in every mix to
+prevent capability regression, and re-tune every iteration — each model version changes
+what data it needs next. DeepSeek R1's 75/25 reasoning split is one point on this curve,
+not a law.

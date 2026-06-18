@@ -1,0 +1,27 @@
+---
+id: fri-4-counterexample-design
+type: free
+chapter: 4
+domain: data-and-grading
+bloom_level: apply
+objective_id: FRI-4.2
+difficulty: '2'
+tags: [data, sft]
+answer: >
+  Allocate examples proportionally to the failure distribution, weight by severity, and
+  source each from ground truth. Hallucinated APIs (45%) is the largest and most damaging
+  bucket — build roughly 120 examples pairing prompts with verified, runnable code that uses
+  real library calls, drawn from official docs so the correct signal is authoritative.
+  Off-by-one bounds (35%) — about 90 examples of correct loop-boundary handling, ideally
+  paired with a unit-test verifier so RL can reinforce them. Missing error handling (20%) —
+  about 60 examples demonstrating proper try/except and edge-case checks. Then re-run the
+  full eval suite, not just these three clusters, to confirm the additions did not regress
+  anything else. Common wrong answer: "add a few thousand general high-quality coding
+  examples" — volume without targeting mostly re-teaches what the model already does well and
+  leaves the specific failures unfixed.
+---
+
+Error analysis on a deployed coding assistant shows three failure clusters: hallucinated
+library APIs (45% of errors), off-by-one loop bounds (35%), and missing error handling
+(20%). Describe how you would build counterexample data for each, and how many examples
+you would allocate.

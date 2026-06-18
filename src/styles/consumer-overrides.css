@@ -62,6 +62,22 @@
   }
 }
 
+/* ── Diagram categorical series palette (Q3 "warm-Tol diagram palette") ───────
+ * Data-series colors for figures (pgfplots \addplot) + future demo islands.
+ * STATIC across themes by design: a data series must keep its identity when the
+ * reader flips theme (web.dev research — never invert/flip data colors), so
+ * unlike the accent tokens above these do NOT brighten in dark. The values are
+ * mid-tones tuned to clear contrast on BOTH warm-paper (light) and the dark
+ * surface; redundant glyph marks (□ △ ○ in the figure) carry the distinction for
+ * colorblind readers. Mirrors figures/_shared/preamble.tex DiagSeries1..3 — one
+ * palette feeds figures AND demos. build-figures remaps only neutral ink/paper,
+ * so the figure bakes these same hexes and matches the tokens exactly. */
+:root {
+  --diagram-series-1: #4e86c2; /* blue  — series 1 (e.g. SFT) */
+  --diagram-series-2: #a65da0; /* plum  — series 2 */
+  --diagram-series-3: #b5862e; /* amber — series 3 */
+}
+
 /* ── Practice-exam: make the scored verdict unmistakable ──────────────────────
  * The scaffold marks a scored card with only a faint border (QuestionCard
  * data-exam-result), while every card's reveal shows an answer-key line labeled
