@@ -9,14 +9,14 @@ difficulty: '3'
 tags: [rl, safety]
 options:
   - id: a
+    text: Increase the reward weight so the signal is stronger
+  - id: b
+    text: Train for more steps to escape the collapse
+  - id: c
+    text: Switch optimizer from Adam to SGD
+  - id: d
     text: Add a KL-divergence penalty against the SFT reference policy
     correct: true
-  - id: b
-    text: Increase the reward weight so the signal is stronger
-  - id: c
-    text: Train for more steps to escape the collapse
-  - id: d
-    text: Switch optimizer from Adam to SGD
 ---
 import Rationale from '@brandon_m_behring/book-scaffold-astro/components/Rationale.astro';
 
@@ -27,8 +27,9 @@ Which is the **most direct** mitigation?
 <Rationale title="Why">
 **A KL penalty to the SFT reference.** Mode collapse is the policy drifting into
 a narrow, reward-gaming region; penalizing divergence from the diverse SFT
-baseline pulls it back toward varied behavior. Options (b) and (c) *accelerate*
-the hack — a stronger or longer-optimized broken reward collapses harder.
-Optimizer choice (d) is irrelevant to specification gaming. (Diversity
-monitoring would *detect* the collapse; the KL penalty *prevents* it.)
+baseline pulls it back toward varied behavior. Raising the reward weight or
+training longer both *accelerate* the hack — a stronger or longer-optimized
+broken reward collapses harder. Changing the optimizer is irrelevant to
+specification gaming. (Diversity monitoring would *detect* the collapse; the KL
+penalty *prevents* it.)
 </Rationale>

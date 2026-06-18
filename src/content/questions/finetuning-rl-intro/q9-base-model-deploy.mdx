@@ -24,9 +24,10 @@ Why can a freshly pre-trained **base model** not be deployed as a chat assistant
 as-is?
 
 <Rationale title="Why">
-**(b).** Pre-training *does* give the base model broad world knowledge — that is
-exactly what (a) and (d) get wrong. What it lacks is *behavior*: following
-instructions, refusing unsafe requests, and producing structured reasoning.
-Post-training (SFT + RL) installs those. (c) is about serving cost, not why the
-base model is behaviorally undeployable.
+Pre-training **already gives** the base model broad world knowledge and trained
+(not random) weights — exactly what the "lacks world knowledge" and "randomly
+initialized" options get wrong. What it lacks is *behavior*: following
+instructions, refusing unsafe requests, and producing structured reasoning, all
+installed by post-training (SFT + RL). The "too large to serve" option is about
+serving cost, not why the base model is behaviorally undeployable.
 </Rationale>

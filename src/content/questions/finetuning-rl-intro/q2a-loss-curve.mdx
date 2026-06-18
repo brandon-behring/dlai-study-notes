@@ -9,10 +9,10 @@ difficulty: '1'
 tags: [sft, hyperparameters]
 options:
   - id: a
+    text: Train for more epochs
+  - id: b
     text: Reduce the learning rate by ~10×
     correct: true
-  - id: b
-    text: Train for more epochs
   - id: c
     text: Increase the learning rate to escape the plateau
   - id: d
@@ -25,8 +25,8 @@ change?
 
 <Rationale title="Why">
 **Reduce the learning rate ~10×.** `NaN` loss is the signature of an
-LR-too-high blow-up: a step overshoots, weights explode, and the loss becomes
-undefined. More epochs (b) just runs the broken dynamics longer; raising the LR
-(c) makes it worse; changing the optimizer (d) doesn't address the step size. The
-reflex fix in the loss-curve diagnosis table is: NaN → LR too high → cut 10×.
+LR-too-high blow-up: a step overshoots, weights explode, the loss becomes
+undefined. Training more epochs just runs the broken dynamics longer; raising the
+LR makes it worse; swapping the optimizer doesn't address the step size. The
+reflex from the loss-curve diagnosis table: NaN → LR too high → cut 10×.
 </Rationale>

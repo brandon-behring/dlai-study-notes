@@ -26,8 +26,8 @@ memory-tight setup. Which approach fits best?
 <Rationale title="Why">
 **GRPO with verifiers** — the DeepSeek R1 recipe. The verifier gives a clean reward
 with no reward model to host, and GRPO's group-mean baseline removes the critic, so
-you run three models (or fewer) instead of four — ideal under memory pressure. (b)
-is the thing GRPO exists to avoid; (c) DPO can't consume a live verifier signal
-online; (d) ignores that RL is exactly how you *exploit* a checkable reward to
-exceed demonstrations.
+you run three models (or fewer) instead of four — ideal under memory pressure.
+Insisting on a learned critic is the very memory cost GRPO exists to avoid; DPO
+can't consume a live verifier signal online; and skipping RL ignores that RL is
+exactly how you *exploit* a checkable reward to exceed demonstrations.
 </Rationale>

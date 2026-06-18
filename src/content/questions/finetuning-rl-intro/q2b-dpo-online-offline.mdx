@@ -9,14 +9,14 @@ difficulty: '2'
 tags: [rl, dpo, ppo]
 options:
   - id: a
+    text: DPO requires a separate reward model; PPO and GRPO do not
+  - id: b
+    text: DPO is on-policy while PPO is off-policy
+  - id: c
+    text: DPO uses a critic and GRPO a group baseline, but they are otherwise identical
+  - id: d
     text: DPO trains offline on a fixed preference dataset; PPO/GRPO generate fresh rollouts online
     correct: true
-  - id: b
-    text: DPO needs a separate reward model; PPO/GRPO do not
-  - id: c
-    text: DPO is on-policy; PPO is off-policy
-  - id: d
-    text: DPO uses a critic; GRPO uses a group baseline; they are otherwise identical
 ---
 import Rationale from '@brandon_m_behring/book-scaffold-astro/components/Rationale.astro';
 
@@ -25,8 +25,9 @@ What is the **core practical difference** between DPO and the PPO/GRPO family?
 <Rationale title="Why">
 **DPO is offline, PPO/GRPO are online.** DPO trains once on a fixed
 `chosen`/`rejected` dataset with no reward model and no sampling loop; PPO and GRPO
-generate fresh rollouts from the current policy each step and score them live. (b)
-is backwards — it's DPO that *skips* the reward model. (c) misuses the on/off-policy
-terms. (d) conflates DPO with the PPO/GRPO critic distinction. The online/offline
-axis is the clean way to file these algorithms.
+generate fresh rollouts from the current policy each step and score them live. The
+"DPO requires a reward model" option is backwards — DPO is the one that *skips* it.
+The on-policy/off-policy option misuses those terms. The "otherwise identical"
+option conflates DPO with the PPO-vs-GRPO critic distinction. Online vs offline is
+the clean axis.
 </Rationale>
