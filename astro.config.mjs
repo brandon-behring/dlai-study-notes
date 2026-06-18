@@ -16,6 +16,12 @@ import rehypeKatex from 'rehype-katex';
 
 export default await defineBookConfig({
   site: 'https://study-notes.brandon-behring.dev',
+  // Chrome branding (Sidebar.astro reads bookConfig.title/subtitle; without these
+  // it shows the scaffold default "Book / A scaffold-astro book"). This is a
+  // multi-book corpus, so the persistent chrome shows the corpus name — the
+  // per-book title still appears in each page's breadcrumb.
+  title: 'DLAI Study Notes',
+  subtitle: 'Interview-ready guides to applied AI',
   // v4: preset/profile replaced by explicit style composition (MIGRATION-v3-to-v4).
   styles: [courseNotesStyle],
   routes: {

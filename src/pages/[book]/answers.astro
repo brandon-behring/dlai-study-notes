@@ -8,6 +8,7 @@
 import Base from '@brandon_m_behring/book-scaffold-astro/layouts/Base.astro';
 import { getCollection, render } from 'astro:content';
 import { groupByChapter, assertKnownDomain } from '@brandon_m_behring/book-scaffold-astro';
+import '../../styles/consumer-overrides.css';
 
 export async function getStaticPaths() {
   const books = (await getCollection('books')).filter((b) => !b.data.draft);

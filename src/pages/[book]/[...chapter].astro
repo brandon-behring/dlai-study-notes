@@ -10,6 +10,7 @@ import Chapter from '@brandon_m_behring/book-scaffold-astro/layouts/Chapter.astr
 import Provenance from '@brandon_m_behring/book-scaffold-astro/components/Provenance.astro';
 import { getCollection, render } from 'astro:content';
 import { mdxComponents } from '../../components/mdx';
+import '../../styles/consumer-overrides.css';
 
 export async function getStaticPaths() {
   const allChapters = (await getCollection('chapters')).filter((c) => !c.data.draft);

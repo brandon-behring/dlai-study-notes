@@ -11,6 +11,7 @@ import { getCollection, render } from 'astro:content';
 import Flashcards from '@brandon_m_behring/book-scaffold-astro/components/Flashcards';
 import { buildFlashcardDeck } from '@brandon_m_behring/book-scaffold-astro';
 import '@brandon_m_behring/book-scaffold-astro/styles/flashcards.css';
+import '../../styles/consumer-overrides.css';
 
 export async function getStaticPaths() {
   const books = (await getCollection('books')).filter((b) => !b.data.draft);

@@ -42,8 +42,9 @@ const { type, front, back, los } = Astro.props;
     font-size: 0.65rem;
     text-transform: uppercase;
     letter-spacing: 0.05em;
-    color: var(--color-meta, #718096);
-    background: var(--color-tag-bg, #edf2f7);
+    /* Token-only so the pill tracks dark mode (was pinned to light #edf2f7). */
+    color: var(--color-text-muted, #718096);
+    background: var(--color-code-bg, #edf2f7);
     padding: 0.1rem 0.4rem;
     border-radius: 2px;
   }

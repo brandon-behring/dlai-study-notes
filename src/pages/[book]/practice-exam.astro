@@ -13,11 +13,13 @@ import { getCollection, render } from 'astro:content';
 import QuestionCard from '@brandon_m_behring/book-scaffold-astro/components/QuestionCard.astro';
 import ExamRunner from '@brandon_m_behring/book-scaffold-astro/components/ExamRunner';
 import '@brandon_m_behring/book-scaffold-astro/styles/exam-runner.css';
+import '../../styles/consumer-overrides.css';
 import {
   groupByDomain,
   assertKnownDomain,
   buildExamManifest,
 } from '@brandon_m_behring/book-scaffold-astro';
+import { domainLabel } from '../../lib/domain-label';
 
 export async function getStaticPaths() {
   const books = (await getCollection('books')).filter((b) => !b.data.draft);
@@ -80,7 +82,7 @@ const manifest = buildExamManifest(entries);
 
     {domainOrder.map((domain) => (
       <section class="practice-domain" id={`domain-${domain}`}>
-        <h2 class="practice-domain-title">{domain}</h2>
+        <h2 class="practice-domain-title">{domainLabel(domain, book.data.examDomainLabels)}</h2>
         {byDomain.get(domain)!.map((q) => (
           <QuestionCard data={q.data} Content={q.Content} reserved={q.reserved} />
         ))}
@@ -95,7 +97,8 @@ const manifest = buildExamManifest(entries);
     .practice-empty { color: var(--color-text-muted, #6b7280); }
     .practice-domain { margin-block-start: 2rem; }
     .practice-domain-title {
-      text-transform: capitalize;
+      /* Labels come pre-formatted from domainLabel(); no text-transform (it would
+         mangle acronyms — 'SFT vs RL' → 'Sft Vs Rl'). */
       border-block-end: 2px solid var(--color-border, #e5e7eb);
       padding-block-end: 0.25rem;
     }

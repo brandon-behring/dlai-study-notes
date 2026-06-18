@@ -73,6 +73,47 @@ repeats.
 
 ---
 
+## Theme: rendering & affordances (found in chapter-1 design review)
+
+### 7. KaTeX CSS not loaded under course-notes → math double-renders
+- **Problem:** the scaffold gates the KaTeX stylesheet on the academic profile.
+  A course-notes consumer that wires `remark-math`/`rehype-katex` (as we must)
+  gets the markup but **no `katex.css`**, so the browser shows native MathML AND
+  the unstyled `.katex-html` (spans collapse → "12"+"15" renders as "1512").
+- **Evidence:** `[...document.styleSheets].some(s => …'katex-mathml')` was `false`;
+  `.katex-mathml` computed `position:static` (not the SR-hidden clip). All 4
+  equations on the chapter doubled.
+- **Workaround:** consumer `src/styles/consumer-overrides.css` `@import`s
+  `katex/dist/katex.min.css`, imported on every MDX-rendering route.
+- **Suggested fix:** when math integrations are enabled for ANY profile, ship
+  katex.css (or document the consumer requirement loudly).
+
+### 8. `<WorkedExample>` hides its disclosure marker with no replacement
+- **Problem:** `callouts.css` sets `.callout-worked summary { list-style:none }`
+  + `::-webkit-details-marker { display:none }`, leaving only `cursor:pointer`
+  and a static-looking chip. It doesn't read as expandable — and it's
+  inconsistent with `<Diagnostic>` / SectionMap, which DO show a ▸.
+- **Workaround:** consumer override adds a rotating `▸` `::before` on the summary.
+- **Suggested fix:** ship the chevron in the scaffold (rotate on `[open]`,
+  honor `prefers-reduced-motion`).
+
+### 9. `--color-accent` is undefined in tokens.css → islands fall back to indigo
+- **Problem:** ExamRunner/Flashcards/QuestionCard/Rationale/ObjectiveMap all use
+  `var(--color-accent, #4f46e5)`, but `tokens.css` never defines `--color-accent`,
+  so the apparatus renders cool indigo — off-palette from the warm-blue site.
+- **Workaround:** consumer defines `--color-accent: var(--warm-blue)` (+ dark
+  brightening) globally.
+- **Suggested fix:** define `--color-accent` in tokens.css (map to `--warm-blue`
+  or a dedicated accent role) so islands inherit the book palette by default.
+
+### 10. Apparatus headings print the raw domain slug
+- **Problem:** the scaffold `/practice-exam` (and our per-book clone) render the
+  `examDomains` slug directly (`sft-vs-rl` → CSS-capitalized "Sft-Vs-Rl").
+- **Workaround:** optional `examDomainLabels` map in book frontmatter +
+  `humanizeDomain()` fallback (consumer `src/lib/domain-label.ts`).
+- **Suggested fix:** let `examDomains` entries carry an optional label, or accept
+  a labels map in `defineBookConfig`.
+
 ## Theme: pedagogy enhancement backlog (from PEDAGOGY.md audit; Phase 3)
 
 Additive to course-notes — ship as a scaffold minor:

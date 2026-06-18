@@ -1,0 +1,49 @@
+/* consumer-overrides.css — DLAI corpus global overrides on top of the scaffold.
+ *
+ * Imported once per content page (chapter + apparatus routes). Three jobs:
+ *   1. Load KaTeX's stylesheet (the scaffold gates it on the academic profile;
+ *      course-notes never loads it, so math double-renders — native MathML PLUS
+ *      unstyled .katex-html. katex.css hides .katex-mathml and styles the HTML).
+ *   2. Define --color-accent (undefined in tokens.css → islands fall back to
+ *      indigo #4f46e5). Point it at the site's warm-blue, brightened in dark.
+ *   3. Give <WorkedExample> a visible expand affordance — the scaffold hides the
+ *      native <details> marker without a replacement, so it doesn't read as
+ *      clickable. Add a rotating chevron matching the ▸ idiom that Diagnostic
+ *      and SectionMap already show. (Dogfood: upstream should ship this.)
+ */
+@import 'katex/dist/katex.min.css';
+
+/* ── Island accent → warm-blue (was indigo #4f46e5) ───────────────────────── */
+:root {
+  --color-accent: var(--warm-blue, #3b6fa0);
+}
+/* Brighten in dark for AA on dark surfaces (mirrors tokens.css link/heading). */
+:root[data-theme='dark'] {
+  --color-accent: color-mix(in srgb, var(--warm-blue) 58%, white);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --color-accent: color-mix(in srgb, var(--warm-blue) 58%, white);
+  }
+}
+
+/* ── WorkedExample expand affordance ──────────────────────────────────────── */
+/* summary is display:flex; align-items:baseline; gap:var(--space-3). The chevron
+   is the first flex item; currentColor (= the title's --color-text) keeps it
+   clearly visible in both themes. */
+.callout-worked summary::before {
+  content: '\25B8'; /* ▸ BLACK RIGHT-POINTING SMALL TRIANGLE */
+  flex: 0 0 auto;
+  color: currentColor;
+  font-size: 0.8em;
+  line-height: 1;
+  transition: transform 0.15s ease;
+}
+.callout-worked details[open] summary::before {
+  transform: rotate(90deg);
+}
+@media (prefers-reduced-motion: reduce) {
+  .callout-worked summary::before {
+    transition: none;
+  }
+}

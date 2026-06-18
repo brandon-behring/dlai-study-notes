@@ -50,6 +50,10 @@ const booksCollection = defineCollection({
     // (defineBookConfig); we make it per-book here so each guide's practice-exam /
     // answers routes validate question `domain` against the right registry.
     examDomains: z.array(z.string()).default([]),
+    // Optional display labels for the domain slugs above (slug → heading).
+    // Drives the practice-exam section headings; unlabeled domains fall back to
+    // humanizeDomain(). Keeps anchors/validator on the slug, headings readable.
+    examDomainLabels: z.record(z.string(), z.string()).default({}),
     draft: z.boolean().default(false),
   }),
 });

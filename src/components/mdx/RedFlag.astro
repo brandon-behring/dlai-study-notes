@@ -11,14 +11,26 @@ const { title } = Astro.props;
 
 <style>
   .redflag {
-    border-left: 3px solid var(--color-redflag, #c53030);
-    background: var(--color-bg-redflag, #fff5f5);
+    /* Scaffold pitfall family. --warm-crimson-tint = color-mix(6%, --paper),
+       so the bg flips with the page in dark mode; --color-text flips too →
+       always legible. (Previously pinned to a light #fff5f5 because
+       --color-bg-redflag was never defined, making dark-mode text unreadable.) */
+    border-left: 3px solid var(--callout-pitfall, #c53030);
+    background: var(--warm-crimson-tint, #fff5f5);
+    color: var(--color-text, #1a202c);
     padding: 1rem 1.25rem; margin: 1.5rem 0; border-radius: 0 4px 4px 0;
   }
   .redflag-tag {
     font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em;
-    color: var(--color-redflag, #c53030); font-weight: 700;
+    color: var(--callout-pitfall, #c53030); font-weight: 700;
   }
-  .redflag-title { margin: 0.25rem 0; font-size: 1rem; }
+  .redflag-title { margin: 0.25rem 0; font-size: 1rem; color: var(--color-text, #1a202c); }
   .redflag-body :global(p:last-child) { margin-bottom: 0; }
+
+  /* Dark mode: brighten the crimson accent for WCAG-AA contrast on the dark
+     tint bg (mirrors tokens.css's accent-brightening idiom for headings/links). */
+  :root[data-theme="dark"] .redflag-tag { color: color-mix(in srgb, var(--warm-crimson) 62%, white); }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) .redflag-tag { color: color-mix(in srgb, var(--warm-crimson) 62%, white); }
+  }
 </style>
