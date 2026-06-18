@@ -1,0 +1,24 @@
+---
+id: fri-3-embedding-clustering
+type: free
+chapter: 3
+domain: evaluation
+bloom_level: understand
+objective_id: FRI-3.4
+difficulty: '2'
+tags: [evaluation]
+answer: >
+  Embedding failures (with a sentence transformer) and clustering them (k-means) surfaces
+  structural patterns that manual inspection misses at scale — it groups the dozens of
+  "looks different but fails the same way" cases so you can see the real failure modes and
+  their relative size. The same embedding space then drives *data selection*: take each
+  cluster's centroid, find the nearest existing training examples by cosine similarity, and
+  seed targeted counterexamples from those neighbors. That closes the loop from diagnosis
+  to curation — why ten similarity-matched examples often beat a hundred random ones.
+  Common wrong answer: "clustering just visualizes errors" — its real payoff is choosing
+  *which* training data to add.
+---
+
+Why run error analysis with **embedding-based clustering** instead of eyeballing
+failures, and how does the same embedding space help you choose *which* training data to
+add?

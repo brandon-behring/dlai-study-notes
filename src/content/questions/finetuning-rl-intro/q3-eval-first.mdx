@@ -1,0 +1,23 @@
+---
+id: fri-3-eval-first
+type: free
+chapter: 3
+domain: evaluation
+bloom_level: analyze
+objective_id: FRI-3.1
+difficulty: '2'
+tags: [evaluation]
+answer: >
+  Because if the capability isn't in your eval suite, you can't *measure* whether
+  training improved it — you'd be optimizing blind, unable to tell progress from
+  regression or to catch the fix introducing new failures. Adding it first gives a
+  baseline and a target the whole eval-train loop can steer by. The canonical example:
+  when GPT-4o was found to be sycophantic, the fix began by adding sycophancy to the eval
+  suite, *then* training against it — "evals before fixes, always." Common wrong answer:
+  "train first, then build an eval to confirm" — that risks training in the dark and only
+  discovering the regression after it ships.
+---
+
+The rule is "add a new capability to your evals **before** you train for it." Explain
+*why* that ordering matters, and give a concrete example of a failure mode it would have
+caught.

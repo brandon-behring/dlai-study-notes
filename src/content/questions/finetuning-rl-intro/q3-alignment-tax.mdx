@@ -1,0 +1,25 @@
+---
+id: fri-3-alignment-tax
+type: free
+chapter: 3
+domain: evaluation
+bloom_level: analyze
+objective_id: FRI-3.2
+difficulty: '2'
+tags: [evaluation, rl]
+answer: >
+  The alignment tax is the gap between the automated reward-model score and actual human
+  preference. A *growing* tax means the model's reward keeps rising while real quality
+  doesn't — it's optimizing the proxy without improving the true objective, i.e.
+  Goodhart's Law / reward hacking in progress. It's a primary RL health signal precisely
+  because reward-going-up looks like success; the tax reveals it's hollow. Corroborate
+  with KL divergence (a spike past ~0.5 nats) and collapsing rollout diversity, and act:
+  raise the KL penalty, fix/strengthen the reward (or switch to a verifier), or early-stop
+  on a held-out human/quality metric rather than reward. Common wrong answer: "a growing
+  tax means the reward model needs retraining" — retraining may help, but the immediate
+  read is that you're over-optimizing the proxy.
+---
+
+During RL the reward score keeps climbing. What does a **growing alignment tax** tell
+you about that progress, why is it a key health signal, and what would you check and do
+in response?

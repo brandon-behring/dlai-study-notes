@@ -1,0 +1,25 @@
+---
+id: fri-3-red-team-agent
+type: free
+chapter: 3
+domain: evaluation
+bloom_level: analyze
+objective_id: FRI-3.5
+difficulty: '3'
+tags: [evaluation, safety, red-teaming]
+answer: >
+  Probe multiple attack surfaces, not just capability: (1) jailbreaks — adversarial user
+  prompts that bypass guardrails (roleplay bypass); (2) prompt injection — malicious
+  instructions hidden in the data/tools the agent reads (the higher-risk vector for a
+  tool-using agent); (3) tool misuse — getting the agent to call tools with harmful
+  parameters or chain them into damage; (4) automated adversarial generation — use one LLM
+  to mass-produce attacks (garak/promptfoo) beyond manual effort. Watch for agentic
+  misalignment (pursuing goals against user intent) and sleeper-agent behavior (passes
+  evals, triggers on a condition). Defense-in-depth: pair training-time alignment with a
+  runtime monitor — a separate model screening each output/action before it executes.
+  Common wrong answer: only listing jailbreaks — for an *agent* the data/tool vectors
+  matter more.
+---
+
+How would you red-team an LLM-based **agent** (a model with tool access)? Name the main
+attack categories to probe and the defense-in-depth layer you'd add.

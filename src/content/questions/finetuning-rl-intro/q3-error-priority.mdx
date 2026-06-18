@@ -1,0 +1,24 @@
+---
+id: fri-3-error-priority
+type: free
+chapter: 3
+domain: evaluation
+bloom_level: analyze
+objective_id: FRI-3.4
+difficulty: '2'
+tags: [evaluation]
+answer: >
+  Frequency alone says fix reasoning (30 > 12), but prioritize by impact ÷ effort. Format
+  errors (right answer, wrong format) are cheap and certain to fix — ~20–50 targeted SFT
+  examples, an hour of work, and all 12 disappear. Reasoning errors (wrong approach
+  entirely) are the hardest class: they need new reasoning chains in the training data,
+  days-to-a-week of effort, and only a partial fix. So you bank the cheap, certain win
+  (format) first, then invest in the high-effort reasoning fix. The principle: rank by
+  frequency × severity ÷ effort, not raw frequency. Common wrong answer: "always fix the
+  biggest bucket first" — that ignores that a small, trivially-fixable bucket can be the
+  higher ROI.
+---
+
+Error clustering on a failing model gives: **reasoning errors (30), format errors (12).**
+Raw frequency says fix reasoning first. Argue why **format** may be the better first fix,
+and state the prioritization rule you're applying.

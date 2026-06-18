@@ -1,0 +1,13 @@
+---
+term: Embedding-Based Error Clustering
+aliases: [embedding clustering, embedding-guided data selection]
+domain: evaluation
+see: [error-analysis]
+tags: [evaluation]
+---
+
+Grouping failure cases by **sentence-embedding similarity** (e.g. k-means over
+all-MiniLM embeddings) to reveal structural failure patterns invisible to manual review.
+The same embedding space then **selects targeted training data**: match each error
+cluster's centroid against a candidate pool by cosine similarity and seed counterexamples
+from the nearest neighbors — closing the loop between diagnosis and data curation.

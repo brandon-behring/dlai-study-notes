@@ -45,6 +45,7 @@ export default await defineBookConfig({
     // finetuning-rl-intro
     'post-training-foundations',
     'sft-vs-rl',
+    'evaluation',
     'data-and-grading',
     'reasoning-and-safety',
     'production-pipelines',
