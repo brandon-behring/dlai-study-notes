@@ -62,6 +62,40 @@
   }
 }
 
+/* ── Practice-exam: make the scored verdict unmistakable ──────────────────────
+ * The scaffold marks a scored card with only a faint border (QuestionCard
+ * data-exam-result), while every card's reveal shows an answer-key line labeled
+ * "Correct: <answer>" — which reads as a verdict, so a wrong answer looks the
+ * same as a right one ("says correct no matter what"). Add a tinted background +
+ * a bold ✓/✗ "Your answer" badge so right vs wrong is obvious and clearly
+ * distinct from the answer key. (DOGFOOD #13: upstream stronger result styling +
+ * relabel the key to "Answer:".) */
+[data-exam-result]::before {
+  display: inline-block;
+  font-weight: 700;
+  font-size: 0.78rem;
+  letter-spacing: 0.02em;
+  margin-block-end: 0.5rem;
+  padding: 0.1rem 0.5rem;
+  border-radius: 0.25rem;
+}
+[data-exam-result='correct'] { background: var(--warm-green-tint); }
+[data-exam-result='correct']::before {
+  content: '✓ Your answer — correct';
+  color: var(--warm-green);
+}
+[data-exam-result='incorrect'] { background: var(--warm-crimson-tint); }
+[data-exam-result='incorrect']::before {
+  content: '✗ Your answer — incorrect';
+  color: var(--warm-crimson);
+}
+:root[data-theme='dark'] [data-exam-result='correct']::before { color: color-mix(in srgb, var(--warm-green) 62%, white); }
+:root[data-theme='dark'] [data-exam-result='incorrect']::before { color: color-mix(in srgb, var(--warm-crimson) 62%, white); }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) [data-exam-result='correct']::before { color: color-mix(in srgb, var(--warm-green) 62%, white); }
+  :root:not([data-theme='light']) [data-exam-result='incorrect']::before { color: color-mix(in srgb, var(--warm-crimson) 62%, white); }
+}
+
 /* ── WorkedExample expand affordance ──────────────────────────────────────── */
 /* summary is display:flex; align-items:baseline; gap:var(--space-3). The chevron
    is the first flex item; currentColor (= the title's --color-text) keeps it

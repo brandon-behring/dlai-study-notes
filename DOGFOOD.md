@@ -132,6 +132,19 @@ repeats.
 - **Suggested fix:** fold the lint into `book-scaffold validate` so every consumer
   inherits it; consider defining the `--color-*` semantic aliases in `tokens.css`.
 
+### 13. Scored exam verdict is too subtle + answer-key label reads as a verdict
+- **Problem:** after ExamRunner scores, a card's only right/wrong cue is
+  `QuestionCard`'s faint `data-exam-result` border (+3px inset shadow). Meanwhile
+  the reveal shows an answer-key line labeled **"Correct: \<answer>"** on *every*
+  card — which reads as a verdict. Net effect: a wrong answer looks like a right
+  one ("the exam says correct no matter what I pick"). Scoring itself is correct.
+- **Workaround:** consumer CSS gives `[data-exam-result]` a tinted background + a
+  bold ✓/✗ "Your answer — correct/incorrect" badge (themed), clearly distinct
+  from the answer key.
+- **Suggested fix:** ship a prominent per-card verdict in `QuestionCard`/ExamRunner
+  (badge + tint, not just a border), and relabel the reveal key "Correct:" →
+  "Answer:" so it isn't mistaken for the user's result.
+
 ## Theme: pedagogy enhancement backlog (from PEDAGOGY.md audit; Phase 3)
 
 Additive to course-notes — ship as a scaffold minor:
