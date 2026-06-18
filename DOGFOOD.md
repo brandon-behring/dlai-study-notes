@@ -114,6 +114,24 @@ repeats.
 - **Suggested fix:** let `examDomains` entries carry an optional label, or accept
   a labels map in `defineBookConfig`.
 
+### 11. Tools-profile chrome controls aren't gated for course-notes
+- **Problem:** `layouts/Base.astro` mounts `<ToolFilter>` (flag) + `<VersionSelector>`
+  ("v") whenever `profile !== 'academic'`, so the **course-notes** profile shows
+  them with no consumer opt-out — irrelevant controls for a study-notes site.
+- **Workaround:** consumer CSS hides `.tool-filter` / `.version-selector` (still
+  hydrate, just hidden).
+- **Suggested fix:** gate on `profile === 'tools'`, or add a `chrome`/`hideToolsChrome`
+  flag to `defineBookConfig`.
+
+### 12. Consumer-component dark-mode footgun → ship a validate check
+- **Problem:** a consumer component writing `var(--undefined-token, #lighthex)` pins
+  the color in every theme → unreadable in dark. Hit 5 callouts + Sidenote + 9 more
+  components here (found by our lint). The scaffold offers no guard.
+- **Workaround:** consumer `lint:components` (tooling/lint-component-tokens) fails the
+  build on the pattern; consumer-component correctness standard in COMPONENTS.md.
+- **Suggested fix:** fold the lint into `book-scaffold validate` so every consumer
+  inherits it; consider defining the `--color-*` semantic aliases in `tokens.css`.
+
 ## Theme: pedagogy enhancement backlog (from PEDAGOGY.md audit; Phase 3)
 
 Additive to course-notes — ship as a scaffold minor:

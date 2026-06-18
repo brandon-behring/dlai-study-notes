@@ -27,6 +27,41 @@
   }
 }
 
+/* ── Consumer component semantic tokens (COMPONENTS.md rule 1) ────────────────
+ * Several consumer MDX components reference --color-* tokens that the scaffold
+ * never defined, so they pinned to a hardcoded light hex in every theme
+ * (unreadable in dark — the exact footgun the lint guards). Define them here,
+ * mapped to scaffold dark-aware tokens, so they flip. Accent-text tokens are
+ * brightened in dark (rule 5); muted/link tokens reuse tokens that already flip.
+ */
+:root {
+  --color-meta: var(--color-text-muted, #718096);
+  --color-text-secondary: var(--color-text-muted, #4a5568);
+  --color-citation: var(--color-link, #2b6cb0); /* citations are links */
+  --color-term: var(--color-link, #4299e1);     /* glossary terms are links */
+  --color-decision: var(--warm-blue, #3182ce);
+  --color-interview: var(--warm-plum, #805ad5);
+  --color-problem: var(--warm-crimson, #c53030);
+  --color-solution: var(--warm-green, #38a169);
+  --color-vignette: color-mix(in srgb, var(--warm-blue) 55%, var(--warm-green)); /* teal */
+}
+:root[data-theme='dark'] {
+  --color-decision: color-mix(in srgb, var(--warm-blue) 58%, white);
+  --color-interview: color-mix(in srgb, var(--warm-plum) 60%, white);
+  --color-problem: color-mix(in srgb, var(--warm-crimson) 62%, white);
+  --color-solution: color-mix(in srgb, var(--warm-green) 62%, white);
+  --color-vignette: color-mix(in srgb, color-mix(in srgb, var(--warm-blue) 55%, var(--warm-green)) 62%, white);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --color-decision: color-mix(in srgb, var(--warm-blue) 58%, white);
+    --color-interview: color-mix(in srgb, var(--warm-plum) 60%, white);
+    --color-problem: color-mix(in srgb, var(--warm-crimson) 62%, white);
+    --color-solution: color-mix(in srgb, var(--warm-green) 62%, white);
+    --color-vignette: color-mix(in srgb, color-mix(in srgb, var(--warm-blue) 55%, var(--warm-green)) 62%, white);
+  }
+}
+
 /* ── WorkedExample expand affordance ──────────────────────────────────────── */
 /* summary is display:flex; align-items:baseline; gap:var(--space-3). The chevron
    is the first flex item; currentColor (= the title's --color-text) keeps it
@@ -46,4 +81,14 @@
   .callout-worked summary::before {
     transition: none;
   }
+}
+
+/* ── Hide tools-profile chrome controls for course-notes ──────────────────── */
+/* The scaffold mounts ToolFilter (flag) + VersionSelector ("v") for any
+   non-academic profile (Base.astro: showToolsChrome = profile !== 'academic'),
+   so course-notes shows them with no consumer opt-out. Hide until the scaffold
+   gains a `chrome`/`hideToolsChrome` config flag (DOGFOOD #11). */
+.chrome-buttons .tool-filter,
+.chrome-buttons .version-selector {
+  display: none;
 }

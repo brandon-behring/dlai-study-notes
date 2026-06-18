@@ -14,7 +14,7 @@ import KeyConcept from './KeyConcept.astro';
 import InterviewContext from './InterviewContext.astro';
 import Problem from './Problem.astro';
 import Solution from './Solution.astro';
-import Sidenote from './Sidenote.astro';
+import Aside from './Aside.astro';
 import AnkiCard from './AnkiCard.astro';
 import Term from './Term.astro';
 import Citation from './Citation.astro';
@@ -30,6 +30,9 @@ import Diagnostic from '@brandon_m_behring/book-scaffold-astro/components/Diagno
 import WorkedExample from '@brandon_m_behring/book-scaffold-astro/components/WorkedExample.astro';
 import EvidenceTag from '@brandon_m_behring/book-scaffold-astro/components/EvidenceTag.astro';
 import Newthought from '@brandon_m_behring/book-scaffold-astro/components/Newthought.astro';
+// True Tufte gutter sidenote (numbered margin float). Distinct from <Aside>
+// (inline labeled callout). Footnote-style marginalia → <Sidenote>.
+import Sidenote from '@brandon_m_behring/book-scaffold-astro/components/Sidenote.astro';
 
 export const mdxComponents = {
   NarrativeBox,
@@ -39,7 +42,7 @@ export const mdxComponents = {
   InterviewContext,
   Problem,
   Solution,
-  Sidenote,
+  Aside,
   AnkiCard,
   Term,
   Citation,
@@ -52,4 +55,5 @@ export const mdxComponents = {
   WorkedExample,
   EvidenceTag,
   Newthought,
+  Sidenote,
 };
