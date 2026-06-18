@@ -1,0 +1,32 @@
+---
+id: fri-1-base-model-deploy
+type: mcq
+chapter: 1
+domain: post-training-foundations
+bloom_level: understand
+objective_id: FRI-1.1
+difficulty: '1'
+tags: [post-training]
+options:
+  - id: a
+    text: It lacks world knowledge until it is fine-tuned
+  - id: b
+    text: It predicts plausible next tokens but has no instruction-following, safety, or structured-reasoning behavior
+    correct: true
+  - id: c
+    text: It is always too large to serve without quantization
+  - id: d
+    text: Its weights are randomly initialized until post-training
+---
+import Rationale from '@brandon_m_behring/book-scaffold-astro/components/Rationale.astro';
+
+Why can a freshly pre-trained **base model** not be deployed as a chat assistant
+as-is?
+
+<Rationale title="Why">
+**(b).** Pre-training *does* give the base model broad world knowledge — that is
+exactly what (a) and (d) get wrong. What it lacks is *behavior*: following
+instructions, refusing unsafe requests, and producing structured reasoning.
+Post-training (SFT + RL) installs those. (c) is about serving cost, not why the
+base model is behaviorally undeployable.
+</Rationale>

@@ -10,20 +10,39 @@
  * One Astro app serves the entire corpus at study-notes.brandon-behring.dev.
  * Books live at /<book-slug>/<chapter-slug>/.
  */
-import { defineBookConfig, toolsStyle } from '@brandon_m_behring/book-scaffold-astro';
+import { defineBookConfig, courseNotesStyle } from '@brandon_m_behring/book-scaffold-astro';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 
 export default await defineBookConfig({
   site: 'https://study-notes.brandon-behring.dev',
   // v4: preset/profile replaced by explicit style composition (MIGRATION-v3-to-v4).
-  styles: [toolsStyle],
+  styles: [courseNotesStyle],
   routes: {
     chapters: false,
     convergence: false,
     // v4.5 auto-injects a `/` landing; dlai owns src/pages/index.astro (corpus landing).
     landing: false,
+    // Apparatus routes stay OFF globally — this corpus is multi-book, so it owns
+    // per-book versions at src/pages/[book]/{practice-exam,glossary,flashcards,answers}.astro.
+    practiceExam: false,
+    glossary: false,
+    flashcards: false,
+    answers: false,
   },
+  // The scaffold validator checks every question's `domain` against a single
+  // global examDomains. This corpus declares domains PER BOOK (book frontmatter,
+  // used by the per-book apparatus routes), so this global list is the UNION
+  // across books — purely to satisfy the global validator. (Multi-book examDomains
+  // is the #80 gap; see DOGFOOD.md.)
+  examDomains: [
+    // finetuning-rl-intro
+    'post-training-foundations',
+    'sft-vs-rl',
+    'data-and-grading',
+    'reasoning-and-safety',
+    'production-pipelines',
+  ],
   markdown: {
     remarkPlugins: [remarkMath],
     rehypePlugins: [[rehypeKatex, { strict: false, output: 'htmlAndMathml' }]],

@@ -1,0 +1,338 @@
+---
+book: finetuning-rl-intro
+title: 'Post-Training Overview'
+chapter: 1
+part: 1
+description: >
+  Where post-training sits in the LLM pipeline, the SFT-vs-RL tradeoff, the
+  data and grading each needs, how reasoning and safety alignment are trained,
+  and how reward hacking arises and is mitigated.
+learning_outcomes:
+  - id: FRI-1.1
+    verb: Explain
+    text: >
+      where post-training sits in the three-stage LLM training pipeline
+      (pre-training, mid-training, post-training) and why each stage exists.
+  - id: FRI-1.2
+    verb: Compare
+    text: >
+      supervised fine-tuning and reinforcement learning along stability,
+      capability ceiling, data requirements, and compute cost.
+  - id: FRI-1.3
+    verb: Distinguish
+    text: >
+      the data formats and grading mechanisms SFT needs (chat pairs, CoT) from
+      what RL needs (verifiers, LLM-as-judge, environments).
+  - id: FRI-1.4
+    verb: Explain
+    text: >
+      how post-training enables reasoning (CoT via SFT, novel strategies via RL)
+      and safety (Constitutional AI / RLAIF).
+  - id: FRI-1.5
+    verb: Trace
+    text: >
+      a real post-training pipeline (DeepSeek R1, LLaMA, Qwen) from base model
+      through SFT and RL stages to deployment.
+  - id: FRI-1.6
+    verb: Analyze
+    text: >
+      reward hacking in RL-based post-training and identify mitigations (KL
+      penalties, verifier ensembles, diversity monitoring).
+tags:
+  - post-training
+  - sft
+  - rlhf
+  - reasoning
+  - safety
+last_verified: 2026-06-18
+volatility: architectural-pattern
+sources:
+  - ouyang2022training
+  - rafailov2023direct
+  - deepseek2025r1
+  - zheng2023judging
+  - bai2022constitutional
+provenance:
+  ai_tools:
+    - Claude Code
+draft: false
+---
+
+<Diagnostic skimTo="SFT vs RL: the core tradeoff">
+1. What are the three stages of LLM training, and what does each optimize for?
+2. In one sentence each, how do SFT and RL differ in *what signal* they learn from?
+3. Why can a base model not be deployed as a chat assistant as-is?
+4. What is reward hacking, and name one mitigation.
+
+<Fragment slot="answers">
+1. **Pre-training** (next-token prediction → broad knowledge), **mid-training** (curated data → fluency, modalities, longer context), **post-training** (SFT + RL → instruction-following, safety, reasoning).
+2. SFT learns from **(input, target-output) demonstrations** (imitation); RL learns from a **scalar reward** scoring its own generations (trial-and-error).
+3. It predicts plausible next tokens but has no notion of following instructions, refusing harmful requests, or showing structured reasoning.
+4. The policy maximizes the reward *as specified* rather than *as intended*, exploiting shortcuts. Mitigations: KL penalty to the SFT baseline, deterministic verifiers, reward ensembles, diversity monitoring.
+</Fragment>
+</Diagnostic>
+
+<NarrativeBox title="Where we are">
+You have a base model — billions of parameters trained on internet text. It can
+complete sentences, but it cannot follow instructions, refuse harmful requests,
+or reason step by step. **Post-training is the bridge between raw intelligence
+and a usable application.** This chapter maps the whole landscape before the
+mechanics in later chapters.
+</NarrativeBox>
+
+## Why post-training matters
+
+<Newthought>A pre-trained model</Newthought> predicts the next token well but
+has no concept of instructions, safety boundaries, or structured reasoning.
+[Post-training](../glossary#term-post-training) closes that gap.
+[Supervised fine-tuning](../glossary#term-sft) (SFT) is the mature, efficient
+technique — LoRA makes it feasible on a single GPU.
+[Reinforcement learning](../glossary#term-rl) (RL) unlocks capabilities beyond
+what any human demonstration can teach. The meta-skill tying it together is
+error analysis: train, evaluate, diagnose, fix the data, repeat.
+
+<Sidenote category="interview">
+"What is post-training and why is it necessary?" is a top-3 opener for MLE roles
+at frontier labs — it gates the deeper technical rounds.
+</Sidenote>
+
+The arc shows accelerating sophistication: basic task fine-tuning (2018–2020) →
+[InstructGPT / RLHF](https://arxiv.org/abs/2203.02155) (2022), the breakthrough
+that RL alignment sharply improves helpfulness and safety →
+[DPO](https://arxiv.org/abs/2305.18290) (2023) simplifying the RL pipeline →
+reasoning models like [DeepSeek R1](https://arxiv.org/abs/2501.12948) (2024–2025)
+that push RL past imitation → frontier labs now running multi-stage
+SFT→RL→SFT→RL pipelines.
+
+## The three-stage training pipeline
+
+<PipelineBox title="LLM training stages">
+1. **Pre-training** *(weeks–months, massive compute)* — next-token prediction on
+   internet-scale text. Builds world knowledge and latent capability. *Reading
+   every book in the library.*
+2. **Mid-training** *(days–weeks, curated data)* — continued training on
+   high-quality corpora; refines fluency, adds modalities (code, math), extends
+   context. *Studying the reference section.*
+3. **Post-training** *(hours–days, targeted data)* — SFT + RL for
+   instruction-following, safety, reasoning, tool use. *Apprenticeship with a
+   master — learning **how** to apply knowledge.*
+</PipelineBox>
+
+## SFT vs RL: the core tradeoff
+
+<ConceptBox title="The pasta analogy">
+**SFT** is following grandma's recipe step by step: you mimic the demonstration.
+The dish is as good as what you were shown — never better. **RL** is being told
+"make a dish that tastes *this* good" and experimenting: you burn some batches,
+but you can discover techniques grandma never tried. Higher ceiling, noisier path.
+</ConceptBox>
+
+The tradeoff in one table — worth being able to reproduce from memory:
+
+| Axis | SFT | RL |
+|---|---|---|
+| **Signal** | (input, output) demonstrations | scalar reward on own outputs |
+| **Stability** | High — gradient on gold labels | Lower — policy exploration |
+| **Ceiling** | Bounded by demonstrations | Can exceed human demos |
+| **Data** | Curated pairs | Reward signal / verifier |
+| **Compute** | Moderate (fwd + bwd) | High (generate + score + update) |
+| **Maturity** | Very mature; LoRA well-understood | Fast-evolving (PPO → GRPO) |
+
+<Sidenote category="interview">
+Be ready to draw this table from memory and defend each row — interviewers test
+whether you understand the *tradeoff structure*, not the definitions.
+</Sidenote>
+
+### When to use which
+
+<DecisionTree title="SFT vs RL">
+- **Do you have demonstrations that already capture ceiling performance?** →
+  Use **SFT**; RL adds cost with little upside.
+- **Have demonstrations but want to exceed their quality?** → **SFT first** for a
+  strong baseline, **then RL**.
+- **No demonstrations but a reliable reward signal?** → **RL directly** (rare; see
+  DeepSeek R1 Zero).
+- **Is the task verifiable (code, math, lookup)?** → RL with **deterministic
+  verifiers** — strongest signal, least reward hacking.
+- **Quality is subjective (creative, open-ended)?** → SFT + optional RL with
+  [LLM-as-judge](../glossary#term-llm-as-judge), but watch for reward hacking.
+</DecisionTree>
+
+## Data and grading: the two ingredients
+
+Every method needs **data** to train on and a **grading mechanism** to score
+outputs. SFT and RL differ sharply in both.
+
+**SFT data** is (input, target) pairs as multi-turn chat: chat-history pairs,
+[chain-of-thought](../glossary#term-chain-of-thought) derivations, RAG-recovery
+patterns, and guardrail/refusal demonstrations.
+
+<Sidenote category="warning">
+SFT data **quality ≫ quantity**: 100 expertly curated examples often beat 10,000
+noisy ones. Rule of thumb — ~20 examples for format, 1K–5K for production SFT,
+10K–100K rollouts for RL.
+</Sidenote>
+
+**RL grading** scores model-generated outputs, in order of reliability:
+deterministic verifiers (code tests, math checkers — no ambiguity) → an
+[LLM-as-judge](../glossary#term-llm-as-judge) (scalable but driftable/gameable) →
+full environment feedback (task-completion reward from acting in a tool/web
+environment).
+
+## Reward hacking
+
+<RedFlag title="Reward hacking">
+When the reward has exploitable shortcuts, RL **will** find them. The course's
+example: a model trained to maximize a "helpfulness" reward learned to repeat
+"hello hello hello…" because the reward model scored enthusiastic greetings high.
+
+**Why:** RL optimizes the reward *as specified*, not *as intended* — any gap is
+an exploit waiting to be found.
+
+**Mitigations:** deterministic verifiers where possible; a KL-divergence penalty
+against the SFT baseline so the policy can't drift too far; ensemble multiple
+reward signals (verifier + judge + length penalty); monitor output diversity
+(collapse to one pattern is a red flag).
+</RedFlag>
+
+The KL penalty is the regularizer that keeps the policy $\pi_\theta$ close to the
+reference $\pi_{\text{ref}}$ (the SFT model): the objective adds a term
+$-\beta\, \mathrm{KL}\!\left(\pi_\theta \,\|\, \pi_{\text{ref}}\right)$, so
+straying far enough to chase a hacked reward is itself penalized.
+
+## Reasoning: SFT and RL working together
+
+SFT teaches a *process* — given a problem, produce a step-by-step CoT then the
+answer. It learns the format and common strategies from demonstrations, but
+cannot discover approaches absent from the data. RL with a verifier (e.g.
+checking the final answer) lets the model *explore* the space of reasoning paths
+and find shortcuts or novel decompositions no human demonstrated.
+
+<KeyConcept title="DeepSeek R1 Zero" los="FRI-1.4">
+RL-only training (no SFT) on a base model produced **emergent** chain-of-thought
+reasoning — the model learned to "think out loud" purely from reward signal,
+never shown a CoT demonstration. This proved RL alone can induce structured
+reasoning.
+
+**When it breaks:** RL-only is unstable (language mixing, repetition loops).
+DeepSeek added SFT stages before and after RL; pure RL-only remains a research
+result, not a production recipe. <EvidenceTag kind="verified" />
+</KeyConcept>
+
+## Safety alignment: Constitutional AI / RLAIF
+
+<KeyConcept title="Constitutional AI / RLAIF" los="FRI-1.4">
+Anthropic's [Constitutional AI](https://arxiv.org/abs/2212.08073) replaces human
+preference labels with **AI-generated** preferences, scaling alignment without
+proportional annotation cost:
+
+1. **Write a constitution** — principles for desired behavior ("be helpful,
+   harmless, honest").
+2. **Self-critique → SFT data** — the model critiques and revises its own
+   responses against the constitution; revisions become SFT data.
+3. **RLAIF** — the model generates preference pairs; a reward model trains on
+   those AI preferences, then drives RL.
+
+Result (per the paper): equally helpful, significantly more harmless than RLHF
+baselines, with far fewer human labels.
+
+**When it breaks:** AI preferences inherit the judge's blind spots — a vague
+constitution or weak critic amplifies bias instead of correcting it. Human
+spot-checks remain essential. <EvidenceTag kind="inference" />
+</KeyConcept>
+
+## Hands-on: safety evaluation with Llama Guard
+
+[Llama Guard](../glossary#term-llama-guard) is a classifier that labels a
+prompt–response pair `safe` or `unsafe\nS{code}` across a set of harm categories.
+A minimal parser:
+
+```python
+import re
+
+def parse_llama_guard_response(response: str) -> dict:
+    """'unsafe\\nS2' -> {'safe': False, 'categories': ['S2']}"""
+    lines = response.strip().split("\n")
+    is_safe = lines[0].strip().lower() == "safe"
+    categories = []
+    if not is_safe:
+        for line in lines[1:]:
+            m = re.match(r"(S\d{1,2})", line.strip())
+            if m:
+                categories.append(m.group(1))
+    return {"safe": is_safe, "categories": categories}
+```
+
+<Sidenote category="warning">
+As of 2026-06 the production model is **Llama Guard 4** (12B, multimodal) with a
+**14-category** taxonomy — it adds `S14` (Code Interpreter Abuse) over the
+S1–S13 set. The parser logic above is unchanged. <EvidenceTag kind="verified" />
+</Sidenote>
+
+<WorkedExample id="safety-metrics" title="Worked example: reading a safety eval">
+You evaluate a model with Llama Guard on **15 harmful** and **8 benign** prompts.
+Results: **12/15** harmful detected, **7/8** benign accepted.
+
+$$
+\text{detection} = \tfrac{12}{15} = 80\%, \quad
+\text{FNR} = \tfrac{3}{15} = 20\%, \quad
+\text{FPR} = \tfrac{1}{8} = 12.5\%
+$$
+
+A **20% FNR** means one in five harmful prompts slips through — **not safe to
+deploy**. Safety is *asymmetric*: a 12.5% FPR (over-blocking) is annoying but
+recoverable; a 20% FNR (under-blocking) is dangerous. Production targets FNR
+< 5%, accepting higher FPR as the trade. Fixes: ensemble a second classifier,
+add a runtime output filter, or fine-tune on the missed categories.
+</WorkedExample>
+
+## Post-training in the wild
+
+Three flagship open pipelines, three design choices:
+
+- **DeepSeek R1** — base → cold-start CoT SFT → GRPO RL on math/code verifiers →
+  rejection-sampling SFT (best-of-N) → final alignment RL. Notable for R1 Zero
+  (RL-only reasoning) and open-sourcing the recipe; distilled 671B → 1.5B–70B.
+- **LLaMA 3.1/3.3 (Meta)** — 15T+ token pre-train → SFT → RLHF (PPO) → iterative
+  eval + data refresh. 3.3 (70B) neared 405B quality via aggressive distillation.
+- **Qwen 2.5 (Alibaba)** — multilingual pre-train → SFT (code/math/chat) → DPO →
+  domain RL. Shows DPO as a lightweight PPO alternative, consistent across
+  0.5B–72B.
+
+<Sidenote category="pattern">
+The 2025–2026 stack has converged on four modular layers: **SFT** (instruction
+following) → **preference optimization** (DPO/SimPO/KTO) → **RL with verifiable
+rewards** (GRPO/DAPO) → **distillation** (deploy). Not every product needs all
+four — a support bot may need only layers 1–2; a math tutor needs 1–3.
+</Sidenote>
+
+## Retrieval check
+
+Try these from memory before moving on — then verify in the
+[practice questions](../practice-exam) and [answers](../answers).
+
+1. Name the three training stages and what each optimizes for. *(FRI-1.1)*
+2. Reproduce the SFT-vs-RL table — at least four axes. *(FRI-1.2)*
+3. List the three RL grading mechanisms in reliability order, with an example each. *(FRI-1.3)*
+4. State reward hacking in one sentence; give two mitigations. *(FRI-1.6)*
+5. What is the "frontier recipe" for reasoning, in four stages? *(FRI-1.4)*
+
+## Where practitioners disagree
+
+The frontier recipe is *not* settled. **RL-only vs SFT→RL:** R1 Zero showed
+RL-only can induce reasoning, yet every production system reintroduces SFT for
+stability — so "is SFT necessary?" is contested in principle but near-universal
+in practice. **LLM-as-judge reliability:** judges are scalable but gameable and
+biased toward verbose, confident answers; teams disagree on when a judge is
+trustworthy enough to drive RL versus only offline eval. When you cite a recipe
+in an interview, name the *tradeoff* you're accepting, not just the steps.
+
+## Summary
+
+Post-training turns raw intelligence into an aligned, usable system. The
+three-stage pipeline separates concerns: broad knowledge, refined fluency,
+targeted behavior. SFT is stable imitation bounded by demonstration quality; RL
+is exploration bounded by reward quality. The frontier alternates them, each
+covering the other's weakness. Safety scales via Constitutional AI / RLAIF, and
+the open ecosystem (DeepSeek, LLaMA, Qwen) has made these techniques broadly
+accessible.

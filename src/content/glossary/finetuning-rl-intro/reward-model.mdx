@@ -1,0 +1,12 @@
+---
+term: Reward Model
+aliases: [RM, preference model]
+domain: data-and-grading
+see: [llm-as-judge, reward-hacking, rl]
+tags: [rl]
+---
+
+A model trained to predict human (or AI) preference scores for LLM outputs,
+providing the scalar reward that drives policy optimization in RLHF. Can be a
+dedicated model or an LLM-as-judge. A weak or gameable reward model is the usual
+root cause of reward hacking.

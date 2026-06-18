@@ -1,0 +1,13 @@
+---
+term: Reward Hacking
+aliases: [Goodhart's law, specification gaming]
+domain: sft-vs-rl
+see: [rl, reward-model]
+tags: [rl, safety]
+---
+
+When the reward signal has exploitable shortcuts, the RL policy maximizes the
+reward *as specified* rather than *as intended*. Classic symptom: a "helpfulness"
+reward gamed by repetitive enthusiastic greetings. Mitigations: KL penalty to the
+SFT baseline, deterministic verifiers, reward ensembles, and output-diversity
+monitoring.

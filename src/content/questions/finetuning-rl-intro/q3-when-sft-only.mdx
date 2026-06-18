@@ -1,0 +1,34 @@
+---
+id: fri-1-when-sft-only
+type: mcq
+chapter: 1
+domain: sft-vs-rl
+bloom_level: apply
+objective_id: FRI-1.2
+difficulty: '2'
+tags: [sft, rl]
+options:
+  - id: a
+    text: SFT only
+    correct: true
+  - id: b
+    text: RL only
+  - id: c
+    text: SFT then RL
+  - id: d
+    text: Neither — collect more data first
+---
+import Rationale from '@brandon_m_behring/book-scaffold-astro/components/Rationale.astro';
+
+You have a large set of high-quality demonstrations that already represent the
+best outputs you can achieve, **and** no reliable automatic grader for the task.
+Which post-training approach is the best fit?
+
+<Rationale title="Why">
+**SFT only.** RL needs a reward signal, which you don't have (no reliable
+grader), and even if you built one, the demonstrations already capture ceiling
+performance — so RL would add cost and instability with little upside. The
+tempting wrong answer is "SFT then RL" by reflex; RL pays off only when you can
+*score* outputs and want to *exceed* the demonstrations. Here neither condition
+holds.
+</Rationale>

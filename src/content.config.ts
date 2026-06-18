@@ -46,6 +46,10 @@ const booksCollection = defineCollection({
     description: z.string(),
     chapter_count: z.number().int().positive(),
     anki_deck_url: z.string().url().optional(),   // AnkiWeb-hosted full deck (Q11)
+    // Per-book exam-domain taxonomy. The scaffold's examDomains is single-global
+    // (defineBookConfig); we make it per-book here so each guide's practice-exam /
+    // answers routes validate question `domain` against the right registry.
+    examDomains: z.array(z.string()).default([]),
     draft: z.boolean().default(false),
   }),
 });

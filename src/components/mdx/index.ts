@@ -23,6 +23,14 @@ import Vignette from './Vignette.astro';
 import DecisionTree from './DecisionTree.astro';
 import Figure from './Figure.astro';
 
+// Scaffold v4.25 pedagogy components (retrieval, worked-examples/fading,
+// evidence calibration) used by the course-notes template. Imported from the
+// package so the consumer doesn't re-implement them.
+import Diagnostic from '@brandon_m_behring/book-scaffold-astro/components/Diagnostic.astro';
+import WorkedExample from '@brandon_m_behring/book-scaffold-astro/components/WorkedExample.astro';
+import EvidenceTag from '@brandon_m_behring/book-scaffold-astro/components/EvidenceTag.astro';
+import Newthought from '@brandon_m_behring/book-scaffold-astro/components/Newthought.astro';
+
 export const mdxComponents = {
   NarrativeBox,
   ConceptBox,
@@ -39,4 +47,9 @@ export const mdxComponents = {
   Vignette,
   DecisionTree,
   Figure,
+  // scaffold pedagogy
+  Diagnostic,
+  WorkedExample,
+  EvidenceTag,
+  Newthought,
 };

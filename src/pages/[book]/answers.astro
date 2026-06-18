@@ -1,0 +1,114 @@
+---
+/**
+ * Per-book answers appendix — /<book>/answers.
+ *
+ * Every question grouped by chapter with answer + rationale revealed (the Sybex
+ * back-appendix). Book-filtered; domains validated against book.examDomains.
+ */
+import Base from '@brandon_m_behring/book-scaffold-astro/layouts/Base.astro';
+import { getCollection, render } from 'astro:content';
+import { groupByChapter, assertKnownDomain } from '@brandon_m_behring/book-scaffold-astro';
+
+export async function getStaticPaths() {
+  const books = (await getCollection('books')).filter((b) => !b.data.draft);
+  return books.map((book) => ({ params: { book: book.data.book }, props: { book } }));
+}
+
+const { book } = Astro.props;
+const slug = book.data.book;
+const practiceHref = `/${slug}/practice-exam`;
+
+const entries = (await getCollection('questions', (e) => !e.data.draft))
+  .filter((e) => e.id.startsWith(`${slug}/`));
+
+const examDomains = book.data.examDomains ?? [];
+for (const e of entries) assertKnownDomain(examDomains, e.data.domain, { id: e.data.id });
+
+const rendered = await Promise.all(
+  entries.map(async (e) => ({
+    data: e.data,
+    reserved: e.data.type === 'cloze',
+    Content: e.data.type === 'cloze' ? null : (await render(e)).Content,
+  })),
+);
+
+const byChapter = groupByChapter(rendered);
+const total = rendered.length;
+---
+<Base
+  title={`Answers & rationales — ${book.data.title}`}
+  description={`Answer appendix for ${book.data.title}: every question with its answer and rationale.`}
+>
+  <article class="prose answers-appendix">
+    <p class="breadcrumb">
+      <a href="/">DLAI Study Notes</a> / <a href={`/${slug}/`}>{book.data.title}</a> / <strong>Answers</strong>
+    </p>
+    <h1>Answers &amp; rationales</h1>
+
+    {total === 0 && <p class="answers-empty">No questions defined yet.</p>}
+    {total > 0 && (
+      <p class="answers-summary">
+        {total} question{total === 1 ? '' : 's'}, grouped by chapter, answers revealed.
+        Test yourself first in the <a href={practiceHref}>practice questions</a>.
+      </p>
+    )}
+
+    {[...byChapter.entries()].map(([chapterKey, qs]) => (
+      <section class="answers-chapter" id={`chapter-${chapterKey}`}>
+        <h2 class="answers-chapter-title">Chapter {chapterKey}</h2>
+        {qs.map((q) => {
+          const Content = q.Content;
+          const correct = q.data.type === 'mcq' && q.data.options
+            ? q.data.options.find((o) => o.correct)
+            : undefined;
+          return (
+            <article class="answer" id={`answer-${q.data.id}`}>
+              <header class="answer-header">
+                <span class="answer-meta-id">{q.data.id}</span>
+                <span class="answer-meta-domain">{q.data.domain}</span>
+                <a class="answer-backlink" href={`${practiceHref}#question-${q.data.id}`}>↑ in bank</a>
+              </header>
+              {Content && <div class="answer-body"><Content /></div>}
+              {q.data.type === 'mcq' && q.data.options && (
+                <ol class="answer-options" type="a">
+                  {q.data.options.map((o) => (
+                    <li class={o.correct ? 'answer-option answer-option-correct' : 'answer-option'}>
+                      {o.text ?? o.id}{o.correct && <span class="answer-correct-mark"> ✓</span>}
+                    </li>
+                  ))}
+                </ol>
+              )}
+              {q.data.type === 'mcq' && correct && (
+                <p class="answer-line">Correct: <strong>{correct.text ?? correct.id}</strong></p>
+              )}
+              {q.data.type === 'free' && q.data.answer && (
+                <p class="answer-line">{q.data.answer}</p>
+              )}
+            </article>
+          );
+        })}
+      </section>
+    ))}
+  </article>
+
+  <script is:inline>
+    document.querySelectorAll('.answers-appendix details').forEach((d) => { d.open = true; });
+  </script>
+
+  <style>
+    .breadcrumb { color: var(--color-meta, #555); font-size: 0.92em; margin-bottom: 1rem; }
+    .answers-appendix { max-width: 48rem; }
+    .answers-summary, .answers-empty { color: var(--color-text-muted, #6b7280); }
+    .answers-chapter { margin-block-start: 2rem; }
+    .answers-chapter-title { border-block-end: 2px solid var(--color-border, #e5e7eb); padding-block-end: 0.25rem; }
+    .answer { margin-block: 1.25rem; padding: 1rem 1.1rem; border: 1px solid var(--color-border, #e5e7eb); border-radius: 0.5rem; background: var(--color-surface, transparent); }
+    .answer-header { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; font-size: 0.78rem; color: var(--color-text-muted, #6b7280); margin-block-end: 0.5rem; }
+    .answer-meta-id { font-family: var(--font-mono, ui-monospace, monospace); }
+    .answer-meta-domain { text-transform: uppercase; letter-spacing: 0.04em; padding: 0.05rem 0.4rem; border-radius: 0.25rem; background: var(--color-code-bg, rgba(127,127,127,0.12)); }
+    .answer-backlink { margin-inline-start: auto; }
+    .answer-options { margin-block: 0.6rem; }
+    .answer-option-correct { font-weight: 600; }
+    .answer-correct-mark { color: var(--color-success, #15803d); }
+    .answer-line { margin-block: 0.5rem 0.25rem; }
+  </style>
+</Base>
