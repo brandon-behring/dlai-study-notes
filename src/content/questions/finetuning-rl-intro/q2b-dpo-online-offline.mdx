@@ -11,7 +11,7 @@ options:
   - id: a
     text: DPO requires a separate reward model; PPO and GRPO do not
   - id: b
-    text: DPO is on-policy while PPO is off-policy
+    text: DPO is on-policy (it samples from the current model each step) while PPO is off-policy
   - id: c
     text: DPO uses a critic and GRPO a group baseline, but they are otherwise identical
   - id: d
@@ -27,7 +27,9 @@ What is the **core practical difference** between DPO and the PPO/GRPO family?
 `chosen`/`rejected` dataset with no reward model and no sampling loop; PPO and GRPO
 generate fresh rollouts from the current policy each step and score them live. The
 "DPO requires a reward model" option is backwards — DPO is the one that *skips* it.
-The on-policy/off-policy option misuses those terms. The "otherwise identical"
-option conflates DPO with the PPO-vs-GRPO critic distinction. Online vs offline is
-the clean axis.
+The on-policy/off-policy option has the labels **inverted**: DPO is genuinely the
+*off-policy* one (it learns from a fixed dataset it didn't generate) and PPO the
+*on-policy* one — a valid axis, just reversed. The "otherwise identical" option
+conflates DPO with the PPO-vs-GRPO critic distinction. (This question uses *vanilla*
+offline DPO; iterative/online-DPO variants exist but aren't the contrast here.)
 </Rationale>

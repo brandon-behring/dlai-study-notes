@@ -11,10 +11,10 @@ options:
   - id: a
     text: It lacks world knowledge until it is fine-tuned
   - id: b
-    text: It predicts plausible next tokens but has no instruction-following, safety, or structured-reasoning behavior
+    text: It predicts plausible next tokens but is not reliably instruction-following or safety-aligned as a chat assistant
     correct: true
   - id: c
-    text: It is always too large to serve without quantization
+    text: It is too large to serve without quantization
   - id: d
     text: Its weights are randomly initialized until post-training
 ---
@@ -26,8 +26,9 @@ as-is?
 <Rationale title="Why">
 Pre-training **already gives** the base model broad world knowledge and trained
 (not random) weights — exactly what the "lacks world knowledge" and "randomly
-initialized" options get wrong. What it lacks is *behavior*: following
-instructions, refusing unsafe requests, and producing structured reasoning, all
-installed by post-training (SFT + RL). The "too large to serve" option is about
-serving cost, not why the base model is behaviorally undeployable.
+initialized" options get wrong. It even has *some* latent reasoning and prompting
+ability. What it lacks is *reliable, aligned* behavior — consistently following
+instructions, refusing unsafe requests, structured reasoning on demand — which
+post-training (SFT + RL) installs. The "too large to serve" option is about serving
+cost, not why the base model is behaviorally undeployable.
 </Rationale>

@@ -15,21 +15,22 @@ options:
   - id: c
     text: Switch optimizer from Adam to SGD
   - id: d
-    text: Add a KL-divergence penalty against the SFT reference policy
+    text: Strengthen the KL-divergence penalty against the reference policy
     correct: true
 ---
 import Rationale from '@brandon_m_behring/book-scaffold-astro/components/Rationale.astro';
 
 During RL, the policy has collapsed to a single high-scoring output template —
 the judge reward is near-maximal but the outputs are repetitive and low-quality.
-Which is the **most direct** mitigation?
+Which is the most appropriate mitigation here?
 
 <Rationale title="Why">
-**A KL penalty to the SFT reference.** Mode collapse is the policy drifting into
-a narrow, reward-gaming region; penalizing divergence from the diverse SFT
-baseline pulls it back toward varied behavior. Raising the reward weight or
-training longer both *accelerate* the hack — a stronger or longer-optimized
-broken reward collapses harder. Changing the optimizer is irrelevant to
-specification gaming. (Diversity monitoring would *detect* the collapse; the KL
-penalty *prevents* it.)
+**Strengthen the KL penalty to the reference.** Mode collapse is the policy
+drifting into a narrow, reward-gaming region; a tighter penalty on divergence from
+the diverse reference *constrains* that drift and keeps behavior varied. (RLHF
+usually already includes a KL term, so the lever is to raise it — an entropy bonus
+is the other standard diversity lever.) Raising the reward weight or training
+longer both *accelerate* the hack — a stronger or longer-optimized broken reward
+collapses harder. Changing the optimizer is irrelevant to specification gaming.
+Note KL *constrains* collapse; it doesn't repair a broken judge — fix the reward too.
 </Rationale>

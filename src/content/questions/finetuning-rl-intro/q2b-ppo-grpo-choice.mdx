@@ -9,14 +9,14 @@ difficulty: '2'
 tags: [rl, ppo, grpo]
 options:
   - id: a
-    text: GRPO with verifiers — no critic to fit, and the group baseline suits verifiable rewards
+    text: GRPO with the verifier as reward — no critic and no learned reward model to host
     correct: true
   - id: b
-    text: PPO — you always need a learned critic for math/code
+    text: PPO with the verifier as reward, keeping the learned critic for token-level credit
   - id: c
-    text: DPO — preference pairs are the only way to train on math
+    text: GRPO but drop the KL term, since a verifiable reward can't be gamed
   - id: d
-    text: Full fine-tuning — RL is unnecessary when answers are checkable
+    text: DPO on verifier-labeled pass/fail pairs, refreshed each round
 ---
 import Rationale from '@brandon_m_behring/book-scaffold-astro/components/Rationale.astro';
 
@@ -24,10 +24,12 @@ You're RL-training a model on **math with a deterministic answer-checker**, on a
 memory-tight setup. Which approach fits best?
 
 <Rationale title="Why">
-**GRPO with verifiers** — the DeepSeek R1 recipe. The verifier gives a clean reward
-with no reward model to host, and GRPO's group-mean baseline removes the critic, so
-you run three models (or fewer) instead of four — ideal under memory pressure.
-Insisting on a learned critic is the very memory cost GRPO exists to avoid; DPO
-can't consume a live verifier signal online; and skipping RL ignores that RL is
-exactly how you *exploit* a checkable reward to exceed demonstrations.
+**GRPO with the verifier.** GRPO's group-mean baseline drops PPO's critic, and the
+deterministic verifier means no learned reward model — so you host just the policy
+(plus a frozen reference for the KL term), not PPO's four models. The PPO option
+keeps exactly the learned critic whose memory you're trying to save. Dropping the
+KL term is a real misconception — a verifiable *reward* still leaves the policy
+free to collapse or drift, so KL still earns its place. Converting pass/fail into
+DPO preference pairs throws away the online signal and credit that RL exploits to
+*exceed* demonstrations.
 </Rationale>

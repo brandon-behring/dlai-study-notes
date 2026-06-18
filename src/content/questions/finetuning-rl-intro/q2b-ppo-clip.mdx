@@ -9,7 +9,7 @@ difficulty: '2'
 tags: [rl, ppo]
 options:
   - id: a
-    text: It caps how far the new policy can move from the old one in a single update, for stability
+    text: It removes the incentive to push a sampled action's probability beyond ~1±ε of the old policy — a soft trust region for stable updates
     correct: true
   - id: b
     text: It clips the reward to a fixed range to prevent reward hacking
@@ -24,10 +24,10 @@ In PPO, what does the clipping term ($\epsilon$, typically 0.2) on the probabili
 ratio $\pi_\theta/\pi_{\text{old}}$ actually do?
 
 <Rationale title="Why">
-**It caps the policy change per update for stability.** Clipping the ratio to
-$[1-\epsilon, 1+\epsilon]$ removes the incentive to move any action's probability
-too far from the old policy in one step, which is what keeps PPO stable. It is
-*not* reward clipping (a different mechanism), *not* gradient-norm clipping, and
-*not* sequence truncation — those are the three tempting confusions. The
-"proximal" in PPO *is* this constraint.
+**It soft-bounds the per-step policy change.** Clipping the ratio to
+$[1-\epsilon, 1+\epsilon]$ removes the *incentive* to move a sampled action's
+probability beyond that band — a soft trust region, not a hard cap (the policy's
+KL from the old one can still grow; clipping just zeroes the gradient past the
+edge). It is *not* reward clipping (a different mechanism), *not* gradient-norm
+clipping, and *not* sequence truncation. The "proximal" in PPO *is* this constraint.
 </Rationale>

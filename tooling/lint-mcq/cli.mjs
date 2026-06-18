@@ -7,6 +7,9 @@
  *   2. Rationales reference distractors by CONTENT, not letter — "(b)"/"option c"
  *      references break on any reorder/shuffle.
  *   3. ≥3 options.
+ *   4. No absolute-language tells in option text ("always"/"never"/"cannot" /
+ *      "all|none of the above") — a test-savvy reader eliminates them without
+ *      domain knowledge (cross-model review flagged this as the top missing check).
  * Chained into `npm run validate` → prebuild → fails the build on violation.
  */
 import { readFileSync, readdirSync, statSync } from 'node:fs';
@@ -30,18 +33,25 @@ function split(src) {
   return m ? { fm: m[1], body: m[2] } : { fm: '', body: src };
 }
 
-/** Ordered option ids + index of the correct one, from the `options:` block. */
+/** Ordered option ids + text + index of the correct one, from `options:`. */
 function parseOptions(fm) {
   const block = (fm.match(/^options:\s*\n((?:[ \t].*\n?)*)/m) || [])[1] || '';
-  const ids = [];
+  const ids = [], texts = [];
   let correctIdx = -1, cur = -1;
   for (const line of block.split('\n')) {
     const idm = line.match(/^\s*-\s*id:\s*['"]?([\w-]+)/);
-    if (idm) { ids.push(idm[1]); cur++; }
+    if (idm) { ids.push(idm[1]); texts.push(''); cur++; }
+    const tm = line.match(/^\s*text:\s*(.+?)\s*$/);
+    if (tm && cur >= 0) texts[cur] = tm[1].replace(/^['"]|['"]$/g, '');
     if (/correct:\s*true/.test(line) && cur >= 0) correctIdx = cur;
   }
-  return { ids, correctIdx };
+  return { ids, texts, correctIdx };
 }
+
+/** Absolute-language tells that let a reader eliminate an option without
+ *  domain knowledge. Hard-flagged (these almost never belong in a precise ML
+ *  option); softer words like "only"/"all" are a review rule, not a lint. */
+const ABSOLUTE_RE = /\b(always|never|cannot)\b|\b(all|none)\s+of\s+the\s+above\b/i;
 
 const violations = [];
 const byBook = {}; // book -> [{ file, pos }]
@@ -50,10 +60,14 @@ for (const file of walk(QDIR)) {
   const { fm, body } = split(readFileSync(join(ROOT, file), 'utf8'));
   if (!/^type:\s*mcq\b/m.test(fm)) continue;
   const book = relative(QDIR, file).split(/[\\/]/)[0];
-  const { ids, correctIdx } = parseOptions(fm);
+  const { ids, texts, correctIdx } = parseOptions(fm);
 
   if (ids.length < 3) violations.push({ kind: 'too-few-options', file, detail: `${ids.length} options (need ≥3)` });
   if (correctIdx >= 0) (byBook[book] ??= []).push({ file, pos: correctIdx });
+
+  // absolute-language tells in option text
+  const tells = texts.filter((t) => ABSOLUTE_RE.test(t)).map((t) => `"${t.slice(0, 40)}…"`);
+  if (tells.length) violations.push({ kind: 'absolute-tell', file, detail: tells.join('; ') });
 
   // letter-referenced distractors in the rationale/body
   const refs = [...new Set([

@@ -21,8 +21,9 @@ options:
 import Rationale from '@brandon_m_behring/book-scaffold-astro/components/Rationale.astro';
 
 You have a large set of high-quality demonstrations that already represent the
-best outputs you can achieve, **and** no reliable automatic grader for the task.
-Which post-training approach is the best fit?
+best outputs you can achieve, **and** no usable reward signal — no verifier, and
+no budget to collect human preference labels. Which post-training approach is the
+best fit?
 
 <Rationale title="Why">
 **SFT only.** RL needs a reward signal, which you don't have (no reliable

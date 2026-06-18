@@ -13,21 +13,22 @@ options:
   - id: b
     text: LoRA (r=8) with the base loaded in fp16
   - id: c
-    text: QLoRA — 4-bit NF4 base with full-precision adapters
+    text: QLoRA — 4-bit NF4 base with 16-bit adapters
     correct: true
   - id: d
-    text: 8-bit LoRA — base loaded in int8, adapters in fp16
+    text: 8-bit LoRA — base loaded in int8, adapters in 16-bit
 ---
 import Rationale from '@brandon_m_behring/book-scaffold-astro/components/Rationale.astro';
 
 You must fine-tune a **7B** model on a single **12 GB** consumer GPU. Which
-approach fits?
+approach gives the **most memory headroom** while keeping near-full-fine-tuning
+quality?
 
 <Rationale title="Why">
-**QLoRA.** A 7B full fine-tune needs ~60 GB — gradient checkpointing trims
-*activation* memory but not the optimizer states that dominate, so it still won't
-fit 12 GB. fp16 LoRA freezes the base but still loads it in 16-bit (~16 GB). The
-int8-base option is closer but the established sub-16 GB recipe is QLoRA's 4-bit
-NF4 base (~6 GB) with minimal quality loss. QLoRA is the standard answer for
-single-consumer-GPU fine-tuning.
+**QLoRA.** Full fine-tuning needs ~60 GB (weights + grads + Adam states), and
+gradient checkpointing trims only *activations* — nowhere near enough. fp16 LoRA
+freezes the base but still loads ~14 GB of 16-bit weights, already over 12 GB. The
+8-bit-base option is the genuine runner-up — it *can* fit — but QLoRA's 4-bit NF4
+base (~4 GB for the weights) leaves the **most** headroom for batch size and
+context with minimal quality loss. It's the standard single-consumer-GPU recipe.
 </Rationale>
