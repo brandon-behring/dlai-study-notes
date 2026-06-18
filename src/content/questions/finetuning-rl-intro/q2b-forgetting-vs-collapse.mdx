@@ -1,0 +1,25 @@
+---
+id: fri-2b-forgetting-vs-collapse
+type: free
+chapter: 2
+domain: sft-vs-rl
+bloom_level: analyze
+objective_id: FRI-2.6
+difficulty: '3'
+tags: [rl, sft]
+answer: >
+  Both are a loss of generality, but from different pressures. Catastrophic
+  forgetting is an **SFT/fine-tuning** failure: training on a narrow dataset
+  overwrites broadly-useful pre-trained weights, so the model loses capabilities it
+  used to have. Mitigations: LoRA (caps weight change), mix in general data, keep
+  epochs low. Mode collapse is an **RL** failure: under reward pressure the policy
+  converges onto a single high-reward output pattern, losing diversity (all
+  responses look alike). Mitigations: KL penalty to the reference, entropy bonus,
+  group-relative methods (GRPO). Common wrong answer: treating them as the same
+  thing — they share the symptom (lost generality) but differ in cause (data
+  overwriting vs reward concentration) and fix.
+---
+
+Catastrophic forgetting and mode collapse both show up as "the model got narrower."
+Distinguish them by *cause* (which training regime, what drives each), and give one
+mitigation for each.

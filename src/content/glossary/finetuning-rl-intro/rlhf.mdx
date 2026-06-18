@@ -1,0 +1,12 @@
+---
+term: RLHF (RL from Human Feedback)
+aliases: [RLHF]
+domain: sft-vs-rl
+see: [ppo, reward-model, kl-divergence]
+tags: [rl, rlhf]
+---
+
+The pipeline that aligns an LLM to human preferences: (1) train a reward model on
+preference pairs, (2) optimize the policy with RL to maximize reward **minus a KL
+penalty** to a frozen reference. Full PPO-based RLHF keeps **four models** in
+memory (policy, reference, reward, value/critic).

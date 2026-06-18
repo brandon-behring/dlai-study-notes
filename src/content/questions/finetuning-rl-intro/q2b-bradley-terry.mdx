@@ -1,0 +1,22 @@
+---
+id: fri-2b-bradley-terry
+type: free
+chapter: 2
+domain: sft-vs-rl
+bloom_level: apply
+objective_id: FRI-2.5
+difficulty: '2'
+tags: [rl, reward-model]
+answer: >
+  Loss = −log σ(r(y_w) − r(y_l)), where y_w is the preferred (winning) output and
+  y_l the dispreferred. It trains the reward model to score the preferred output
+  higher by a margin (the sigmoid of the score *difference*). Crucially it learns
+  **relative** preference, not an absolute quality score — which matches what
+  humans can reliably label (A-vs-B is far more consistent than "rate this 0–10").
+  Common wrong answer: claiming the reward model predicts an absolute goodness; it
+  only ever sees and learns differences.
+---
+
+Write the Bradley-Terry loss used to train a reward model from a preference pair
+$(y_w, y_l)$, and explain what the model actually learns — and why that target is
+easier for humans to annotate than an absolute score.

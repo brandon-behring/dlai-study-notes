@@ -1,0 +1,33 @@
+---
+id: fri-2b-ppo-grpo-choice
+type: mcq
+chapter: 2
+domain: sft-vs-rl
+bloom_level: apply
+objective_id: FRI-2.5
+difficulty: '2'
+tags: [rl, ppo, grpo]
+options:
+  - id: a
+    text: GRPO with verifiers — no critic to fit, and the group baseline suits verifiable rewards
+    correct: true
+  - id: b
+    text: PPO — you always need a learned critic for math/code
+  - id: c
+    text: DPO — preference pairs are the only way to train on math
+  - id: d
+    text: Full fine-tuning — RL is unnecessary when answers are checkable
+---
+import Rationale from '@brandon_m_behring/book-scaffold-astro/components/Rationale.astro';
+
+You're RL-training a model on **math with a deterministic answer-checker**, on a
+memory-tight setup. Which approach fits best?
+
+<Rationale title="Why">
+**GRPO with verifiers** — the DeepSeek R1 recipe. The verifier gives a clean reward
+with no reward model to host, and GRPO's group-mean baseline removes the critic, so
+you run three models (or fewer) instead of four — ideal under memory pressure. (b)
+is the thing GRPO exists to avoid; (c) DPO can't consume a live verifier signal
+online; (d) ignores that RL is exactly how you *exploit* a checkable reward to
+exceed demonstrations.
+</Rationale>

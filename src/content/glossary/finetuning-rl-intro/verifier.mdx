@@ -1,0 +1,13 @@
+---
+term: Verifier
+aliases: [deterministic verifier, rule-based reward]
+domain: sft-vs-rl
+see: [reward-model, grpo, reward-hacking]
+tags: [rl]
+---
+
+A **deterministic** function that checks a generation for correctness — a math
+answer checker, a code test suite, a format validator. Unlike a learned reward
+model, a verifier has no ambiguity and essentially no gaming surface, so it gives
+the cleanest RL signal. DeepSeek R1 Zero trained on just two: math correctness and
+format compliance. The basis of the RLVR (RL with verifiable rewards) paradigm.

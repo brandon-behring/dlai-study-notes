@@ -1,0 +1,13 @@
+---
+term: DPO (Direct Preference Optimization)
+aliases: [DPO]
+domain: sft-vs-rl
+see: [ppo, grpo, bradley-terry]
+tags: [rl, dpo]
+---
+
+Trains the policy **directly** on `chosen`/`rejected` preference pairs, skipping
+the separate reward model and the online RL loop, with an implicit KL term
+(strength $\beta$) to a reference. **Offline**: one fixed dataset, trained once —
+contrast PPO/GRPO, which generate fresh rollouts online. Lightweight and stable;
+the Qwen-style alternative to PPO.

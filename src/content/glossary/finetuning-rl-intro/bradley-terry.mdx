@@ -1,0 +1,13 @@
+---
+term: Bradley-Terry Preference Loss
+aliases: [preference loss, reward model loss]
+domain: sft-vs-rl
+see: [reward-model, dpo]
+tags: [rl, reward-model]
+---
+
+The objective for training a reward model from preference pairs:
+$\mathcal{L} = -\log\sigma(r(y_w) - r(y_l))$, where $y_w$ is the preferred output
+and $y_l$ the dispreferred. It learns **relative** preference (which output is
+better), never an absolute goodness score — matching what humans can reliably
+annotate.

@@ -1,0 +1,13 @@
+---
+term: Trajectory (Rollout)
+aliases: [rollout]
+domain: sft-vs-rl
+see: [grpo, advantage, verifier]
+tags: [rl]
+---
+
+In RL post-training, one complete sample of (input, model-generated output, reward).
+The model generates its own output — the **rollout** — and a verifier or reward
+model assigns a scalar reward. RL learns from trajectories it produces itself
+(trial-and-error), which is why it needs an online generation loop, unlike SFT's
+fixed (input, target) pairs.

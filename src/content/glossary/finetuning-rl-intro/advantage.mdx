@@ -1,0 +1,12 @@
+---
+term: Advantage
+aliases: [advantage estimate]
+domain: sft-vs-rl
+see: [ppo, grpo]
+tags: [rl]
+---
+
+How much better an action (or output) was than a baseline: $A = R - V$. Positive
+advantage means better-than-expected (make it more likely); negative means worse.
+PPO estimates the baseline $V$ with a learned **critic** (GAE, token-level); GRPO
+uses the **group mean reward** as the baseline (sequence-level), avoiding the critic.
