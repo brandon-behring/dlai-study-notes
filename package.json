@@ -1,6 +1,6 @@
 {
   "name": "dlai-study-notes",
-  "description": "DLAI Study Notes — multi-book corpus of personal study notes synthesized from deeplearning.ai courses. Consumer of @brandon_m_behring/book-scaffold-astro v3.x with consumer-level multi-book extension.",
+  "description": "DLAI Study Notes — multi-book corpus of personal study notes synthesized from deeplearning.ai courses. Consumer of @brandon_m_behring/book-scaffold-astro v4.25 (course-notes profile) with consumer-level multi-book extension.",
   "type": "module",
   "version": "0.1.0",
   "private": true,
@@ -20,7 +20,7 @@
     "build:labels": "book-scaffold build-labels",
     "build:figures": "node tooling/build-figures/cli.mjs",
     "build:notebooks": "book-scaffold render-notebooks",
-    "validate": "book-scaffold validate --preset tools",
+    "validate": "book-scaffold validate --preset course-notes",
     "dev": "astro dev",
     "build": "astro build && pagefind --site dist",
     "preview": "astro preview",
@@ -31,7 +31,7 @@
   "dependencies": {
     "@astrojs/mdx": "^5.0.3",
     "@astrojs/preact": "^5.1.1",
-    "@brandon_m_behring/book-scaffold-astro": "^4.8.0",
+    "@brandon_m_behring/book-scaffold-astro": "^4.25.0",
     "astro": "^6.1.7",
     "katex": "^0.16.11",
     "preact": "^10.29.1",
