@@ -1,0 +1,13 @@
+---
+term: AdamW
+aliases: [Adam with weight decay]
+domain: sft-vs-rl
+see: [gradient, cross-entropy]
+tags: [sft, hyperparameters]
+---
+
+The standard optimizer for LLM fine-tuning. Maintains per-parameter running
+averages of the gradient (first moment) and squared gradient (second moment)
+for adaptive step sizes, with **decoupled weight decay** (applied separately from
+the gradient update — more principled than L2). Default learning rate
+$5\times10^{-5}$.

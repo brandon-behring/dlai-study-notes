@@ -1,0 +1,12 @@
+---
+term: Gradient of Cross-Entropy
+aliases: [logit gradient]
+domain: sft-vs-rl
+see: [cross-entropy, adamw]
+tags: [sft, cross-entropy]
+---
+
+With respect to the output logits, cross-entropy has the elegant form
+$\partial\mathcal{L}/\partial z_i = p_i - \mathbb{1}[i=y]$ — literally
+**predicted − target**. The update self-scales with error: a confident-correct
+token ($p=0.95$) gets a tiny $0.05$ nudge, a wrong one ($p=0.1$) a strong $0.9$ push.

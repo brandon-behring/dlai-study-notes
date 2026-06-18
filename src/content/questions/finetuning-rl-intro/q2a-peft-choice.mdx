@@ -1,0 +1,32 @@
+---
+id: fri-2a-peft-choice
+type: mcq
+chapter: 2
+domain: sft-vs-rl
+bloom_level: analyze
+objective_id: FRI-2.4
+difficulty: '2'
+tags: [sft, lora, qlora]
+options:
+  - id: a
+    text: QLoRA (4-bit NF4 base + full-precision adapters)
+    correct: true
+  - id: b
+    text: Full fine-tuning
+  - id: c
+    text: LoRA r=8 in fp16
+  - id: d
+    text: Give up — 7B can't be fine-tuned on this hardware
+---
+import Rationale from '@brandon_m_behring/book-scaffold-astro/components/Rationale.astro';
+
+You must fine-tune a **7B** model on a single **12 GB** consumer GPU. Which
+approach fits?
+
+<Rationale title="Why">
+**QLoRA.** Rough memory: full fine-tuning of a 7B model needs ~60 GB and
+fp16 LoRA still needs ~16 GB — both exceed 12 GB. QLoRA stores the frozen base in
+4-bit NF4 (~6 GB for 7B) with full-precision adapters, fitting comfortably with
+minimal quality loss. (d) is wrong precisely because QLoRA exists to make this
+case work; it's the standard answer for sub-16 GB single-GPU fine-tuning.
+</Rationale>

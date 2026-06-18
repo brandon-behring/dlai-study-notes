@@ -1,0 +1,26 @@
+---
+id: fri-2a-loss-masking
+type: free
+chapter: 2
+domain: sft-vs-rl
+bloom_level: analyze
+objective_id: FRI-2.2
+difficulty: '2'
+tags: [sft]
+answer: >
+  Loss is computed only on completion tokens; the prompt is masked. Without
+  masking, the model spends gradient updates learning to reproduce the prompt —
+  which it already receives as input — diluting the signal for the actual task.
+  For instruction data the prompt is often ~80% of the sequence, so unmasked
+  training misallocates ~80% of updates to prompt reproduction. In TRL:
+  completion_only_loss=True. Reasonable exception: few-shot in-context tasks where
+  you *want* the model to learn prompt patterns — there a partial mask (mask the
+  system prompt, keep the examples) is the middle ground. Common wrong answer:
+  "masking saves compute" — the forward pass still covers all tokens; masking
+  changes *where the gradient flows*, not the FLOPs.
+---
+
+In SFT you feed the model the full prompt + completion but mask the loss on the
+prompt. Explain what goes wrong if you *don't* mask, quantify the waste for a
+typical instruction example, and name one situation where you might deliberately
+*not* mask part of the prompt.

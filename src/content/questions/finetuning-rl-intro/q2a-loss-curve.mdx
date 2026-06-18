@@ -1,0 +1,32 @@
+---
+id: fri-2a-loss-curve
+type: mcq
+chapter: 2
+domain: sft-vs-rl
+bloom_level: apply
+objective_id: FRI-2.3
+difficulty: '1'
+tags: [sft, hyperparameters]
+options:
+  - id: a
+    text: Reduce the learning rate by ~10×
+    correct: true
+  - id: b
+    text: Train for more epochs
+  - id: c
+    text: Increase the learning rate to escape the plateau
+  - id: d
+    text: Switch from AdamW to SGD
+---
+import Rationale from '@brandon_m_behring/book-scaffold-astro/components/Rationale.astro';
+
+Ten steps into training, the loss jumps to `NaN`. What is the first thing to
+change?
+
+<Rationale title="Why">
+**Reduce the learning rate ~10×.** `NaN` loss is the signature of an
+LR-too-high blow-up: a step overshoots, weights explode, and the loss becomes
+undefined. More epochs (b) just runs the broken dynamics longer; raising the LR
+(c) makes it worse; changing the optimizer (d) doesn't address the step size. The
+reflex fix in the loss-curve diagnosis table is: NaN → LR too high → cut 10×.
+</Rationale>

@@ -2,11 +2,13 @@
 dist/
 dist-pdf/
 
-# Generated artifacts
+# Generated artifacts (regenerate cheaply on any Node env — no special toolchain)
 src/data/labels.json
 src/data/references.json
-public/figures/**/*.svg
 public/notebooks/**/*.html
+# NOTE: public/figures/**/*.svg are COMMITTED (not ignored) — build-figures needs
+# pdflatex/dvisvgm which the Cloudflare build env lacks, so the built SVGs ship in
+# the repo. (Phase-2 deploy: make build:figures gracefully skip when LaTeX is absent.)
 
 # Anki output
 dist/anki/

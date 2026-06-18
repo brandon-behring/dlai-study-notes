@@ -1,20 +1,55 @@
 ---
 /**
- * Figure — TikZ-compiled SVG or imported image, with caption.
- * Wire to tooling/build-figures output at public/figures/<book>/<name>.svg.
+ * Figure — TikZ/build-figures SVG (or imported image) with caption.
+ *
+ * Local /figures/**.svg are INLINED (not <img>) so the build-figures
+ * neutral→`--diagram-*` remap resolves from the page's [data-theme] tokens and
+ * the figure flips in dark mode (CSS can't reach into an <img>'d SVG). Fixed
+ * width/height are stripped so viewBox + CSS drive responsive sizing; remote or
+ * non-SVG sources fall back to <img>.
  */
-const { src, alt, caption } = Astro.props;
+import { readFileSync } from 'node:fs';
+
+const { src, alt, caption, id } = Astro.props;
+
+let inlineSvg: string | null = null;
+if (typeof src === 'string' && src.startsWith('/') && src.endsWith('.svg')) {
+  try {
+    inlineSvg = readFileSync(`public${src}`, 'utf8')
+      .replace(/<\?xml[^>]*\?>\s*/i, '')
+      .replace(/<!DOCTYPE[^>]*>\s*/i, '')
+      // drop fixed pt width/height → CSS + viewBox control size (responsive)
+      .replace(/(<svg\b[^>]*?)\s+width="[^"]*"/i, '$1')
+      .replace(/(<svg\b[^>]*?)\s+height="[^"]*"/i, '$1');
+  } catch {
+    inlineSvg = null; // missing file → fall back to <img> (build still surfaces it)
+  }
+}
+const a11y = alt || caption || '';
 ---
-<figure class="figure">
-  <img src={src} alt={alt || caption || ''} />
+<figure class="figure" id={id}>
+  {inlineSvg
+    ? <div class="figure-svg" role="img" aria-label={a11y} set:html={inlineSvg} />
+    : <img src={src} alt={a11y} />}
   {caption && <figcaption>{caption}</figcaption>}
 </figure>
 
 <style>
   .figure { margin: 1.5rem 0; text-align: center; }
   .figure img { max-width: 100%; height: auto; }
+  .figure-svg { max-width: 100%; margin-inline: auto; }
+  /* viewBox + width:100% → crisp at any size on phone/tablet/desktop. */
+  .figure-svg :global(svg) {
+    width: 100%;
+    height: auto;
+    display: block;
+    max-width: 34rem;
+    margin-inline: auto;
+  }
   figcaption {
-    font-size: 0.88em; color: var(--color-text-secondary, #4a5568);
-    margin-top: 0.5rem; text-align: left;
+    font-size: 0.88em;
+    color: var(--color-text-secondary, #4a5568);
+    margin-top: 0.5rem;
+    text-align: left;
   }
 </style>

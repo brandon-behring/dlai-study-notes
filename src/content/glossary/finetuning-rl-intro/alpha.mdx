@@ -1,0 +1,12 @@
+---
+term: Alpha (α)
+aliases: [LoRA alpha, scaling factor]
+domain: sft-vs-rl
+see: [lora, rank]
+tags: [sft, lora]
+---
+
+A scaling factor on the LoRA update: $W + \frac{\alpha}{r}\Delta W$. The **ratio
+$\alpha/r$** — not $\alpha$ alone — controls adaptation magnitude, so changing $r$
+without rescaling $\alpha$ silently changes the effective update size. Common
+default: $\alpha{=}16$ with $r{=}8$ (ratio 2).

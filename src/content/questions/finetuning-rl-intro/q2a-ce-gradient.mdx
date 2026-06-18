@@ -1,0 +1,24 @@
+---
+id: fri-2a-ce-gradient
+type: free
+chapter: 2
+domain: sft-vs-rl
+bloom_level: apply
+objective_id: FRI-2.2
+difficulty: '2'
+tags: [sft, cross-entropy]
+answer: >
+  Loss at this position is −log(0.2) ≈ 1.61 nats. The logit gradient is
+  p_i − 1[i=y]; for the correct class that is 0.2 − 1 = −0.8 (magnitude 0.8), a
+  strong corrective push. Contrast a confident-correct token at p=0.95: loss
+  −log(0.95) ≈ 0.05 and gradient 0.95 − 1 = −0.05 — a gentle nudge. The point: the
+  update self-scales with how wrong the model is, so most learning is spent on
+  uncertain tokens. Common wrong answer: forgetting the indicator term and
+  reporting the gradient as just p (0.2).
+---
+
+At one output position the model assigns probability **0.2** to the correct
+token. Compute (a) the cross-entropy loss at that position and (b) the gradient of
+the loss with respect to that token's logit. Then state how both change if the
+model were instead 0.95-confident and correct, and what that tells you about how
+SFT allocates learning.

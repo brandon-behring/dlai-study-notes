@@ -129,10 +129,39 @@ async function compileFigure({ book, name, srcPath }, outPath) {
     // pdftocairo -svg expects a single output file path
     await fs.mkdir(dirname(outPath), { recursive: true });
     await run('pdftocairo', ['-svg', pdfPath, outPath], { cwd: scratch });
+    await themeSvg(outPath, name);
     process.stderr.write(`  ✓ ${book}/${name}.svg\n`);
   } finally {
     await fs.rm(scratch, { recursive: true, force: true });
   }
+}
+
+/**
+ * Post-process a pdftocairo SVG so it themes + can be safely inlined (the #84
+ * behavior, done here since the consumer build-figures predates it):
+ *   1. Neutral remap — pure black (text/lines) → var(--diagram-ink), pure white
+ *      (bg) → var(--diagram-paper). Saturated palette colors are left as
+ *      authored. <Figure> inlines the SVG so these var()s resolve from the
+ *      page's [data-theme] tokens → the figure flips in dark mode.
+ *   2. ID namespacing — pdftocairo emits per-file ids (glyph-0-0, clip paths).
+ *      Two inlined figures on one page would collide (a `<use href="#glyph-0-0">`
+ *      resolves to the first). Prefix every id + reference with the figure name.
+ */
+async function themeSvg(outPath, name) {
+  let svg = await fs.readFile(outPath, 'utf8');
+  // 1. neutral → theme tokens (both rgb(...) and #hex spellings)
+  svg = svg
+    .replace(/(fill|stroke)="rgb\(0%,\s*0%,\s*0%\)"/g, '$1="var(--diagram-ink, #1a1a19)"')
+    .replace(/(fill|stroke)="rgb\(100%,\s*100%,\s*100%\)"/g, '$1="var(--diagram-paper, #fdfcf9)"')
+    .replace(/(fill|stroke)="#000000"/gi, '$1="var(--diagram-ink, #1a1a19)"')
+    .replace(/(fill|stroke)="#ffffff"/gi, '$1="var(--diagram-paper, #fdfcf9)"');
+  // 2. namespace ids + their references (id=, href="#", url(#))
+  const p = `${name}-`;
+  svg = svg
+    .replace(/\bid="([^"]+)"/g, `id="${p}$1"`)
+    .replace(/(\bxlink:href|\bhref)="#([^"]+)"/g, `$1="#${p}$2"`)
+    .replace(/url\(#([^)]+)\)/g, `url(#${p}$1)`);
+  await fs.writeFile(outPath, svg);
 }
 
 function run(cmd, args, opts = {}) {
