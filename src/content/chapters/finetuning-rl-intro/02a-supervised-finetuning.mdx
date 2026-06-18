@@ -283,14 +283,28 @@ is covered in Chapter 2b.) <EvidenceTag kind="verified" />
 
 ## Retrieval check
 
-Try these from memory, then verify in the [practice questions](../practice-exam) and
-[answers](../answers).
+Answer from memory, then expand to check — or go deeper in the
+[practice questions](../practice-exam).
 
-1. Give two splitting rules that prevent leakage, and the one rule unique to RL test sets. *(FRI-2.1)*
-2. Write the cross-entropy gradient at one position and read off its magnitude when $p=0.9$. *(FRI-2.2)*
-3. Why does loss masking matter, and roughly how much of an instruction example is prompt? *(FRI-2.2)*
-4. Map four loss-curve symptoms to their fixes. *(FRI-2.3)*
-5. State the LoRA forward pass; explain why $\alpha/r$ (not $\alpha$ alone) is the knob. *(FRI-2.4)*
+<SelfCheck q="Give two splitting rules that prevent leakage, and the one rule unique to RL test sets." los="FRI-2.1">
+Use **time-based splits** (train past, test future) and always hold out an **out-of-distribution** set; avoid random splits (near-duplicates leak across them). The RL-specific rule: the RL test set must be graded by a **different reward model** than training used.
+</SelfCheck>
+
+<SelfCheck q="Write the cross-entropy gradient at one output position, and read off its magnitude when p = 0.9." los="FRI-2.2">
+$\partial\mathcal{L}/\partial z_i = p_i - \mathbb{1}[i = y]$ ("predicted − target"). For the correct token at $p = 0.9$, the magnitude is $|0.9 - 1| = 0.1$ — a gentle nudge; a wrong-and-confident token ($p=0.1$) gets $0.9$.
+</SelfCheck>
+
+<SelfCheck q="Why does loss masking matter, and roughly how much of an instruction example is prompt?" los="FRI-2.2">
+Masking the prompt focuses every gradient update on generating the **completion** — the model already receives the prompt as input, so training it to reproduce the prompt wastes capacity. For instruction data the prompt is often **~80%** of the sequence, so unmasked training misallocates ~80% of updates.
+</SelfCheck>
+
+<SelfCheck q="Map four loss-curve symptoms to their fixes." los="FRI-2.3">
+`NaN` → LR too high, cut ~10×. Flat from step 0 → LR too low / data bug. Train ↓ but val ↑ → overfitting (fewer epochs, more data). Oscillating → LR too high or batch too small.
+</SelfCheck>
+
+<SelfCheck q="State the LoRA forward pass; explain why the alpha/r ratio (not alpha alone) is the knob." los="FRI-2.4">
+$h = Wx + \frac{\alpha}{r}BAx$. The **ratio** $\alpha/r$ scales the update, so raising $r$ without rescaling $\alpha$ silently *halves* the effective adaptation — the more expressive adapter can end up adapting less.
+</SelfCheck>
 
 ## Summary
 

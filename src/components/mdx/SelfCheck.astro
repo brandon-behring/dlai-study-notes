@@ -1,0 +1,67 @@
+---
+/**
+ * SelfCheck — a retrieval-practice item: a recall question with a collapsed,
+ * expand-to-reveal answer, so readers self-test without hunting back through the
+ * chapter. Collapsed by default (retrieval first, feedback on expand); a rotating
+ * chevron signals it's clickable. Colors are scaffold dark-aware tokens only
+ * (COMPONENTS.md rule 1).
+ *
+ * Usage: <SelfCheck q="Name the three stages…" los="FRI-1.1">…answer…</SelfCheck>
+ */
+interface Props {
+  q: string;
+  los?: string;
+}
+const { q, los } = Astro.props;
+---
+<details class="selfcheck">
+  <summary class="selfcheck-summary">
+    <span class="selfcheck-chevron" aria-hidden="true">▸</span>
+    <span class="selfcheck-q">{q}</span>
+    {los && <span class="selfcheck-los">{los}</span>}
+  </summary>
+  <div class="selfcheck-a"><slot /></div>
+</details>
+
+<style>
+  .selfcheck {
+    border-left: 2px solid var(--color-border, #cbd5e0);
+    background: var(--color-bg-subtle, #f7fafc);
+    padding: 0.45rem 0.85rem;
+    margin: 0.5rem 0;
+    border-radius: 0 4px 4px 0;
+  }
+  .selfcheck-summary {
+    cursor: pointer;
+    list-style: none;
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+    font-weight: 500;
+    color: var(--color-text, #1a202c);
+  }
+  .selfcheck-summary::-webkit-details-marker { display: none; }
+  .selfcheck-chevron {
+    flex: 0 0 auto;
+    color: var(--color-link, #3b6fa0);
+    font-size: 0.8em;
+    transition: transform 0.15s ease;
+  }
+  .selfcheck[open] .selfcheck-chevron { transform: rotate(90deg); }
+  @media (prefers-reduced-motion: reduce) {
+    .selfcheck-chevron { transition: none; }
+  }
+  .selfcheck-los {
+    margin-inline-start: auto;
+    flex: 0 0 auto;
+    font-size: 0.72rem;
+    font-family: var(--font-code, ui-monospace, monospace);
+    color: var(--color-text-muted, #718096);
+  }
+  .selfcheck-a {
+    margin-top: 0.55rem;
+    color: var(--color-text, #1a202c);
+    font-size: 0.95em;
+  }
+  .selfcheck-a :global(p:last-child) { margin-bottom: 0; }
+</style>

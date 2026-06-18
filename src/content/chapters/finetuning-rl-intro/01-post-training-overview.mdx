@@ -308,14 +308,28 @@ four — a support bot may need only layers 1–2; a math tutor needs 1–3.
 
 ## Retrieval check
 
-Try these from memory before moving on — then verify in the
-[practice questions](../practice-exam) and [answers](../answers).
+Answer from memory, then expand to check — or go deeper in the
+[practice questions](../practice-exam).
 
-1. Name the three training stages and what each optimizes for. *(FRI-1.1)*
-2. Reproduce the SFT-vs-RL table — at least four axes. *(FRI-1.2)*
-3. List the three RL grading mechanisms in reliability order, with an example each. *(FRI-1.3)*
-4. State reward hacking in one sentence; give two mitigations. *(FRI-1.6)*
-5. What is the "frontier recipe" for reasoning, in four stages? *(FRI-1.4)*
+<SelfCheck q="Name the three training stages and what each optimizes for." los="FRI-1.1">
+**Pre-training** (next-token on internet text → broad knowledge) → **mid-training** (curated data → fluency, modalities, longer context) → **post-training** (SFT + RL → instruction-following, safety, reasoning).
+</SelfCheck>
+
+<SelfCheck q="Reproduce the SFT-vs-RL table — at least four axes." los="FRI-1.2">
+Signal (demonstrations vs scalar reward), Stability (high vs lower), Ceiling (bounded by demos vs can exceed), Data (curated pairs vs reward/verifier), Compute (moderate vs high). RL trades stability for a higher ceiling.
+</SelfCheck>
+
+<SelfCheck q="List the three RL grading mechanisms in reliability order, with an example each." los="FRI-1.3">
+Deterministic **verifiers** (code tests, math checkers — no ambiguity) → **LLM-as-judge** (scalable but driftable/gameable) → full **environment feedback** (task-completion reward from acting in a tool/web environment).
+</SelfCheck>
+
+<SelfCheck q="State reward hacking in one sentence; give two mitigations." los="FRI-1.6">
+The policy maximizes the reward *as specified* rather than *as intended*, exploiting shortcuts. Mitigations (any two): a KL penalty to the SFT baseline, deterministic verifiers, reward ensembles, diversity monitoring.
+</SelfCheck>
+
+<SelfCheck q='What is the "frontier recipe" for reasoning, in four stages?' los="FRI-1.4">
+From the base model: (1) cold-start CoT **SFT** → (2) **RL** with verifiers (GRPO) → (3) rejection-sampling **SFT** (best-of-N) → (4) final alignment **RL**. The frontier alternates SFT and RL.
+</SelfCheck>
 
 ## Where practitioners disagree
 

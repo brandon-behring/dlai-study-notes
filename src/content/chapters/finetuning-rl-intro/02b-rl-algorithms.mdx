@@ -223,14 +223,28 @@ source, latent-vs-new capability) rather than declaring a winner.
 
 ## Retrieval check
 
-Try these from memory, then verify in the [practice questions](../practice-exam) and
-[answers](../answers).
+Answer from memory, then expand to check — or go deeper in the
+[practice questions](../practice-exam).
 
-1. Write the Bradley-Terry reward-model loss and say what it learns (relative vs absolute). *(FRI-2.5)*
-2. Name the four RLHF models and which one GRPO removes. *(FRI-2.5)*
-3. Compute GRPO advantages for rewards $[1,1,0,0]$; when does a prompt give zero gradient? *(FRI-2.5)*
-4. State the role of the KL penalty and what happens if $\beta$ is too small. *(FRI-2.5, FRI-2.6)*
-5. Distinguish catastrophic forgetting from mode collapse, with one mitigation each. *(FRI-2.6)*
+<SelfCheck q="Write the Bradley-Terry reward-model loss and say what it learns (relative vs absolute)." los="FRI-2.5">
+$\mathcal{L} = -\log\sigma\!\left(r(y_w) - r(y_l)\right)$, where $y_w$ is preferred. It learns **relative** preference (which output is better) — never an absolute goodness score, which is all humans reliably annotate.
+</SelfCheck>
+
+<SelfCheck q="Name the four RLHF models and which one GRPO removes." los="FRI-2.5">
+Policy, reference (frozen, for the KL term), reward model, and value/critic. GRPO removes the **value/critic**, replacing it with a group-mean baseline → three models.
+</SelfCheck>
+
+<SelfCheck q="Compute GRPO advantages for rewards [1, 1, 0, 0]; when does a prompt give zero gradient?" los="FRI-2.5">
+Baseline = mean = 0.5 → advantages $[+0.5, +0.5, -0.5, -0.5]$. A prompt gives **zero gradient when all rollouts score the same** (the baseline equals every reward) — so GRPO needs prompts of intermediate difficulty.
+</SelfCheck>
+
+<SelfCheck q="State the role of the KL penalty and what happens if beta is too small." los="FRI-2.5, FRI-2.6">
+$-\beta\,\mathrm{KL}(\pi_\theta \| \pi_{\text{ref}})$ keeps the policy near the frozen reference, guarding against reward hacking and mode collapse. Too small → the policy drifts and games the reward; too large → it can't improve.
+</SelfCheck>
+
+<SelfCheck q="Distinguish catastrophic forgetting from mode collapse, with one mitigation each." los="FRI-2.6">
+**Forgetting** (SFT side): narrow-data training overwrites general capabilities → mitigate with LoRA / a general-data mix / low epochs. **Mode collapse** (RL side): reward pressure converges on one output mode → mitigate with the KL penalty / entropy bonus / GRPO.
+</SelfCheck>
 
 ## Summary
 

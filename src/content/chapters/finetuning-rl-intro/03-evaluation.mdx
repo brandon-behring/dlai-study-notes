@@ -297,15 +297,32 @@ always watch the alignment tax."*
 
 ## Retrieval check
 
-Try these from memory, then verify in the [practice questions](../practice-exam) and
-[answers](../answers).
+Answer from memory, then expand to check — or go deeper in the
+[practice questions](../practice-exam).
 
-1. State the six steps of the eval-train loop; which step is most often skipped? *(FRI-3.1)*
-2. Give the safe KL range and what values below/above it signal. *(FRI-3.2)*
-3. Name four reward-hacking detection signals; what's the verifier-based fix? *(FRI-3.3)*
-4. Walk the error-analysis workflow and explain frequency × severity ÷ effort. *(FRI-3.4)*
-5. Distinguish a jailbreak from a prompt injection by attack vector. *(FRI-3.5)*
-6. Compare verifier vs learned-reward grading on reliability, coverage, and Goodhart risk. *(FRI-3.6)*
+<SelfCheck q="State the six steps of the eval-train loop; which step is most often skipped?" los="FRI-3.1">
+Define the capability *in the eval suite* → train → measure on held-out data → diagnose failures → fix data/reward/hyperparameters → repeat. Most skipped: **adding the capability to the evals *before* training for it** — otherwise you can't measure progress.
+</SelfCheck>
+
+<SelfCheck q="Give the safe KL range and what values below or above it signal." los="FRI-3.2">
+**0.1–0.2 nats.** Below 0.1, RL is barely changing the model. Above ~0.5, the policy has drifted far — a sign of mode collapse or reward hacking.
+</SelfCheck>
+
+<SelfCheck q="Name four reward-hacking detection signals; what's the verifier-based fix?" los="FRI-3.3">
+KL spiking above 0.5 nats; reward rising while human-preference scores stay flat (growing alignment tax); rollout diversity collapsing; output length growing monotonically. Fix: grade with **verifiers** — they check ground truth, so there's nothing to game.
+</SelfCheck>
+
+<SelfCheck q="Walk the error-analysis workflow and explain frequency × severity ÷ effort." los="FRI-3.4">
+Collect failures → cluster (embeddings) → categorize (LLM judge) → prioritize → targeted fix → re-evaluate. Rank clusters by **impact (frequency × severity) ÷ effort**, so a small, trivially-fixable bucket (e.g. format errors) can outrank a large, expensive one (reasoning errors).
+</SelfCheck>
+
+<SelfCheck q="Distinguish a jailbreak from a prompt injection by attack vector." los="FRI-3.5">
+A **jailbreak** is an adversarial *user prompt* that bypasses guardrails (roleplay bypass). A **prompt injection** hides the adversarial instruction in the *data* the model processes — the vector is the data, not the prompt, which makes it dangerous for tool-using and retrieval agents.
+</SelfCheck>
+
+<SelfCheck q="Compare verifier vs learned-reward grading on reliability, coverage, and Goodhart risk." los="FRI-3.6">
+Verifier: high reliability, low Goodhart risk, cheap — but only where ground truth exists. Learned reward model: covers subjective/open-ended quality — but drifts, costs more, and is a gameable proxy (high Goodhart). Use verifiers where you can; a calibrated, human-cross-checked judge where you must; watch the alignment tax either way.
+</SelfCheck>
 
 ## Summary
 
