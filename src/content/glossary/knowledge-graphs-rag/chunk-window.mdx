@@ -1,0 +1,14 @@
+---
+term: Chunk Window
+aliases: [chunk window, context window expansion]
+domain: kg-relationships
+see: [next-relationship, variable-length-path, custom-retrieval-query]
+tags: [rag, retrieval]
+---
+
+A retrieval pattern that returns a target chunk **plus its neighbours** in the NEXT linked list,
+giving the LLM continuous context instead of one isolated chunk. A window of $w = 2k+1$ chunks
+uses $k$ hops in each direction (default $k=1$ → a 3-chunk window). Built with variable-length
+paths (`*0..k`) so it degrades gracefully at list boundaries. The payoff is concrete: expanded
+context surfaces details an adjacent chunk held (e.g. a product name) that the single best-matching
+chunk missed — improving completeness with no change to the embedding model.

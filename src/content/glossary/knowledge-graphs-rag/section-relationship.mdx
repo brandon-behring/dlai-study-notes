@@ -1,0 +1,12 @@
+---
+term: SECTION Relationship
+aliases: [SECTION]
+domain: kg-relationships
+see: [form-node, part-of-relationship, next-relationship]
+tags: [schema, traversal]
+---
+
+A directed relationship from a Form to the **first chunk** (sequence id 0) of each section,
+carrying an `f10kItem` property that names the section (e.g. `"item1"`). It gives the form indexed
+entry points into the document: a query can jump straight to where a section starts, then follow
+NEXT through its content — hierarchical navigation without scanning the whole linked list.

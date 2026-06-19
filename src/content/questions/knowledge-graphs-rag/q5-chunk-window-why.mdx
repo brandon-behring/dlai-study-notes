@@ -1,0 +1,20 @@
+---
+id: kgr-5-chunk-window-why
+type: free
+chapter: 5
+domain: kg-relationships
+bloom_level: understand
+objective_id: KGR-5.4
+difficulty: '2'
+tags: [chunk-window, retrieval]
+answer: >
+  A chunk window returns the best-matching chunk plus its neighbours in the NEXT linked list, so
+  the LLM sees continuous context instead of one isolated fragment. It matters because a single
+  chunk often holds only part of an answer — a fact or detail can sit in the adjacent chunk that
+  vector search didn't rank first. Expanding to a window (default 3 chunks, w = 2k + 1) recovers
+  that surrounding context and improves answer completeness, all without changing the embedding
+  model or re-running the search. Common wrong answer: "it improves the similarity score" — the
+  window doesn't change scores; it changes how much context reaches the LLM.
+---
+
+What is a chunk window, and why does it improve RAG answers without changing the embedding model?

@@ -1,0 +1,21 @@
+---
+id: kgr-5-custom-retrieval-vars
+type: free
+chapter: 5
+domain: kg-relationships
+bloom_level: apply
+objective_id: KGR-5.5
+difficulty: '2'
+tags: [custom-retrieval-query, cypher]
+answer: >
+  The custom query receives two values from the vector search: `node` (the matched Chunk) and
+  `score` (its similarity). It typically starts `WITH node, score`, then matches a window such as
+  `(:Chunk)-[:NEXT*0..1]->(node)-[:NEXT*0..1]->(:Chunk)`, keeps the longest with `ORDER BY
+  length(window) DESC LIMIT 1`, unwinds the window's nodes, and returns each chunk's text, the
+  score, and a metadata map. The shape the chain expects back is text, score, metadata. Common
+  wrong answer: returning only the single node's text — that throws away the window you just
+  traversed.
+---
+
+A custom retrieval query receives two variables from the vector index — name them — and sketch how
+it returns a chunk window to the LLM.

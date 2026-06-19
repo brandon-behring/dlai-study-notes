@@ -1,0 +1,22 @@
+---
+id: kgr-5-window-comparison
+type: free
+chapter: 5
+domain: kg-relationships
+bloom_level: understand
+objective_id: KGR-5.6
+difficulty: '1'
+tags: [chunk-window, comparison]
+answer: >
+  Without a window, retrieval returns the single best-matching chunk, so the answer is whatever
+  that one fragment holds — for "What is NetApp's primary business?" that was "enterprise storage
+  and data management." With a window, the query follows NEXT to the adjacent chunks and the LLM
+  also sees the Keystone product detail that lived next door, producing a more complete answer.
+  The lesson generalises: vector search picks the entry point, graph traversal supplies the
+  surrounding context that a lone chunk omits. Common wrong answer: "the windowed result is more
+  accurate because the score is higher" — accuracy/completeness rises from added context, not a
+  changed score.
+---
+
+Compare the RAG answer for "What is NetApp's primary business?" with and without a chunk window.
+What specifically does the window add, and why?

@@ -1,0 +1,30 @@
+---
+id: kgr-5-next-direction
+type: mcq
+chapter: 5
+domain: kg-relationships
+bloom_level: understand
+objective_id: KGR-5.2
+difficulty: '1'
+tags: [next, linked-list]
+options:
+  - id: a
+    text: They share a formId and item and their chunkSeqId differ by one
+    correct: true
+  - id: b
+    text: They share a formId but come from two different sections
+  - id: c
+    text: They have the highest cosine similarity to each other
+  - id: d
+    text: They belong to the same company across different forms
+---
+import Rationale from '@brandon_m_behring/book-scaffold-astro/components/Rationale.astro';
+
+A NEXT relationship is created between two chunks when which condition holds?
+
+<Rationale title="Why">
+NEXT links consecutive chunks *within one section*: same `formId`, same `item`, and `chunkSeqId`
+differing by exactly one. Matching across different sections is the bug the section filter exists
+to prevent; NEXT is about document order, not cosine similarity; and it stays within a single form,
+not across a company's filings.
+</Rationale>

@@ -1,0 +1,21 @@
+---
+id: kgr-5-missing-filter-bug
+type: free
+chapter: 5
+domain: kg-relationships
+bloom_level: analyze
+objective_id: KGR-5.7
+difficulty: '3'
+tags: [debugging, next]
+answer: >
+  Count the NEXT edges per section, not across the whole form. With 10 chunks split 0–4
+  (Introduction) and 5–9 (Methods), correct creation gives 4 edges in each section (0→1→2→3→4 and
+  5→6→7→8→9) = 8 total. The buggy version that orders all chunks by chunkSeqId without the section
+  filter adds a ninth edge, 4→5, linking the last Introduction chunk to the first Methods chunk —
+  a cross-section link. Detect it by querying for NEXT edges whose endpoints have different `item`
+  values: `MATCH (a)-[:NEXT]->(b) WHERE a.item <> b.item RETURN a, b`. Any rows are boundary
+  bleed. Fix by deleting those edges and rebuilding with the item filter.
+---
+
+A 10-chunk document (chunks 0–4 in "Introduction", 5–9 in "Methods") was loaded without a section
+filter on NEXT. How many edges should exist, how many do, and how would you detect the bad one?

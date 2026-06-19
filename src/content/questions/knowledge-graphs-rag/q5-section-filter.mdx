@@ -1,0 +1,21 @@
+---
+id: kgr-5-section-filter
+type: free
+chapter: 5
+domain: kg-relationships
+bloom_level: analyze
+objective_id: KGR-5.7
+difficulty: '2'
+tags: [next, correctness]
+answer: >
+  Section filtering is a correctness requirement because every section restarts chunkSeqId at 0,
+  and NEXT links chunks whose sequence ids differ by one. Filter only on formId and order by
+  chunkSeqId — without the item filter — and the last chunk of one section gets a NEXT edge to the
+  first chunk of the next, since their sequence ids happen to be consecutive across the boundary.
+  That false continuity means a chunk window built at a section boundary pulls in unrelated context
+  from the adjacent section, degrading answer quality. The fix: require matching formId AND item on
+  both chunks when creating NEXT.
+---
+
+Why is filtering by section (not just by form) necessary when creating NEXT relationships, and what
+concretely breaks if you omit it?

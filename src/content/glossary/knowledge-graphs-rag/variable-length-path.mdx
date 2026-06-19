@@ -1,0 +1,14 @@
+---
+term: Variable-Length Path
+aliases: [variable-length relationship, '*0..1']
+domain: kg-relationships
+see: [chunk-window, next-relationship, graph-traversal]
+tags: [cypher, traversal]
+---
+
+A Cypher pattern that matches a *range* of relationship hops rather than a fixed number: `*0..1`
+matches zero or one hop, `*1..3` matches one to three, `*0..2` zero to two. It is the standard fix
+for boundary conditions where a fixed-length pattern returns nothing — e.g. a chunk window at the
+first or last chunk of a linked list, where the missing side simply matches **zero hops**.
+Pairing it with `ORDER BY length(window) DESC LIMIT 1` keeps the longest window available at any
+position.

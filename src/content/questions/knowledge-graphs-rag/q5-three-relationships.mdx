@@ -1,0 +1,30 @@
+---
+id: kgr-5-three-relationships
+type: mcq
+chapter: 5
+domain: kg-relationships
+bloom_level: understand
+objective_id: KGR-5.1
+difficulty: '2'
+tags: [schema, relationships]
+options:
+  - id: a
+    text: "NEXT orders chunks; PART_OF joins a chunk to its form; SECTION links a form to its company"
+  - id: b
+    text: "NEXT joins a form to its sections; PART_OF orders chunks; SECTION links a chunk to the next"
+  - id: c
+    text: "NEXT links a chunk to its company; PART_OF indexes sections; SECTION orders chunks by position"
+  - id: d
+    text: "NEXT orders chunks; PART_OF joins a chunk to its form; SECTION links a form to each section's first chunk"
+    correct: true
+---
+import Rationale from '@brandon_m_behring/book-scaffold-astro/components/Rationale.astro';
+
+Which option correctly maps the three relationship types added in Module 5 to their roles?
+
+<Rationale title="Why">
+NEXT orders chunks within a section (the linked list), PART_OF points a chunk up to its parent
+form (document membership), and SECTION points a form down to the first chunk of each section
+(the entry point, tagged `f10kItem`). The near-miss differs only in the SECTION clause — SECTION
+links to a section's first chunk, not to a company; companies don't enter until Module 6.
+</Rationale>

@@ -1,0 +1,21 @@
+---
+id: kgr-5-multihop-trace
+type: free
+chapter: 5
+domain: kg-relationships
+bloom_level: apply
+objective_id: KGR-5.8
+difficulty: '2'
+tags: [traversal, multi-hop]
+answer: >
+  Hop up, then down. From the chunk, follow PART_OF to its Form (`(c:Chunk)-[:PART_OF]->(f:Form)`),
+  then follow SECTION from the form, filtered to the chunk's own section, down to that section's
+  first chunk (`(f)-[s:SECTION]->(first:Chunk) WHERE s.f10kItem = c.item`). The full pattern is
+  `(c:Chunk)-[:PART_OF]->(:Form)-[:SECTION]->(:Chunk)` with the SECTION's f10kItem matching the
+  starting chunk's item. This is the two-hop trace the module's last objective asks for: chunk →
+  form → section entry point. Common wrong answer: walking NEXT backward — it works only if no
+  edge is missing and is O(n) in section length, whereas SECTION jumps in one hop.
+---
+
+Trace the traversal from an arbitrary chunk to the first chunk of its own section. Which
+relationships do you follow, and in which direction?

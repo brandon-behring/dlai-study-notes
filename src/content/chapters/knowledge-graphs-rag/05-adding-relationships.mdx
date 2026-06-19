@@ -1,0 +1,334 @@
+---
+book: knowledge-graphs-rag
+title: 'Adding Relationships to the Knowledge Graph'
+chapter: 5
+part: 1
+description: >
+  Turning the flat chunk collection into a navigable knowledge graph: a Form
+  node per filing, a NEXT linked list of chunks (section-filtered), PART_OF and
+  SECTION connections, variable-length paths (*0..1) for boundary handling, and
+  chunk-window retrieval that expands RAG context by combining vector search with
+  graph traversal.
+learning_outcomes:
+  - id: KGR-5.1
+    verb: Design
+    text: >
+      a document-level graph schema with Form nodes connected to Chunk nodes via
+      PART_OF and SECTION relationships.
+  - id: KGR-5.2
+    verb: Design
+    text: >
+      a linked list of chunks using NEXT relationships ordered by section and
+      sequence id within each form section.
+  - id: KGR-5.3
+    verb: Apply
+    text: >
+      variable-length path patterns (*0..1) to handle boundary conditions at the
+      start and end of chunk linked lists.
+  - id: KGR-5.4
+    verb: Apply
+    text: >
+      chunk-window queries that expand retrieval context by including adjacent
+      chunks in the linked list.
+  - id: KGR-5.5
+    verb: Design
+    text: >
+      custom Cypher retrieval queries for Neo4jVector that combine vector search
+      with graph traversal.
+  - id: KGR-5.6
+    verb: Compare
+    text: >
+      RAG results with and without chunk windows, identifying the specific
+      details that expanded context reveals.
+  - id: KGR-5.7
+    verb: Explain
+    text: >
+      why section-level filtering is necessary when creating NEXT relationships
+      across multiple form sections.
+  - id: KGR-5.8
+    verb: Trace
+    text: >
+      a multi-hop query from a chunk through PART_OF to a Form and through
+      SECTION to another chunk.
+tags:
+  - knowledge-graph
+  - relationships
+  - cypher
+  - rag
+  - neo4j
+last_verified: 2026-06-19
+volatility: architectural-pattern
+sources:
+  - robinson2015graph
+  - hogan2021knowledge
+  - gao2024retrieval
+---
+
+<Diagnostic skimTo="Connecting chunks to the form">
+Predict before reading — check each against the chapter.
+
+1. You create NEXT relationships across *all* chunks ordered by `chunkSeqId`, forgetting to filter by section. Predict the structural bug this introduces.
+2. A fixed 3-chunk window `before → middle → after` is run on the *first* chunk of a section. Predict what it returns.
+3. Adding a chunk window lifted answer completeness from 62% to 84% but added latency and cost. Predict the one-line rule for when that trade is worth paying.
+4. You have a chunk and want the first chunk of its section. Predict which two relationship types you traverse.
+
+<Fragment slot="answers">
+1. Cross-section NEXT links: the last chunk of Item 7 (seq 4) gets a NEXT to the first chunk of Item 7A (seq 5 → actually seq 0 of the next section if mis-keyed), so the linked list **bleeds across section boundaries** and windows pull in irrelevant context.
+2. **Zero results** — the first chunk has no predecessor, so the fixed `before` hop fails to match and the whole pattern returns nothing. Variable-length `*0..1` fixes this.
+3. Pay for graph augmentation when questions actually **span chunk/document boundaries** and answer quality drives value; for self-contained FAQ lookups, pure vector is enough.
+4. **PART_OF** (chunk → its Form) then **SECTION** (Form → the first chunk of that section) — a two-hop traversal up to the form and back down to the section entry point.
+</Fragment>
+</Diagnostic>
+
+<NarrativeBox title="Where we are">
+Module 4 left chunks floating disconnected — Neo4j was just a vector store. This
+chapter is the turning point: adding **relationships** makes the collection a
+navigable knowledge graph. Chunks become linked lists that preserve document
+order; forms connect to their chunks; and chunk-window queries expand retrieval
+context by pulling in neighbours — better answers with no change to the embedding
+model. This is where vector search and graph traversal finally combine.
+</NarrativeBox>
+
+## The Form node
+
+First, a [**Form node**](../glossary#term-form-node) represents the filing
+itself, carrying the metadata the chunks share — `formId`, `source`, `cik`, and
+`cusip6`:
+
+```cypher
+CREATE (f:Form)
+SET f.formId = $formInfoParam.formId,
+    f.source = $formInfoParam.source,
+    f.cik    = $formInfoParam.cik,
+    f.cusip6 = $formInfoParam.cusip6
+```
+
+<Aside category="pattern">
+The `cusip6` property on the Form node is the bridge to Module 6: Company nodes
+will link to forms through that same CUSIP identifier. Carry the linking keys on
+the parent node now, and the next module's joins become one-hop.
+</Aside>
+
+## The chunk linked list (NEXT)
+
+Chunks are wired into a [**NEXT**](../glossary#term-next-relationship) linked
+list that preserves reading order — but only *within* a section. Two filters are
+mandatory: same `formId` **and** same `item`.
+
+```cypher
+MATCH (c1:Chunk), (c2:Chunk)
+WHERE c1.formId = $formIdParam AND c1.item = $itemParam
+  AND c2.formId = $formIdParam AND c2.item = $itemParam
+  AND c2.chunkSeqId = c1.chunkSeqId + 1
+MERGE (c1)-[:NEXT]->(c2)
+```
+
+<RedFlag title="The section filter is a correctness requirement, not a nicety">
+Every section restarts `chunkSeqId` at 0, so without the `item` filter the last
+chunk of Item 7 links to the first chunk of Item 7A — a false continuity across
+a section boundary. Then a chunk window at that boundary pulls in unrelated
+context and *degrades* answers. Always filter by both `formId` and `item` when
+building NEXT. <EvidenceTag kind="verified" />
+</RedFlag>
+
+`MERGE` (not `CREATE`) keeps the step idempotent — re-running a section won't
+duplicate NEXT edges.
+
+<WorkedExample title="Build a NEXT linked list and count the edges" los="KGR-5.2">
+**Problem.** A paper has 10 chunks (ids 0–9): chunks 0–4 are "Introduction",
+chunks 5–9 are "Methods". You build NEXT with the section filter. How many NEXT
+edges result, and what would omitting the filter do?
+
+**Reasoning.** NEXT connects consecutive chunks *within* a section. Introduction
+gives 0→1, 1→2, 2→3, 3→4 = 4 edges; Methods gives 5→6, 6→7, 7→8, 8→9 = 4 edges.
+Omitting the section filter would also create 4→5 — linking the last
+Introduction chunk to the first Methods chunk — a false cross-section edge that
+corrupts the linked list.
+
+**Answer.** **8 NEXT edges** (4 per section). The section filter is what stops
+the spurious 4→5 link; it is a correctness requirement, not optional tuning.
+</WorkedExample>
+
+<SelfCheck q="Why must NEXT-relationship creation filter by section, and what specifically goes wrong without it?" los="KGR-5.7">
+Each section restarts `chunkSeqId` at 0, and NEXT links chunks whose sequence ids differ by one. Without a section (`item`) filter, the last chunk of one section links to the first chunk of the next — a cross-section NEXT edge. That makes the linked list bleed across boundaries, so a chunk window built on it pulls in irrelevant context from the adjacent section and degrades answer quality.
+</SelfCheck>
+
+## Connecting chunks to the form (PART_OF, SECTION)
+
+Two more relationship types complete the schema. Every chunk links to its parent
+form with [**PART_OF**](../glossary#term-part-of-relationship); the form links to
+the *first* chunk of each section with
+[**SECTION**](../glossary#term-section-relationship), tagged by section name:
+
+```cypher
+-- every chunk to its form
+MATCH (c:Chunk), (f:Form) WHERE c.formId = f.formId
+MERGE (c)-[:PART_OF]->(f)
+
+-- form to the first chunk (seq 0) of each section
+MATCH (c:Chunk), (f:Form) WHERE c.formId = f.formId AND c.chunkSeqId = 0
+MERGE (f)-[s:SECTION {f10kItem: c.item}]->(c)
+```
+
+<ConceptBox>
+**The schema after Module 5.** Three relationship types now connect the graph:
+
+- `Chunk -[:NEXT]-> Chunk` — the linked list (document order)
+- `Chunk -[:PART_OF]-> Form` — document membership
+- `Form -[:SECTION]-> Chunk` — section entry points (tagged `f10kItem`)
+
+Together they support **sequential** traversal (follow NEXT) and **hierarchical**
+navigation (jump to a section via SECTION, then follow NEXT through it).
+</ConceptBox>
+
+<SelfCheck q="Name the three relationship types added in this module, their directions, and what each enables." los="KGR-5.1">
+**NEXT** (`Chunk → Chunk`) — a linked list preserving document order, enabling sequential traversal and chunk windows. **PART_OF** (`Chunk → Form`) — document membership, enabling traversal from any chunk back to its filing. **SECTION** (`Form → Chunk`, carrying `f10kItem`) — an entry point to the first chunk of each section, enabling a direct jump to where a section begins.
+</SelfCheck>
+
+## Chunk windows and variable-length paths
+
+A [**chunk window**](../glossary#term-chunk-window) retrieves a target chunk
+*plus its neighbours* so the LLM sees continuous context. A window of $w = 2k+1$
+chunks uses $k$ hops in each direction; the default $k=1$ gives a 3-chunk
+window. The naive fixed pattern, though, breaks at the ends of the list:
+
+```cypher
+-- fixed 3-node window: FAILS at boundaries
+MATCH (before:Chunk)-[:NEXT]->(middle:Chunk)-[:NEXT]->(after:Chunk)
+WHERE middle.chunkId = $chunkIdParam
+RETURN before, middle, after
+```
+
+<KeyConcept title="Variable-length paths degrade gracefully at boundaries" los="KGR-5.3">
+The first chunk has no predecessor and the last has no successor, so a fixed
+two-hop window returns **zero results** there. A
+[**variable-length path**](../glossary#term-variable-length-path) `*0..1` matches
+*zero or one* NEXT hops, so the pattern still matches at the ends: at the first
+chunk `before` collapses onto `middle` (0 hops back); at the last, `after`
+collapses onto `middle`. Order by path length descending and `LIMIT 1` to keep
+the **longest available** window. <EvidenceTag kind="verified" />
+</KeyConcept>
+
+```cypher
+MATCH window = (before:Chunk)-[:NEXT*0..1]->(middle:Chunk)-[:NEXT*0..1]->(after:Chunk)
+WHERE middle.chunkId = $chunkIdParam
+WITH window, length(window) AS windowLength
+ORDER BY windowLength DESC
+LIMIT 1
+RETURN window
+```
+
+<CompletionProblem id="chunk-window-var-length" title="Complete the boundary-safe window" level="completion">
+Write a window that returns the target chunk plus up to **two** neighbours on
+each side (a 5-chunk window), degrading gracefully at the list ends.
+
+**Your turn — fill the blanks:**
+- Use `*0..___` in each direction to allow up to two hops.
+- Bind the path: `MATCH window = (b:Chunk)-[:NEXT*0..2]->(t:Chunk)-[:NEXT*0..2]->(a:Chunk) WHERE t.chunkId = $id`
+- Keep the longest match: `WITH window ORDER BY length(window) ___ LIMIT 1`
+
+<Fragment slot="solution">
+```cypher
+MATCH window = (b:Chunk)-[:NEXT*0..2]->(t:Chunk)-[:NEXT*0..2]->(a:Chunk)
+WHERE t.chunkId = $id
+WITH window, length(window) AS len
+ORDER BY len DESC
+LIMIT 1
+WITH nodes(window) AS chunks
+UNWIND chunks AS chunk
+RETURN chunk.chunkId, chunk.text ORDER BY chunk.chunkSeqId
+```
+- `*0..2` allows **0, 1, or 2** hops each way, so at chunk 0 the backward side matches 0 hops (3 chunks total) and grows to the full 5 in the middle.
+- `ORDER BY length(window) DESC LIMIT 1` keeps the **longest** available window at any position.
+</Fragment>
+</CompletionProblem>
+
+<SelfCheck q="What does the *0..1 notation match, and why does it fix the fixed-window failure at the first and last chunks?" los="KGR-5.3">
+`*0..1` matches **zero or one** NEXT hops (a variable-length path). At a boundary a fixed one-hop side has nothing to match and the whole pattern returns nothing; with `*0..1` the missing side simply matches **zero hops** (the endpoint collapses onto the target), so the query still returns the available neighbours. Ordering by `length(window) DESC LIMIT 1` then keeps the longest window that exists at that position.
+</SelfCheck>
+
+## Enhanced RAG: vector search meets graph traversal
+
+The payoff is a [**custom retrieval query**](../glossary#term-custom-retrieval-query):
+Neo4jVector finds the best-matching chunk by vector similarity, then a Cypher
+tail expands it into a window before the chunks reach the LLM. You pass it via
+the `retrieval_query` argument; it receives the matched `node` and its `score`:
+
+```cypher
+WITH node, score
+MATCH window = (:Chunk)-[:NEXT*0..1]->(node)-[:NEXT*0..1]->(:Chunk)
+WITH node, score, window ORDER BY length(window) DESC LIMIT 1
+UNWIND nodes(window) AS chunk
+RETURN chunk.text AS text, score, {source: chunk.source} AS metadata
+```
+
+<PipelineBox title="Vector search + graph traversal in one retrieval step">
+1. **Vector search** — the question embedding finds the single most relevant chunk (`node`, `score`).
+2. **Graph traversal** — from that chunk, follow NEXT both directions to gather the window.
+3. **Return** — the window's chunks (not just the one hit) become the LLM's context.
+</PipelineBox>
+
+<KeyConcept title="The combination beats either technique alone" los="KGR-5.6">
+Vector search alone finds a relevant *point*; graph traversal alone has no notion
+of relevance. Together, vector search locates the entry chunk and the window adds
+the surrounding context the LLM needs for a complete answer. Concretely: asked
+for NetApp's primary business, the single-chunk answer says "enterprise storage
+and data management"; the windowed answer adds the **Keystone** product detail
+that lived in the adjacent chunk. **When it breaks:** if NEXT crosses sections
+(missing filter) the window injects irrelevant context, and very large windows
+($k > 3$) can dilute the signal past the LLM's useful attention. <EvidenceTag kind="verified" />
+</KeyConcept>
+
+<SelfCheck q="How does a custom retrieval query extend Neo4jVector's default behaviour, and what two values does it receive from the vector search?" los="KGR-5.5">
+The default retriever returns the matched chunk's text as-is. A custom `retrieval_query` runs *after* the vector search and receives the matched **`node`** and its similarity **`score`**; from there it can traverse the graph — here following NEXT to build a chunk window — so the LLM gets expanded context, not a lone chunk. It returns text, score, and a metadata map.
+</SelfCheck>
+
+<WorkedExample title="Trace a multi-hop query" los="KGR-5.8">
+**Problem.** Given a chunk in the middle of Item 7, you want the *first* chunk
+of that same section. Which relationships do you follow, and in what direction?
+
+**Reasoning.** The chunk doesn't know its section's entry point directly — but its
+Form does. Hop **up** to the form with `PART_OF` (`Chunk -[:PART_OF]-> Form`),
+read the chunk's `item`, then hop **down** with `SECTION` filtered to that item
+(`Form -[:SECTION {f10kItem}]-> Chunk`), which points at the seq-0 chunk.
+
+**Answer.** `(:Chunk)-[:PART_OF]->(:Form)-[:SECTION]->(:Chunk)` with the SECTION's
+`f10kItem` matching the start chunk's `item` — a two-hop traversal up to the form
+and back down to the section's first chunk.
+</WorkedExample>
+
+## When is graph augmentation worth it?
+
+<Aside category="pattern">
+Where practitioners disagree — *now that the graph exists, is the chunk-window /
+graph hop worth its latency and cost?* The published trade for one support-RAG
+build: pure vector retrieval ran ~78% accuracy / 62% completeness at ~\$200/month
+and ~120 ms; graph-augmented retrieval ran ~89% / 84% at ~\$450/month and
+~180 ms — a 22-point completeness jump for roughly +\$250/month and +60 ms. The
+honest rule is the same as Modules 3–4: pay for traversal when questions actually
+**span chunk or document boundaries** and quality drives value; skip it for
+self-contained FAQ lookups. And there's a third option — a **hybrid**: run vector
+search first and trigger the graph expansion *only* when the top score is low or
+the question is multi-entity, capturing most of the accuracy gain at closer to
+the pure-vector cost.
+</Aside>
+
+<SelfCheck q="A team gets 78 percent accuracy from pure vector RAG and 89 percent from graph-augmented RAG at higher cost and latency. Describe a hybrid that captures most of the gain more cheaply." los="KGR-5.6">
+Run **vector search first** (the cheap path), then **conditionally** expand via graph traversal only when a cheap signal says it's needed — the top similarity score is below a threshold, or the question references multiple entities. The expensive graph window then fires on only the ~30–40% of queries that benefit, capturing most of the accuracy/completeness gain while keeping average cost and latency near the pure-vector baseline.
+</SelfCheck>
+
+## Summary
+
+Adding NEXT, PART_OF, and SECTION relationships turns a flat vector store into a
+navigable knowledge graph. NEXT linked lists preserve document order — built
+*per section* so they never bleed across boundaries. PART_OF gives every chunk a
+path back to its form; SECTION gives the form indexed entry points into each
+section. Variable-length paths (`*0..1`) make chunk windows degrade gracefully at
+the list ends, and a custom retrieval query fuses vector search (find the entry
+chunk) with graph traversal (expand the window) in a single step — the core move
+of knowledge-graph-powered RAG. Whether to pay for that traversal is a
+cost/benefit call: worth it when answers span boundaries, and a score-gated
+hybrid captures most of the gain cheaply.
+
+- **Chapter 6** — *expanding the graph*: Company and investor nodes (Form 13 data) join the forms via the CUSIP bridge.
+- **Chapter 7** — answering questions by having an LLM generate Cypher across the connected graph.

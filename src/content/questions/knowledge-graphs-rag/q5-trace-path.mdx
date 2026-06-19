@@ -1,0 +1,31 @@
+---
+id: kgr-5-trace-path
+type: mcq
+chapter: 5
+domain: kg-relationships
+bloom_level: apply
+objective_id: KGR-5.8
+difficulty: '2'
+tags: [traversal, multi-hop]
+options:
+  - id: a
+    text: Chunk to Form via PART_OF, then Form to the section's first chunk via SECTION
+    correct: true
+  - id: b
+    text: Follow NEXT forward from the chunk to the end of the section
+  - id: c
+    text: Chunk to Company via PART_OF, then Company to Form via SECTION
+  - id: d
+    text: Run a vector search for the section title and take the top hit
+---
+import Rationale from '@brandon_m_behring/book-scaffold-astro/components/Rationale.astro';
+
+You hold a chunk in the middle of a section and want that section's first chunk. Which traversal
+gets you there?
+
+<Rationale title="Why">
+The chunk reaches its section's entry point by hopping up to the form with PART_OF, then down with
+SECTION (which points at the seq-0 chunk): `(:Chunk)-[:PART_OF]->(:Form)-[:SECTION]->(:Chunk)`.
+Following NEXT *forward* lands on the last chunk, not the first; PART_OF goes to a form not a
+company; and a vector search on the title is neither reliable nor structural.
+</Rationale>
