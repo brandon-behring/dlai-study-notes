@@ -1,0 +1,23 @@
+---
+id: kgr-6-multihop-compose
+type: free
+chapter: 6
+domain: kg-expansion
+bloom_level: apply
+objective_id: KGR-6.4
+difficulty: '3'
+tags: [traversal, cypher, with-clause]
+answer: >
+  Compose with a WITH clause acting as a pipeline stage. First aggregate to get the top managers:
+  `MATCH (mgr:Manager)-[owns:OWNS_STOCK_IN]->(com:Company) WITH mgr, sum(owns.value) AS total ORDER
+  BY total DESC LIMIT 5`. Then continue the traversal from those managers down to document content:
+  `MATCH (mgr)-[:OWNS_STOCK_IN]->(:Company)-[:FILED]->(f:Form)-[s:SECTION {f10kItem: "item1"}]->
+  (c:Chunk) RETURN mgr.managerName, total, c.text`. The WITH clause carries the top-5 result into
+  the second match, the way a SQL subquery would, but reads as a sequential narrative. Common wrong
+  answer: trying to filter the aggregate in a WHERE before WITH — aggregation results must pass
+  through WITH first.
+---
+
+Write a Cypher query that finds the top 5 managers by total NetApp investment value and then
+returns each one's name with the text of the filing's business section (Item 1). What lets you
+compose the two steps?

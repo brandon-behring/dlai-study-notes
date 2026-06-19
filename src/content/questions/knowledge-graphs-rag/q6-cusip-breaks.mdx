@@ -1,0 +1,30 @@
+---
+id: kgr-6-cusip-breaks
+type: mcq
+chapter: 6
+domain: kg-expansion
+bloom_level: analyze
+objective_id: KGR-6.7
+difficulty: '2'
+tags: [cusip, entity-resolution]
+options:
+  - id: a
+    text: When both datasets store the same CUSIP 6 identifier
+  - id: b
+    text: When the Company node is created before the Form node
+  - id: c
+    text: When one manager owns stock in several companies at once
+  - id: d
+    text: When the two datasets use different id schemes (CUSIP versus ticker)
+    correct: true
+---
+import Rationale from '@brandon_m_behring/book-scaffold-astro/components/Rationale.astro';
+
+Automatic CUSIP-based linking between Company and Form nodes would fail in which situation?
+
+<Rationale title="Why">
+Linking on a shared key works only if both datasets actually share that key. If one identifies
+companies by CUSIP and the other by ISIN or ticker, there is no common value to MERGE on, so you
+need an entity-resolution layer. Shared CUSIPs are exactly what makes linking work; node creation
+order is irrelevant to MERGE; and a manager holding several companies is normal, not a failure.
+</Rationale>

@@ -1,0 +1,30 @@
+---
+id: kgr-6-four-hop
+type: mcq
+chapter: 6
+domain: kg-expansion
+bloom_level: apply
+objective_id: KGR-6.4
+difficulty: '2'
+tags: [traversal, multi-hop]
+options:
+  - id: a
+    text: Chunk to Company via PART_OF, then Company to Manager via SECTION edges
+  - id: b
+    text: Chunk to Form (PART_OF), Form to Company (FILED), Company to Manager (OWNS_STOCK_IN)
+    correct: true
+  - id: c
+    text: Chunk to Manager via NEXT, then Manager to Company via FILED edges
+  - id: d
+    text: Chunk to Form via SECTION, then Form to Manager via OWNS_STOCK_IN
+---
+import Rationale from '@brandon_m_behring/book-scaffold-astro/components/Rationale.astro';
+
+Which hop sequence reaches the investment managers, starting from a text chunk?
+
+<Rationale title="Why">
+The path crosses both datasets: PART_OF up to the Form, FILED across to the Company (traversed
+backward from the form), then OWNS_STOCK_IN to each Manager (backward from the company). PART_OF
+goes to a form not a company; NEXT links chunks, not chunk-to-manager; and SECTION points a form
+at its first chunk, not at companies.
+</Rationale>

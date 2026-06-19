@@ -1,0 +1,30 @@
+---
+id: kgr-6-search-paradigms
+type: mcq
+chapter: 6
+domain: kg-expansion
+bloom_level: understand
+objective_id: KGR-6.3
+difficulty: '2'
+tags: [search, full-text-index]
+options:
+  - id: a
+    text: Vector for meaning, full-text for keywords, property for exact lookup
+    correct: true
+  - id: b
+    text: Vector for keywords, full-text for meaning, property for fuzzy match
+  - id: c
+    text: Full-text for embeddings, vector for strings, property for relevance
+  - id: d
+    text: Property for meaning, vector for exact lookup, full-text for ids
+---
+import Rationale from '@brandon_m_behring/book-scaffold-astro/components/Rationale.astro';
+
+Neo4j offers three search paradigms in one engine. Which mapping is correct?
+
+<Rationale title="Why">
+Vector indexes match *meaning* (semantic similarity over embeddings), full-text indexes match
+*spelling* (exact/partial/fuzzy keyword search with relevance scores), and property indexes do
+*exact* lookup by a known identifier. The distractors swap these roles — e.g. vector does not do
+keyword matching, and full-text does not index embeddings.
+</Rationale>

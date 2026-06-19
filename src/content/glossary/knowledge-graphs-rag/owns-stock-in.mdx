@@ -1,0 +1,14 @@
+---
+term: OWNS_STOCK_IN Relationship
+aliases: [OWNS_STOCK_IN]
+domain: kg-expansion
+see: [manager-node, company-node, filed-relationship]
+tags: [schema, traversal]
+---
+
+A directed relationship from a Manager to a Company representing a stock holding, with properties
+for share count, monetary value, and reporting quarter. One manager can hold multiple
+`OWNS_STOCK_IN` edges to the same company across different quarters, so the reporting period is
+part of the relationship's identity (it is MERGE'd on `reportCalendarOrQuarter`). In the course
+data, 561 of these edges all point at NetApp — the investment side of the multi-hop chunk → form →
+company → manager traversal.

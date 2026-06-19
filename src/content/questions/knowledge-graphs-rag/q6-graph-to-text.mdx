@@ -1,0 +1,21 @@
+---
+id: kgr-6-graph-to-text
+type: free
+chapter: 6
+domain: kg-expansion
+bloom_level: understand
+objective_id: KGR-6.5
+difficulty: '1'
+tags: [graph-to-text, rag]
+answer: >
+  Graph-to-text context generation converts structured traversal results — relationship triples of
+  subject, predicate, object — into natural-language sentences the LLM can read as context. For an
+  OWNS_STOCK_IN result you might emit "Royal Bank of Canada owns 1,200,000 shares of NetApp." The
+  reason is simple: the traversal produces precise, connected facts, but an LLM consumes text, so
+  the sentence form is how those facts enter the prompt. It is the consume direction of the
+  graph-LLM loop; Module 7 inverts it by having the LLM generate the query. Common wrong answer:
+  passing raw rows or JSON — workable, but prose is what the model reasons over most reliably.
+---
+
+What is graph-to-text context generation, and why is it needed in a graph-RAG pipeline? Give an
+example sentence.

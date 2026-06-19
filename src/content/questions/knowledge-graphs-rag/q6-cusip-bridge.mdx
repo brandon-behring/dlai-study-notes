@@ -1,0 +1,20 @@
+---
+id: kgr-6-cusip-bridge
+type: free
+chapter: 6
+domain: kg-expansion
+bloom_level: understand
+objective_id: KGR-6.7
+difficulty: '1'
+tags: [cusip, cross-dataset-linking]
+answer: >
+  CUSIP 6 is a universal company identifier that appears in *both* the Form 10-K data (on Form
+  nodes) and the Form 13 data (on Company nodes), so the two independently built node sets connect
+  with no manual matching: `MATCH (com:Company), (f:Form) WHERE com.cusip6 = f.cusip6 MERGE
+  (com)-[:FILED]->(f)`. This is the canonical cross-dataset linking pattern — a shared, stable,
+  universal key lets MERGE join records that were never created together. Common wrong answer:
+  matching on company name, which is unstandardised and produces both missed and wrong matches.
+---
+
+How does the CUSIP identifier let you link the independently created Company nodes to the existing
+Form nodes?

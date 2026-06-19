@@ -1,0 +1,20 @@
+---
+id: kgr-6-fulltext-vs-vector
+type: free
+chapter: 6
+domain: kg-expansion
+bloom_level: understand
+objective_id: KGR-6.3
+difficulty: '1'
+tags: [full-text-index, search]
+answer: >
+  A full-text index matches *strings* — exact, partial, and fuzzy keyword search with relevance
+  scoring (e.g. find managers matching "Royal Bank"). A vector index matches *meaning* — embeddings
+  whose semantics are close, even when the words differ. Use full-text when the query is a name or
+  keyword whose spelling matters; use vector when you want conceptually similar content regardless
+  of wording. They are complementary, and Neo4j adds a third — property indexes for exact lookup by
+  a known id. Common wrong answer: "full-text is just a slower vector search" — they answer
+  different questions (spelling vs meaning), not the same question at different speeds.
+---
+
+How does a full-text index differ from a vector index, and when would you use each?

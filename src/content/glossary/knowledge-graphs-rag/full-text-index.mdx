@@ -1,0 +1,14 @@
+---
+term: Full-Text Index
+aliases: [fulltext index, keyword index]
+domain: kg-expansion
+see: [vector-index, semantic-search]
+tags: [neo4j, search]
+---
+
+A Neo4j index optimised for **string matching** — exact, partial, and fuzzy keyword search with
+relevance scoring — created with `CREATE FULLTEXT INDEX ... FOR (n:Label) ON EACH [n.prop]` and
+queried via `db.index.fulltext.queryNodes`. It complements the other two paradigms: a **vector
+index** matches *meaning* (semantic similarity), a **property index** does *exact* lookup by a
+known id, and full-text matches *spelling*. Having all three in one engine means keyword and
+semantic retrieval need no separate search infrastructure.
