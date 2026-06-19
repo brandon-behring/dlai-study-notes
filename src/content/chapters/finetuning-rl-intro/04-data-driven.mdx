@@ -58,13 +58,13 @@ draft: false
 
 <Diagnostic skimTo="Constitutional AI and RLAIF">
 1. Your model already answers correctly but outputs prose where you need JSON. Do you start with about 20, 2,000, or 200,000 SFT examples?
-2. After one fine-tuning round the model has three specific failure modes. Why can ten targeted counterexamples beat a thousand fresh random examples?
+2. You can add 1,000 random new examples or 50 that each target a known failure. Predict which raises eval scores more, and why.
 3. A synthetic pipeline generates 100,000 candidates. Which single step creates most of the quality — generation or filtering?
 4. In Constitutional AI, what replaces the human preference labeler?
 
 <Fragment slot="answers">
 1. About **20**. Format-only changes need a handful of demonstrations; reach for thousands only when you are changing *behavior*, not just *shape*.
-2. The counterexamples **target the actual failure distribution**. Random data mostly re-teaches what the model already knows; counterexamples spend every example where the model is currently wrong.
+2. The **50 targeted** ones win — they spend every example where the model is currently *wrong*, while random data mostly re-teaches what it already knows. Targeting the failure distribution is what lets a few counterexamples outperform bulk data.
 3. **Filtering.** It is easy to generate synthetic data and dangerously easy to generate *bad* synthetic data — keeping the best 10–20% is where quality is created.
 4. A written **constitution** — a set of auditable natural-language principles the model uses to critique and revise its own outputs (then to label its own preferences for RLAIF).
 </Fragment>
@@ -119,7 +119,7 @@ When you use [LoRA](../glossary#term-lora), data requirements are similar, but u
 parameters means less capacity to memorize noise on a small set.
 
 <KeyConcept title="Data quality is multiplicative" los="FRI-4.1">
-A 10× increase in data *quantity* yields under 1.3× capability gain if quality is
+As a rough heuristic (not a measured law), a 10× increase in data *quantity* can yield under ~1.3× capability gain if quality is
 poor. A 10× increase in *curation* — keeping the top 10%, removing the bottom 10% —
 often yields 2–3× gains. Frontier labs spend as much effort **filtering out** bad
 data as generating new data. <EvidenceTag kind="verified" />
@@ -367,6 +367,23 @@ examples, not from adding anything. This is the multiplicative-quality principle
 quantitative: the filter, not the generator, is where accuracy is created.
 </WorkedExample>
 
+**Completion problem.** You generate 8,000 synthetic examples and filter to keep 1,600. Fill the
+blank: the yield is ___%.
+
+<CompletionProblem id="filter-eff" level="completion" title="Check your completion">
+$1{,}600 / 8{,}000 = 20\%$ — squarely in the typical 10–20% band. Keeping one in five is normal; if
+you keep most of what you generate, the filter is probably too loose.
+</CompletionProblem>
+
+**Now you.** Training on the filtered 1,600 reaches 50% accuracy; training on all 8,000 reaches
+44%. Which is more efficient *per example*, and roughly by how much?
+
+<CompletionProblem id="filter-eff" level="solo" title="Reveal the reasoning">
+Filtered: $50\% / 1{,}600 \approx 0.031\%$ per example. Unfiltered: $44\% / 8{,}000 \approx 0.0055\%$
+per example. Filtered data is about **5.7× more efficient per example** — and scores higher in
+absolute terms, because the gain came from *removing* 6,400 weak examples, not adding anything.
+</CompletionProblem>
+
 ## Constitutional AI and RLAIF
 
 [Constitutional AI](../glossary#term-constitutional-ai) (CAI) is Anthropic's approach to
@@ -392,7 +409,7 @@ pioneered it, but the paradigm has since expanded well beyond a fixed constituti
 
 - **Self-play preference generation** — the model produces *both* candidate responses and the preference labels, then trains on its own judgments (Meta's Self-Rewarding Language Models, 2024).
 - **Principle-conditioned generation** — condition on specific principles per query (prioritize harmlessness for safety-adjacent prompts, helpfulness for factual ones) instead of one fixed constitution.
-- **Binary-feedback simplifiers** — good/bad labels from an AI judge replace pairwise comparisons, cutting annotation from $O(n^2)$ pairs to $O(n)$ labels.
+- **Binary-feedback simplifiers** — good/bad labels from an AI judge replace pairwise comparisons, cutting labeling overhead — one good/bad label per item instead of constructed preference pairs (the exact saving depends on how pairs were sampled).
 
 The common thread: AI feedback is **cheaper and more consistent** than human feedback —
 but requires careful calibration against human preferences on a validation set to
@@ -418,6 +435,10 @@ target capability:
 | Translation | 70–90% | 10–30% |
 | Code generation | 50–70% | 30–50% |
 | Safety-critical | 30–50% | 50–70% |
+
+**Reading the table:** start at the *midpoint* of the range for your capability, then let
+eval-regression move it — if a general metric drops, shift toward *general*; if the target
+task lags, shift toward *task-specific*.
 
 Three failures recur, each with a standing fix:
 

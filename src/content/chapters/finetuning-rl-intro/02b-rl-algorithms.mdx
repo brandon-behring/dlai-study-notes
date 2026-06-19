@@ -39,14 +39,14 @@ draft: false
 ---
 
 <Diagnostic skimTo="PPO and GRPO">
-1. RLHF keeps four models in GPU memory at once. Name them.
-2. What does the **KL penalty** in the RLHF objective protect against?
+1. PPO-based RLHF is famously memory-hungry. Beyond the policy you're training, what else sits in GPU memory — and which one does GRPO drop?
+2. Predict what happens to an RLHF run if you set the KL coefficient $\beta$ to zero.
 3. How does **GRPO** compute an advantage without a value model?
 4. **DPO** and **GRPO** both optimize preferences. What's the core difference?
 
 <Fragment slot="answers">
-1. **Policy** (the LLM being trained), **reference** (frozen copy, for the KL term), **reward model** (scores outputs), **value/critic** (estimates expected reward — PPO only).
-2. Drift — it keeps the policy near the reference so it can't collapse into a degenerate high-reward region or chase a hacked reward.
+1. Three more beyond the policy: a frozen **reference** (for the KL term), a **reward model** (scores outputs), and a **value/critic** (PPO only). GRPO drops the **critic** — a group-mean baseline replaces it → three models.
+2. With no leash to the reference, the policy chases reward unchecked — drifting into degenerate, reward-hacked, mode-collapsed outputs (reward up, quality down). $\beta$ is what keeps it near $\pi_{\text{ref}}$.
 3. It samples a **group** of $G$ outputs per prompt and uses the group's **mean reward as the baseline**: $\hat{A}_i = r(y_i) - \frac1G\sum_j r(y_j)$ — no critic needed.
 4. **DPO is offline** (train once on a fixed preference dataset, no reward model); **GRPO is online** (generate fresh rollouts and score them each step).
 </Fragment>
@@ -139,7 +139,7 @@ $$
 The probability ratio $\rho_t$ measures how much the new policy changed; **clipping**
 (typically $\epsilon = 0.2$) holds it within $[1-\epsilon,\,1+\epsilon]$ on the side that
 would otherwise inflate the objective — a *soft* trust region that removes the incentive to
-move far, not a hard cap on the update (so KL is still worth watching). PPO uses **GAE** with
+move far, not a hard cap on the update (so KL is still worth watching). PPO uses **[GAE](../glossary#term-advantage)** with
 a learned **critic** (the 4th model) for per-token credit.
 
 [GRPO](../glossary#term-grpo) (DeepSeek's algorithm for R1) removes the critic. For each
@@ -171,6 +171,24 @@ advantage is **0** and the prompt contributes no gradient — which is why GRPO 
 of intermediate difficulty to learn efficiently.
 </WorkedExample>
 
+**Completion problem.** The same prompt is rolled out $G = 4$ times, now scoring $r = [1, 1, 1, 0]$.
+Fill the blanks: the group baseline is ___, and the four advantages are ___.
+
+<CompletionProblem id="grpo-adv" level="completion" title="Check your completion">
+Baseline $= \tfrac14(1+1+1+0) = 0.75$; advantages $= [+0.25,\, +0.25,\, +0.25,\, -0.75]$. The lone
+failure gets a large negative push while each success gets a small positive one — the *rarer*
+outcome moves the policy more.
+</CompletionProblem>
+
+**Now you.** What are the advantages when every rollout succeeds ($r = [1, 1, 1, 1]$), and why
+does that make the prompt useless for this GRPO step?
+
+<CompletionProblem id="grpo-adv" level="solo" title="Reveal the reasoning">
+Every advantage is $0$: the baseline equals every reward ($1$), so nothing scores "better than the
+group." The all-correct (and all-wrong) group is exactly the zero-gradient case — which is why GRPO
+needs prompts of *intermediate* difficulty to learn efficiently.
+</CompletionProblem>
+
 ### PPO vs GRPO
 
 | Aspect | PPO | GRPO |
@@ -190,11 +208,11 @@ of intermediate difficulty to learn efficiently.
 - **Want simplicity/stability?** → **GRPO** — the field is trending toward simpler algorithms.
 </DecisionTree>
 
-<Newthought>Beyond PPO and GRPO</Newthought>, the 2025–2026 landscape has proliferated:
-**DAPO** (decoupled clipping, dynamic sampling), **KTO** (preferences from single
-thumbs-up/down labels, no pairs), **SimPO** (reference-free), and the broader **RLVR**
-(RL with verifiable rewards) paradigm. They mostly vary three axes you now have the tools to
-read: the *reward source*, the *baseline*, and *online vs offline*.
+<Newthought>Beyond PPO and GRPO</Newthought>, the 2025–2026 landscape has proliferated into a
+family of variants — **DAPO**, **KTO**, **SimPO**, and the broader **RLVR** (RL with verifiable
+rewards) paradigm. You don't need each by name; the useful skill is recognizing which of the
+**three axes** a new method is turning: the *reward source*, the *baseline*, and *online vs
+offline*.
 
 ## Mode collapse
 

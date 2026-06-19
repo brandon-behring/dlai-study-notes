@@ -15,6 +15,7 @@ import InterviewContext from './InterviewContext.astro';
 import Problem from './Problem.astro';
 import Solution from './Solution.astro';
 import SelfCheck from './SelfCheck.astro';
+import CompletionProblem from './CompletionProblem.astro';
 import Aside from './Aside.astro';
 import AnkiCard from './AnkiCard.astro';
 import Term from './Term.astro';
@@ -44,6 +45,7 @@ export const mdxComponents = {
   Problem,
   Solution,
   SelfCheck,
+  CompletionProblem,
   Aside,
   AnkiCard,
   Term,

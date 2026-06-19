@@ -76,7 +76,8 @@ Chapter 2 gave you the machinery — SFT, LoRA, PPO, GRPO — to change a model'
 weights. This chapter is about knowing whether those changes *helped*. The reframe:
 **evaluation is not a final exam administered after training — it is the steering
 mechanism** that decides *what* to train, *when* to stop, and *where* to invest
-next. Get evals wrong and you optimize in the dark.
+next: the **dashboard and steering wheel** of training — what you watch and turn *while*
+driving, not a grade handed back at the end. Get evals wrong and you optimize in the dark.
 </NarrativeBox>
 
 ## Evals as the steering mechanism
@@ -214,6 +215,7 @@ tool-use / over- or under-refusal) → **prioritize** by frequency × severity �
 **targeted fix** → **re-evaluate**. The categorization step, in concept:
 
 ```python
+# pseudocode — judge() denotes an LLM-as-judge call
 ERROR_CATEGORIES = ["calculation", "reasoning", "incomplete", "format", "other"]
 
 def classify(question, correct, model_answer):

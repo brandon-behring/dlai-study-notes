@@ -100,7 +100,7 @@ The arc shows accelerating sophistication: basic task fine-tuning (2018–2020) 
 [InstructGPT / RLHF](https://arxiv.org/abs/2203.02155) (2022), the breakthrough
 that RL alignment sharply improves helpfulness and safety →
 [DPO](https://arxiv.org/abs/2305.18290) (2023) simplifying the RL pipeline →
-reasoning models like [DeepSeek R1](https://arxiv.org/abs/2501.12948) (2024–2025)
+reasoning models like [DeepSeek R1](https://arxiv.org/abs/2501.12948) (Jan 2025)
 that push RL past imitation → frontier labs now running multi-stage
 SFT→RL→SFT→RL pipelines.
 
@@ -265,8 +265,8 @@ def parse_llama_guard_response(response: str) -> dict:
 
 <Aside category="warning">
 As of 2026-06 the production model is **Llama Guard 4** (12B, multimodal) with a
-**14-category** taxonomy — it adds `S14` (Code Interpreter Abuse) over the
-S1–S13 set. The parser logic above is unchanged. <EvidenceTag kind="verified" />
+**14-category** taxonomy including `S14` (Code Interpreter Abuse) — carried over from
+Llama Guard 3, not new to v4. The parser logic above is unchanged. <EvidenceTag kind="verified" />
 </Aside>
 
 <WorkedExample id="safety-metrics" title="Worked example: reading a safety eval">
@@ -293,8 +293,9 @@ Three flagship open pipelines, three design choices:
 - **DeepSeek R1** — base → cold-start CoT SFT → GRPO RL on math/code verifiers →
   rejection-sampling SFT (best-of-N) → final alignment RL. Notable for R1 Zero
   (RL-only reasoning) and open-sourcing the recipe; distilled 671B → 1.5B–70B.
-- **LLaMA 3.1/3.3 (Meta)** — 15T+ token pre-train → SFT → RLHF (PPO) → iterative
-  eval + data refresh. 3.3 (70B) neared 405B quality via aggressive distillation.
+- **LLaMA 3.1/3.3 (Meta)** — 15T+ token pre-train → **mid-training** (long-context
+  extension to 128K + multilingual data) → SFT → RLHF (PPO) → iterative eval + data
+  refresh. 3.3 (70B) neared 405B quality via aggressive distillation.
 - **Qwen 2.5 (Alibaba)** — multilingual pre-train → SFT (code/math/chat) → DPO →
   domain RL. Shows DPO as a lightweight PPO alternative, consistent across
   0.5B–72B.

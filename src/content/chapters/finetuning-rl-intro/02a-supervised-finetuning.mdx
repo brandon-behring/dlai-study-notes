@@ -48,14 +48,14 @@ draft: false
 ---
 
 <Diagnostic skimTo="Parameter-efficient fine-tuning: LoRA">
-1. In SFT, why do we compute loss only on the *completion* tokens, not the prompt?
-2. What does the gradient of cross-entropy loss equal at a single output position?
+1. Predict: if you trained SFT *without* masking the prompt (loss on every token), what behavior would degrade?
+2. Predict: as the model's probability on the correct token climbs $0.5 \to 0.99$, does the gradient *magnitude* grow or shrink?
 3. Your training loss suddenly jumps to `NaN`. What's the first thing you change?
 4. LoRA freezes $W$ and trains $A$ and $B$. Roughly what fraction of parameters does that make trainable on a 7B model, and why does it still work?
 
 <Fragment slot="answers">
-1. The model already *receives* the prompt as input — training it to reproduce the prompt wastes capacity. Masking focuses every gradient update on generating the response.
-2. `predicted_probability − target`, i.e. $p_i - \mathbb{1}[i=y]$ — large when wrong, near-zero when already confident and correct.
+1. It would spend a large share of updates learning to *reproduce prompts* (≈80% of an instruction example is prompt tokens), diluting the signal for generating responses — instruction-following degrades. Masking focuses every update on the completion.
+2. Shrink. The gradient on the correct logit is $p - 1$, so $|p-1|$ falls toward 0 as $p \to 1$ — the model updates least where it is already confident and correct.
 3. Cut the learning rate ~10×. `NaN` loss is almost always an LR that's too high.
 4. ~0.1% trainable. Fine-tuning updates are empirically *low-rank*, so a thin $BA$ decomposition captures most of the useful adaptation.
 </Fragment>
@@ -64,7 +64,7 @@ draft: false
 <NarrativeBox title="Where we are">
 Chapter 1 mapped the landscape — *what* post-training is and *when* to use SFT vs RL.
 This chapter is the SFT half of the **mechanics**: how a supervised fine-tune actually
-works, from data to gradient to the parameter-efficient tricks that put it on a single
+works, from data to [gradient](../glossary#term-gradient) to the parameter-efficient tricks that put it on a single
 GPU. Chapter 2b picks up the RL algorithms (RLHF, PPO, GRPO).
 </NarrativeBox>
 
@@ -116,7 +116,7 @@ mismatch is a silent killer (the model trains on garbage indices with no error).
 ## The SFT objective: cross-entropy and its gradient
 
 <ConceptBox title="Cross-entropy loss">
-Cross-entropy measures how far the model's predicted distribution over the vocabulary is
+[Cross-entropy](../glossary#term-cross-entropy) measures how far the model's predicted distribution over the vocabulary is
 from the target token at each position. Minimizing it pushes probability mass onto the
 correct next token. It is the universal SFT objective.
 </ConceptBox>
@@ -135,7 +135,7 @@ $$
 $$
 
 Low-confidence correct predictions are penalized *exponentially* harder. Note the
-diminishing returns: going $0.1 \!\to\! 0.5$ saves 1.61 nats, but $0.5 \!\to\! 0.9$ saves
+diminishing returns: going $0.1 \!\to\! 0.5$ saves 1.61 nats (natural-log units), but $0.5 \!\to\! 0.9$ saves
 only 0.59 — so most training effort lands on the hard "long tail" of tokens, which is
 exactly where improvement matters.
 
@@ -150,6 +150,25 @@ token, the gradient magnitude is just $0.05$ — a gentle nudge. If it assigns $
 gradient is $0.9$ — a hard correction. The update size *self-scales* with how wrong the
 model is.
 </WorkedExample>
+
+**Completion problem.** The model places probability $p = 0.8$ on the correct token. Fill the
+two blanks: the cross-entropy loss is $-\ln(0.8) =$ ___ nats, and the gradient on the correct
+logit is $p - 1 =$ ___.
+
+<CompletionProblem id="ce-grad" level="completion" title="Check your completion">
+$-\ln(0.8) \approx 0.22$ nats, and the gradient is $0.8 - 1 = -0.2$. Both are small: the model is
+*already* nearly right on this token, so it contributes little loss and only a gentle update.
+</CompletionProblem>
+
+**Now you.** A different token gets only $p = 0.5$. Without computing logs, is its gradient
+*magnitude* larger or smaller than the $p = 0.8$ case — and what does that imply about which
+tokens dominate the update?
+
+<CompletionProblem id="ce-grad" level="solo" title="Reveal the reasoning">
+Larger: $|p - 1| = 0.5$ versus $0.2$. The gradient magnitude grows as $p$ falls, so the **tokens
+the model is most wrong about dominate each update** — cross-entropy automatically steers
+learning toward what the model has not yet mastered.
+</CompletionProblem>
 
 <KeyConcept title="Loss masking: train only on completions" los="FRI-2.2">
 SFT feeds the model the full sequence (prompt + completion) but computes loss **only on the
@@ -310,7 +329,7 @@ $h = Wx + \frac{\alpha}{r}BAx$. The **ratio** $\alpha/r$ scales the update, so r
 
 Supervised fine-tuning is stable imitation, and its quality is set long before training: by
 data curation, dedup, and honest splits. The objective is cross-entropy, whose gradient
-($p - \mathbb{1}[i=y]$) self-scales with error; loss masking and teacher forcing make it both
+($p - \mathbb{1}[i=y]$) self-scales with error; [loss masking](../glossary#term-loss-mask) and teacher forcing make it both
 focused and fast. The learning rate dominates the hyperparameters, and the loss curve diagnoses
 most failures. LoRA exploits the low-rank structure of fine-tuning updates to cut trainable
 parameters ~1000× — the practitioner's default — with QLoRA pushing it onto a single consumer
