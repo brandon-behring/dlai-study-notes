@@ -180,9 +180,17 @@ Concretely, an agent composes three capabilities: **reasoning** (the LLM),
 on the result. That action-taking-via-reasoning loop is what the ReAct line of
 work formalised. <EvidenceTag kind="verified" />
 
+<SelfCheck q="Define an AI agent and name its three core capabilities." los="EAA-1.1">
+An AI agent is a software system that takes actions on a user's behalf using reasoning. Its three capabilities are **reasoning** (LLM decides what to do), **routing** (selects which tool/skill to call), and **action** (executes the tool), iterating on the result. The reasoning-driven choice of *what next* is what separates it from a fixed prompt chain.
+</SelfCheck>
+
+## The three layers of evaluation
+
 Agents add a *third* layer of evaluation difficulty on top of model and
 application. Holding the [three-layer view](../glossary#term-three-layer-evaluation)
-in mind is what lets you place any evaluation activity correctly.
+in mind is what lets you place any evaluation activity correctly — naming the layer
+*first* is what stops you from applying a model-layer benchmark to an agent-layer
+failure (the skill EAA-1.7 and EAA-1.8 below exercise).
 
 | Layer | What | Evaluation challenge |
 | --- | --- | --- |
@@ -194,8 +202,12 @@ in mind is what lets you place any evaluation activity correctly.
 "How would you evaluate an agent?" — start by naming the three layers (model / application / agent) *before* proposing any metric. It signals you understand the problem's structure rather than reaching for "accuracy" reflexively.
 </Aside>
 
-<SelfCheck q="Define an AI agent and name its three core capabilities." los="EAA-1.1">
-An AI agent is a software system that takes actions on a user's behalf using reasoning. Its three capabilities are **reasoning** (LLM decides what to do), **routing** (selects which tool/skill to call), and **action** (executes the tool), iterating on the result. The reasoning-driven choice of *what next* is what separates it from a fixed prompt chain.
+<SelfCheck q="Classify each as Layer 1, 2, or 3: (i) running MMLU on the base model, (ii) NDCG@5 on your RAG retrieval, (iii) measuring whether the agent picks the right tool." los="EAA-1.7">
+(i) **Layer 1 (model)** — a standardised benchmark on the isolated LLM. (ii) **Layer 2 (application)** — your domain-specific retrieval pipeline, end to end. (iii) **Layer 3 (agent)** — a routing decision, unique to multi-step agents. Placing each at its layer is what keeps you from testing the wrong thing.
+</SelfCheck>
+
+<SelfCheck q="A colleague proposes catching a tool-misrouting bug by benchmarking the base model on MMLU. Why is that the wrong layer, and where does the failure actually live?" los="EAA-1.8">
+Misrouting is an **agent-layer** (routing) failure; MMLU measures **model-layer** knowledge and never exercises the routing step, so it can't observe the bug. The measurement must live at the same layer as the failure — evaluate routing with a labelled message→expected-skill set, not a knowledge benchmark.
 </SelfCheck>
 
 ## Decomposing the agent
@@ -220,6 +232,10 @@ for complex flows. In [**distributed routing**](../glossary#term-distributed-rou
 (LangGraph, OpenAI Swarm-style graphs) routing logic is spread across the graph:
 more flexible, but harder to evaluate because routing decisions happen at many
 points, each a separate place a wrong turn can originate.
+
+<SelfCheck q="Compare centralised and distributed routing for evaluation coverage. When is the harder-to-evaluate option still the right choice?" los="EAA-1.6">
+**Centralised** routing has a single decision point — easy to trace and to build one routing dataset for, but a bottleneck for complex flows. **Distributed** routing spreads decisions across many nodes, so evaluation must cover *every* node, not one — more work, but the right call when the workflow is genuinely too complex or parallel for a single router. The coverage cost is the price of the flexibility.
+</SelfCheck>
 
 The course's running example is a **data-analysis assistant** over a sales
 database, with three skills — *data lookup* (LLM-generated SQL run on DuckDB),
@@ -250,6 +266,19 @@ from, and you need *high* per-component reliability before a multi-step agent is
 trustworthy. This multiplicative reality is the quantitative case for
 component-wise evaluation.
 </WorkedExample>
+
+<CompletionProblem id="compounding-reliability" title="Push the compounding further" level="completion">
+A five-step agent is **92% reliable at every step**, independently.
+
+**Your turn — fill the blanks:**
+- End-to-end success = $0.92^5 = \_\_\_$
+- To hit **80%** end-to-end with 5 equal steps, the minimum per-step reliability is $0.80^{1/5} = \_\_\_$
+
+<Fragment slot="solution">
+- $0.92^5 \approx \mathbf{0.659}$ — about 66%, so roughly **1 in 3** queries fails even though every step "looks fine" at 92%.
+- $0.80^{1/5} \approx \mathbf{0.956}$ — each step must be ≈ **95.6%** reliable. The longer the chain, the higher the per-step bar: compounding is unforgiving, which is the quantitative reason multi-step agents need *high* per-component reliability, not merely "good enough" steps.
+</Fragment>
+</CompletionProblem>
 
 <KeyConcept title="Decomposition turns one opaque failure into localisable ones" los="EAA-1.4">
 End-to-end evaluation tells you *that* the agent failed. Component-wise

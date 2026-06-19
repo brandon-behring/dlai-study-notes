@@ -107,14 +107,24 @@ The shortcut: *if you can write an `assert`, use code-based; if the output is
 prose or judgment, use an LLM judge with discrete labels; if a wrong answer is
 dangerous, pay for humans.*
 
-<KeyConcept title="Discrete labels, never numeric scores" los="EAA-3.4">
-An LLM judge must output discrete classification labels —
-[**rails**](../glossary#term-rails) like `["correct", "incorrect"]` — **not** a
-numeric score. An LLM cannot reliably distinguish 83 from 79, so numeric scores
-manufacture false precision, and teams that average LLM-assigned scores are
-averaging noise. Use 2–4 labels. The limit: even discrete labels are imperfect,
-so safety-critical calls still need human annotation. <EvidenceTag kind="verified" />
+<KeyConcept title="Discrete rails over raw numeric scores" los="EAA-3.4">
+For classification, an LLM judge should output discrete labels —
+[**rails**](../glossary#term-rails) like `["correct", "incorrect"]` — rather than an
+*uncalibrated* numeric score. An LLM cannot reliably distinguish 83 from 79, so
+averaging raw 1–10 scores manufactures false precision out of noise. Use 2–4
+labels. The limit: even discrete labels are imperfect, so safety-critical calls
+still need human annotation. <EvidenceTag kind="verified" />
 </KeyConcept>
+
+<Aside category="pattern">
+Where practitioners disagree — *can an LLM judge ever output a useful number?* The
+course's stance (and a safe default) is discrete rails for any *gating* decision.
+But probability-weighted scoring (e.g. G-Eval, which reads the judge's token
+logprobs) and carefully-anchored rubric scales are defended in the literature and
+used in practice. The honest line: a bare "rate 1–10" is noise, but a numeric score
+with an explicit rubric **and** meta-evaluation can be legitimate — just not where
+you start.
+</Aside>
 
 <SelfCheck q="Why must an LLM judge use discrete labels rather than a 1–10 numeric score?" los="EAA-3.4">
 Because an LLM can't calibrate a fine numeric scale — it can't reliably tell 83 from 79 — so the numbers are noise dressed as precision, and averaging them aggregates that noise. Discrete rails (2–4 labels like correct/incorrect) ask the judge only what it can reliably do: classify. Numeric scoring produces confident-looking averages that don't track real quality.
@@ -143,13 +153,14 @@ end-to-end?
 
 **Reasoning.**
 - (a) Independent dimensions multiply: $0.95 \times 0.85 = 0.8075 \approx \mathbf{80.8\%}$.
-- (b) Fix params perfect, lift tool: $x \times 0.85 = 0.95 \Rightarrow x = 1.118$ — impossible. Fix tool perfect, lift params: $0.95 \times x = 0.95 \Rightarrow x = 1.00$ — i.e. you'd need *perfect* parameter extraction just to reach 95%, and only if tool selection were also perfect.
+- (b) *Tool alone can't:* even at a perfect tool score, $1.0 \times 0.85 = 0.85 < 0.95$ (solving $x \times 0.85 = 0.95$ gives $x = 1.118$, impossible). *Params alone can — but only at perfection:* $0.95 \times x = 0.95 \Rightarrow x = 1.00$, i.e. parameter extraction would have to hit a flawless 100%, which is fragile.
 
 **Answer.** End-to-end is **80.8%**, below *either* component — because every
-independent step must succeed, the product is bounded by the weaker factor. Neither
-dimension alone gets you to 95%; both must rise (roughly ≥97% each). The lesson:
-report the two dimensions separately and fix the **bottleneck** (here, parameter
-extraction at 85%) first.
+independent step must succeed, the product is bounded by the weaker factor. Improving
+tool selection alone can't reach 95% (capped at 0.85); improving parameters alone
+reaches it only at a brittle 100%. To get there by raising *both* equally, each needs
+≈ **97.5%** ($\sqrt{0.95} \approx 0.975$). The lesson: report the two dimensions
+separately and fix the **bottleneck** (here, parameter extraction at 85%) first.
 </WorkedExample>
 
 <CompletionProblem id="router-bottleneck" title="Find the bottleneck and the target" level="completion">
@@ -194,7 +205,7 @@ The right technique follows the **output type** of each skill:
 ## Implementing evaluations in Phoenix
 
 The Phoenix workflow: export spans via `SpanQuery`, run an LLM judge with
-`llm_classify()` constrained to rails, **wrap judge calls in `suppress_tracing()`**
+`llm_classify()` constrained to rails, **wrap judge calls in [`suppress_tracing()`](../glossary#term-suppress-tracing)**
 so the evaluation's own LLM calls don't appear in your agent traces, then upload
 results with `log_evaluations()`.
 
@@ -224,9 +235,10 @@ suppression to see its calls. <EvidenceTag kind="verified" />
 with a question, the expected result rows, and expected columns. Sketch a
 code-based evaluator and name the edge cases — especially why row ordering matters.
 
-**Reasoning.** Execute the SQL, then compare *result sets* (not lists) so order
-doesn't cause false failures; capture three distinct failure modes — execution
-error, wrong columns, wrong rows.
+**Reasoning.** Execute the SQL, then compare rows **order-independently but
+duplicate-aware** (sort them — a raw list comparison fails on reordering, and a
+plain `set` would mask duplicate-row bugs); capture three distinct failure modes —
+execution error, wrong columns, wrong rows.
 
 ```python
 def eval_sql(generated_sql, expected_rows, expected_cols, db_path) -> dict:
@@ -238,12 +250,12 @@ def eval_sql(generated_sql, expected_rows, expected_cols, db_path) -> dict:
         return {"score": 0, "reason": f"execution error: {e}"}
     if set(actual_cols) != set(expected_cols):
         return {"score": 0, "reason": "wrong columns"}
-    if set(actual_rows) != set(expected_rows):     # compare as sets, not lists
+    if sorted(actual_rows) != sorted(expected_rows):  # order-independent, duplicate-aware
         return {"score": 0, "reason": "wrong rows"}
     return {"score": 1, "reason": "correct"}
 ```
 
-**Answer.** Compare columns and rows as **sets**; handle (1) **row ordering** — SQL
+**Answer.** Compare columns as sets and rows as **sorted multisets** (order-independent, duplicate-aware); handle (1) **row ordering** — SQL
 order is non-deterministic without `ORDER BY`, so list comparison fails logically
 correct queries; (2) **floating-point** columns — compare within ±ε; (3)
 **timeouts** — wrap execution to catch full-table scans; (4) **destructive queries**

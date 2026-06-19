@@ -9,7 +9,7 @@ difficulty: '2'
 tags: [observability, instrumentation]
 options:
   - id: a
-    text: Automatic instrumentation hooks the LLM API client only; the router isn't an API call, so it needs a manual span
+    text: Automatic instrumentation hooks the LLM client only; the router needs a manual span
     correct: true
   - id: b
     text: Automatic instrumentation traces routers but hides LLM calls by default

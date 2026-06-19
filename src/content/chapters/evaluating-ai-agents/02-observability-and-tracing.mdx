@@ -136,9 +136,10 @@ observability framework — a data model and instrumentation API for traces, spa
 metrics, and logs: instrument once, export to any compatible backend. <EvidenceTag kind="verified" />
 For LLM systems, [**Open Inference**](../glossary#term-openinference) (from Arize)
 adds LLM-specific span *kinds* and attribute names for prompts, completions, and
-token counts. Its four span kinds — **Agent** (full run), **Chain** (router
-iteration), **Tool** (skill invocation), **LLM** (single model call) — are the
-vocabulary the hierarchy above is built from.
+token counts. The four span kinds most relevant to agents — **Agent** (full run),
+**Chain** (router iteration), **Tool** (skill invocation), **LLM** (single model
+call) — are the vocabulary the hierarchy above is built from. (OpenInference defines
+more — Retriever, Reranker, Embedding, and others — but these four carry an agent trace.)
 
 <Aside category="pattern">
 Where practitioners disagree — *which tracing standard do you instrument against today?* OpenInference is no longer the only LLM-trace standard: OpenTelemetry's own [`gen_ai.*` GenAI semantic conventions](../glossary#term-gen-ai-conventions) matured into a competing namespace (still experimental as of 2026), so agent traces now fragment across two attribute vocabularies. There's no settled winner — the practical rule is to confirm which namespace your backend expects *before* you standardise dashboards, and avoid hard-coding attribute names that may move. <EvidenceTag kind="verified" />
@@ -182,7 +183,7 @@ def run_agent(user_message: str) -> str:
 ```
 
 <Aside category="warning">
-Currency (2026): the Phoenix setup API moved — tracing split into `arize-phoenix-otel` (`from phoenix.otel import register`) and evaluators into `arize-phoenix-evals`. The *pattern* (register → instrument) is unchanged; the import paths are not. Pin versions and check current docs before reusing course notebooks. <EvidenceTag kind="verified" />
+Currency (2026): the Phoenix setup API moved — tracing split into `arize-phoenix-otel` (`from phoenix.otel import register`) and evaluators into `arize-phoenix-evals`. The *pattern* (register → instrument) is unchanged; the import paths are not. (The `openinference_span_kind=` argument above is **schematic** — current OpenInference sets the span kind via a span *attribute* or an instrumentor helper, not a `start_as_current_span` kwarg.) Pin versions and check current docs before reusing course notebooks. <EvidenceTag kind="verified" />
 </Aside>
 
 <KeyConcept title="Automatic + manual = full observability" los="EAA-2.2">
@@ -229,7 +230,7 @@ Two of: building eval datasets from real runs, running automated evaluators over
 
 ## Attributing cost from traces
 
-Because every span carries token counts, traces turn cost questions from
+Because LLM spans carry token counts (and parent spans aggregate them), traces turn cost questions from
 guesswork into arithmetic. The method: from a sample of traces, get each skill's
 average LLM calls × tokens/call, weight by how often the skill runs, multiply by
 the daily volume and the price per token.
@@ -261,22 +262,20 @@ end-to-end cost number could.
 </WorkedExample>
 
 <CompletionProblem id="cost-attribution" title="Finish the cost attribution" level="completion">
-Same agent, but you're now told the **report builder's first of its two LLM calls**
-(chart-config extraction, ~1,000 of its 2,000 tokens) can move to a model that is
-**10× cheaper per token**. Estimate the new daily report-builder cost.
-
-**Set-up (given):** report tokens split evenly — 1,000 tok/call for config, 1,000
-tok/call for code-gen, across 2 calls. Daily report volume = 800 queries.
+Same agent. The report builder makes **two 2,000-token LLM calls** (per the table: 2
+calls × 2,000 tokens). You're now told its **first call** (chart-config extraction)
+can move to a model that is **10× cheaper per token**. Estimate the new daily
+report-builder cost. (Daily report volume = 800 queries; full price \$0.01/1k.)
 
 **Your turn — fill the blanks:**
-- Config tokens/day = $800 \times 1{,}000 = \_\_\_$ at $\tfrac{1}{10}$ price → cost = \_\_\_
-- Code-gen tokens/day = $800 \times 1{,}000 = \_\_\_$ at full price → cost = \_\_\_
+- Config call tokens/day = $800 \times 2{,}000 = \_\_\_$ at $\tfrac{1}{10}$ price → cost = \_\_\_
+- Code-gen call tokens/day = $800 \times 2{,}000 = \_\_\_$ at full price → cost = \_\_\_
 - New report total = \_\_\_, versus the original \$32.00.
 
 <Fragment slot="solution">
-- Config: $800{,}000$ tok → at \$0.001/1k = **\$0.80**.
-- Code-gen: $800{,}000$ tok → at \$0.01/1k = **\$8.00**.
-- New report total = **\$8.80/day**, down from \$32.00 — a **~73% cut** on this skill, because the cheap-model swap removes 90% of the cost of half the tokens. The lesson: trace-level token attribution shows *which sub-step* to redirect, not just *that* a skill is expensive.
+- Config: $1{,}600{,}000$ tok → at \$0.001/1k = **\$1.60**.
+- Code-gen: $1{,}600{,}000$ tok → at \$0.01/1k = **\$16.00**.
+- New report total = **\$17.60/day**, down from \$32.00 — a **~45% cut** on this skill, because the cheap-model swap removes 90% of the cost of one of the two calls. The lesson: trace-level token attribution shows *which sub-step* to redirect, not just *that* a skill is expensive.
 </Fragment>
 </CompletionProblem>
 

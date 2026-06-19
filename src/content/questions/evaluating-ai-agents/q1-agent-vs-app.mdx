@@ -15,7 +15,7 @@ options:
   - id: c
     text: A classifier that labels incoming emails by topic with one LLM call
   - id: d
-    text: A system that decides per request whether to search the web, query a database, or answer directly, then picks the next step from what it found
+    text: A system that decides per request which tool to call, then picks its next step from the result
     correct: true
 ---
 import Rationale from '@brandon_m_behring/book-scaffold-astro/components/Rationale.astro';

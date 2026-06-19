@@ -103,7 +103,9 @@ Correct answer ≠ efficient trajectory. An agent that produces correct outputs 
 ## Convergence scoring
 
 The [**convergence score**](../glossary#term-convergence-score) measures how often
-the agent takes the *optimal* (minimum-step) path across similar queries:
+the agent takes the **shortest observed** path — by *step count* — across similar
+queries (so two different paths of the same length both count as "converged"; it
+checks count, not path identity):
 
 $$\text{convergence} = \frac{\#\{\text{runs at the minimum step count}\}}{\#\{\text{completed runs}\}} \in [0, 1].$$
 
@@ -156,8 +158,8 @@ but the optimal path is **4 steps**. Each step costs **\$0.02**.
 </Fragment>
 </CompletionProblem>
 
-<SelfCheck q="What does a convergence score of 1.0 tell you, and what does it not tell you?" los="EAA-4.2">
-It tells you the agent is perfectly **consistent** — every run takes the same minimum-step path. It does *not* tell you the path is **correct**: the agent could consistently take a wrong shortcut, and if every run shares the same unnecessary step, that waste is baked into the minimum and convergence still reports 1.0. Pair it with per-step correctness evaluators.
+<SelfCheck q="Name convergence's three structural blind spots — the cases where a high score misleads." los="EAA-4.2">
+(1) **Universal waste** — if *every* run includes the same unnecessary step, that step sits inside the minimum, so convergence still reports 1.0. (2) **Errored runs** — a crash after 2 steps falsely lowers the minimum, so filter to *completed* runs first. (3) **Parallel tool calls** — decide whether 3 tools in one step count as 1 or 3, and apply that convention uniformly. Each is a way a high score can hide a real problem — which is why convergence is paired with per-step correctness evals.
 </SelfCheck>
 
 ## The Phoenix Experiments framework
