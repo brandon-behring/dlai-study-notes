@@ -14,7 +14,7 @@ answer: >
   normalised vectors it also ranks identically to Euclidean. A cosine score of ~0.89 on
   normalised embeddings is a strong semantic match (with ~0.75 moderate, below 0.5 weak), though
   scores are relative to the model and corpus. And the index's declared dimension must equal the
-  model's output (1536 for OpenAI) — a mismatch makes search return nothing. Common wrong answer:
+  model's output (1536 for OpenAI) — a mismatch makes the query fail with a dimension error. Common wrong answer:
   "a higher dimension always means better search" — more dimensions cost more storage/time and
   only help if the model actually uses them well.
 ---

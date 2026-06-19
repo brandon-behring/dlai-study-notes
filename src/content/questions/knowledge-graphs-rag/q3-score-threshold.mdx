@@ -11,8 +11,8 @@ answer: >
   Read relevance from the score gap, not absolute values. If a "renewable energy" search returns
   solar 0.91, wind 0.88, carbon-credit 0.84, then employee-volunteering 0.82 and recycling 0.79,
   the top three are squarely on-topic while the bottom two are corporate-responsibility
-  near-misses — semantically adjacent but not energy. A threshold around 0.85 keeps the genuine
-  matches and drops the rest; tune it by need (≈0.78 for high recall, ≈0.88+ for high precision),
+  near-misses — semantically adjacent but not energy. A threshold around 0.83 keeps the genuine
+  matches (0.84 and up) and drops the rest; tune it by need (≈0.78 for high recall, ≈0.88+ for high precision),
   and calibrate against *this* corpus since scores are relative. To improve precision without
   changing the embedding model: add a cross-encoder re-rank, chunk more granularly, pre-filter by
   metadata, or go hybrid (vector + keyword). Common wrong answer: applying a fixed threshold like

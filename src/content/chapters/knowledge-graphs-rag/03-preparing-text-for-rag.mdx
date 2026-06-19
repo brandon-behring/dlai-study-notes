@@ -68,7 +68,7 @@ Predict before reading — check each against the chapter.
 4. Most RAG stacks run a separate vector database next to their main store. Predict the single biggest win from putting the vectors *inside* Neo4j instead.
 
 <Fragment slot="answers">
-1. Likely **zero or wrong results** — the index dimension must match the embedding model's output exactly (1536), so a 768-dim index can't search 1536-dim vectors.
+1. It **errors** — a query whose vector dimension doesn't match the index fails with a dimension-mismatch error (not silent wrong results); the index dimension must equal the model's output (1536).
 2. A **query parameter** (`$openAiApiKey` via `params`). An f-string leaks the key into logs, error messages, and the query cache — and invites injection.
 3. **Strong** — for normalised (cosine) embeddings, ~0.89 is a strong semantic match; ~0.75 moderate, below 0.5 weak (thresholds are corpus-relative).
 4. **Co-location** — one query can do vector search *and* graph traversal, so you retrieve a chunk and follow its relationships without a second system or round trip.
@@ -109,7 +109,7 @@ After creating an index, `SHOW INDEXES` reports its status. A vector index in `P
 </Aside>
 
 <SelfCheck q="Write the Cypher to create a vector index on a Chunk node's textEmbedding property (1536 dims, cosine), and say what status means it's ready." los="KGR-3.1">
-`CREATE VECTOR INDEX chunk_embeddings IF NOT EXISTS FOR (c:Chunk) ON (c.textEmbedding) OPTIONS {indexConfig: {`vector.dimensions`: 1536, `vector.similarity_function`: 'cosine'}}`. It's ready when `SHOW INDEXES` reports its status as **`ONLINE`** (not `POPULATING`). The dimension must match the embedding model's output exactly, or searches return nothing.
+`CREATE VECTOR INDEX chunk_embeddings IF NOT EXISTS FOR (c:Chunk) ON (c.textEmbedding) OPTIONS {indexConfig: {`vector.dimensions`: 1536, `vector.similarity_function`: 'cosine'}}`. It's ready when `SHOW INDEXES` reports its status as **`ONLINE`** (not `POPULATING`). The dimension must match the embedding model's output exactly, or queries fail with a dimension-mismatch error.
 </SelfCheck>
 
 ## Generating and storing embeddings
@@ -247,9 +247,9 @@ The advantage is **combined queries**: one Cypher query can do vector similarity
 ## Reading similarity scores
 
 <ConceptBox>
-**What scores mean.** Cosine scores run 0–1 for normalised vectors: ~0.89 is a
-strong match, ~0.75 moderate, below 0.5 weak — but there is **no universal "good"
-threshold**. It depends on the embedding model, the data distribution, and the
+**What scores mean.** Neo4j's returned similarity *score* runs 0–1 (raw cosine is
+−1 to 1; the index normalises it): ~0.89 is a strong match, ~0.75 moderate, below
+0.5 weak — but there is **no universal "good" threshold**. It depends on the embedding model, the data distribution, and the
 application. The cosine formula: $\cos\theta = \frac{A \cdot B}{\lVert A\rVert\,\lVert B\rVert}$.
 </ConceptBox>
 
@@ -268,12 +268,12 @@ threshold? How to improve precision *without* changing the embedding model?
 
 **Reasoning.** The top three are squarely about energy/environment; the bottom two
 are corporate-responsibility neighbours, not *energy* — semantic near-misses. A
-threshold around **0.85** keeps the genuine matches and drops the rest (tune by
+threshold around **0.83** keeps the genuine matches (0.84 and up) and drops the rest (tune by
 need: ~0.78 for high recall, ~0.88+ for high precision). Precision without a new
 model: add a **re-ranker** (cross-encoder), chunk more granularly (more specific
 embeddings), pre-filter by metadata, or go **hybrid** (vector + keyword).
 
-**Answer.** Relevant: ranks 1–3; false positives: 4–5. Threshold ≈ 0.85. Improve
+**Answer.** Relevant: ranks 1–3; false positives: 4–5. Threshold ≈ 0.83 (just below the 0.84 you want to keep). Improve
 with re-ranking, smaller chunks, metadata filtering, or hybrid search — because
 scores are *relative*, calibrate the threshold against this corpus, not an absolute.
 </WorkedExample>
@@ -297,11 +297,11 @@ OPTIONS { indexConfig: {
 embeddings cosine and Euclidean rank identically, so prefer Euclidean only when
 vector magnitude carries meaning, e.g. raw TF-IDF.)
 
-**Answer.** Zero results usually means: (1) the index is still **`POPULATING`**,
-not `ONLINE`; (2) a **dimension mismatch** (index 768 vs embeddings 1536); or (3)
-**no embeddings stored** (the property is null on every node). Debug a vector
-search with that checklist — index status → dimension match → embedding population
-→ query-vector format — before concluding the search itself is broken.
+**Answer.** Zero/empty results usually means: (1) the index is still **`POPULATING`**,
+not `ONLINE`; or (2) **no embeddings stored** (the property is null on every node). A
+**dimension mismatch** (index 768 vs embeddings 1536) is a *different* symptom — the
+query **fails with an error**, not silent emptiness. Debug with the checklist: index
+status → embedding population → dimension match → query-vector format.
 </WorkedExample>
 
 <SelfCheck q="A similarity search returns uniformly low scores (all ~0.4). Name two possible causes." los="KGR-3.7">

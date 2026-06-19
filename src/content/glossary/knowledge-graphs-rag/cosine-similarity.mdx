@@ -7,7 +7,7 @@ tags: [vector-search, metrics]
 ---
 
 A similarity metric measuring the **angle between two vectors, ignoring magnitude**:
-$\cos\theta = \frac{A \cdot B}{\lVert A\rVert\,\lVert B\rVert}$, ranging −1 to 1 (0 to 1 for
-normalised embeddings). It is OpenAI's recommended function, and for *normalised* vectors it
+$\cos\theta = \frac{A \cdot B}{\lVert A\rVert\,\lVert B\rVert}$, ranging −1 to 1 (Neo4j's
+vector-index *score* normalises it to 0–1). It is OpenAI's recommended function, and for *normalised* vectors it
 ranks results identically to Euclidean distance — so prefer Euclidean only when vector
 magnitude carries meaning (e.g. raw TF-IDF). The standard choice for embedding search.

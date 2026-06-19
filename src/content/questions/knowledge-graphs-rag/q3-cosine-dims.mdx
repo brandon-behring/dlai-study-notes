@@ -9,14 +9,14 @@ difficulty: '2'
 tags: [embeddings, vector-search]
 options:
   - id: a
-    text: It works fine; Neo4j projects the 1536-dim vectors down to 768 automatically
+    text: It works fine; Neo4j projects the 1536-dim vectors down to 768 automatically to fit
   - id: b
-    text: Similarity search returns nothing — the index dimension must match the model — and cosine is the default because it normalises away vector magnitude
+    text: The query errors on the dimension mismatch; cosine is recommended because it normalises away magnitude
     correct: true
   - id: c
-    text: It works but runs slower; cosine is chosen mainly for speed
+    text: It works but runs slower, and cosine is chosen mainly because it computes faster than Euclidean
   - id: d
-    text: The index silently switches itself to Euclidean distance
+    text: The index silently switches to Euclidean distance to accommodate the larger vectors
 ---
 import Rationale from '@brandon_m_behring/book-scaffold-astro/components/Rationale.astro';
 
@@ -25,7 +25,7 @@ dimensions. What happens, and why is cosine the recommended similarity function?
 
 <Rationale title="Why">
 The index dimension must equal the embedding dimension, so a 768-dim index can't match 1536-dim
-vectors — searches return nothing (there's no automatic projection or padding). Cosine is
+vectors — the query fails with a dimension-mismatch error (there's no automatic projection or padding). Cosine is
 recommended because it compares vector *direction* and normalises away magnitude, which is the
 right notion of similarity for embeddings (and the choice OpenAI documents). It isn't a
 speed-vs-accuracy trade, and the index never silently changes its configured function.
