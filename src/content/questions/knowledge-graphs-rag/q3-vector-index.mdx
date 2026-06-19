@@ -1,0 +1,31 @@
+---
+id: kgr-3-vector-index
+type: mcq
+chapter: 3
+domain: text-for-rag
+bloom_level: apply
+objective_id: KGR-3.1
+difficulty: '2'
+tags: [vector-search, neo4j]
+options:
+  - id: a
+    text: The index dimension can differ from the model's output; Neo4j pads or truncates vectors to fit
+  - id: b
+    text: You can query the index the moment it's created; its status is irrelevant
+  - id: c
+    text: A vector index doesn't need a similarity function specified
+  - id: d
+    text: The dimension must match the embedding model's output exactly, and the index must be ONLINE before queries return complete results
+    correct: true
+---
+import Rationale from '@brandon_m_behring/book-scaffold-astro/components/Rationale.astro';
+
+Which statement about creating and using a Neo4j vector index is correct?
+
+<Rationale title="Why">
+Two hard requirements: the index's declared dimension must equal the embedding model's output
+(1536 for OpenAI), and the index must reach `ONLINE` status — a `POPULATING` index returns
+incomplete or empty results. Neo4j does not pad or truncate to reconcile a dimension mismatch
+(a mismatch just returns nothing), status very much matters, and a vector index *does* require a
+similarity function (e.g. cosine) in its config.
+</Rationale>

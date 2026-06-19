@@ -1,0 +1,22 @@
+---
+id: kgr-3-search-query
+type: free
+chapter: 3
+domain: text-for-rag
+bloom_level: apply
+objective_id: KGR-3.3
+difficulty: '2'
+tags: [vector-search, cypher]
+answer: >
+  Encode the question with the *same* model, search the index, and project text + score: `WITH
+  genai.vector.encode($question, "OpenAI", {token: $openAiApiKey}) AS q CALL
+  db.index.vector.queryNodes('chunk_embeddings', $topK, q) YIELD node, score RETURN node.text,
+  score ORDER BY score DESC`. `queryNodes` takes the index name, a top-K count, and the query
+  vector, and yields each matched node with its similarity score. All inputs — `$question`,
+  `$openAiApiKey`, `$topK` — are query parameters. Crucially the question must be embedded with
+  the same model used for the stored vectors, or the comparison is meaningless. Common wrong
+  answer: hard-coding topK or the question in the string instead of parameterising them.
+---
+
+Write a complete vector similarity-search query: encode a user `$question`, search a
+`chunk_embeddings` index for the top-K matches, and return the chunk text with scores.

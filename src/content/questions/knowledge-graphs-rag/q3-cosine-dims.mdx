@@ -1,0 +1,32 @@
+---
+id: kgr-3-cosine-dims
+type: mcq
+chapter: 3
+domain: text-for-rag
+bloom_level: understand
+objective_id: KGR-3.4
+difficulty: '2'
+tags: [embeddings, vector-search]
+options:
+  - id: a
+    text: It works fine; Neo4j projects the 1536-dim vectors down to 768 automatically
+  - id: b
+    text: Similarity search returns nothing — the index dimension must match the model — and cosine is the default because it normalises away vector magnitude
+    correct: true
+  - id: c
+    text: It works but runs slower; cosine is chosen mainly for speed
+  - id: d
+    text: The index silently switches itself to Euclidean distance
+---
+import Rationale from '@brandon_m_behring/book-scaffold-astro/components/Rationale.astro';
+
+Your embeddings are 1536-dimensional (OpenAI) but the vector index was created with 768
+dimensions. What happens, and why is cosine the recommended similarity function?
+
+<Rationale title="Why">
+The index dimension must equal the embedding dimension, so a 768-dim index can't match 1536-dim
+vectors — searches return nothing (there's no automatic projection or padding). Cosine is
+recommended because it compares vector *direction* and normalises away magnitude, which is the
+right notion of similarity for embeddings (and the choice OpenAI documents). It isn't a
+speed-vs-accuracy trade, and the index never silently changes its configured function.
+</Rationale>

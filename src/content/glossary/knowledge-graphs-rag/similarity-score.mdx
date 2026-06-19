@@ -1,0 +1,13 @@
+---
+term: Similarity Score
+aliases: [vector score]
+domain: text-for-rag
+see: [cosine-similarity, score-threshold]
+tags: [vector-search, evaluation]
+---
+
+The number vector search returns for each result — for cosine, **0 (unrelated) to 1 (identical
+direction)** — used to rank results and to filter weak ones. Crucially, scores are **relative**
+to the embedding model and corpus: 0.85 on movie taglines is not the same quality as 0.85 on
+SEC filings. Read the *distribution* (a clear winner vs a flat band) rather than trusting an
+absolute value.

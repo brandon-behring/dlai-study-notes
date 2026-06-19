@@ -1,0 +1,13 @@
+---
+term: genai.vector.encode
+aliases: [genai vector encode]
+domain: text-for-rag
+see: [embedding, query-parameter, setnodevectorproperty]
+tags: [embeddings, neo4j]
+---
+
+Neo4j's built-in function that **calls an external embedding API (e.g. OpenAI) from inside
+Cypher**: it takes the text, a provider name (`"OpenAI"`), and a config map (with the API
+`token` passed as a query parameter), and returns a float-array embedding. Paired with
+`db.create.setNodeVectorProperty` to store the vector on the node — generating and persisting
+embeddings without leaving the database.

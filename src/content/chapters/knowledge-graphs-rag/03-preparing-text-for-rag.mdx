@@ -1,0 +1,324 @@
+---
+book: knowledge-graphs-rag
+title: 'Preparing Text for RAG'
+chapter: 3
+part: 1
+description: >
+  Adding vector search to the graph — creating a vector index (dimensions +
+  similarity function), generating embeddings with genai.vector.encode and storing
+  them as node properties, top-K similarity search with db.index.vector.queryNodes,
+  parameterised queries for security, Neo4j as a co-located vector store, and how
+  to read similarity scores.
+learning_outcomes:
+  - id: KGR-3.1
+    verb: Apply
+    text: >
+      a vector index on Neo4j node properties, specifying dimensionality and
+      similarity-function parameters.
+  - id: KGR-3.2
+    verb: Apply
+    text: >
+      Neo4j's genai.vector.encode to generate OpenAI embeddings and store them
+      directly on graph nodes.
+  - id: KGR-3.3
+    verb: Design
+    text: >
+      vector similarity-search queries using db.index.vector.queryNodes with
+      parameterised inputs.
+  - id: KGR-3.4
+    verb: Explain
+    text: >
+      how embedding dimensionality (1536 for OpenAI) and the similarity function
+      (cosine) affect search quality and index performance.
+  - id: KGR-3.5
+    verb: Design
+    text: >
+      parameterised Cypher queries that pass API keys and dynamic values through
+      query parameters rather than string interpolation.
+  - id: KGR-3.6
+    verb: Compare
+    text: >
+      Neo4j as a vector store with dedicated vector databases, identifying the
+      advantage of co-located graph and vector data.
+  - id: KGR-3.7
+    verb: Evaluate
+    text: >
+      vector-search results by interpreting similarity scores and assessing
+      retrieval quality for different query types.
+tags:
+  - rag
+  - embeddings
+  - vector-search
+  - neo4j
+  - cosine-similarity
+last_verified: 2026-06-19
+volatility: feature-surface
+sources:
+  - johnson2019billion
+  - neo4j2024vector
+draft: false
+---
+
+<Diagnostic skimTo="Performing vector similarity search">
+Predict before reading — check each against the chapter.
+
+1. You created a vector index with `vector.dimensions: 768` but your embeddings are 1536-dim. Predict what a similarity search returns.
+2. You need to pass an OpenAI API key into a Cypher query. Predict the right mechanism — f-string interpolation or a query parameter — and one risk of the wrong one.
+3. A cosine similarity search for "movies about love" returns top scores of 0.89 and 0.87. Predict roughly what 0.89 means — strong, moderate, or weak match.
+4. Most RAG stacks run a separate vector database next to their main store. Predict the single biggest win from putting the vectors *inside* Neo4j instead.
+
+<Fragment slot="answers">
+1. Likely **zero or wrong results** — the index dimension must match the embedding model's output exactly (1536), so a 768-dim index can't search 1536-dim vectors.
+2. A **query parameter** (`$openAiApiKey` via `params`). An f-string leaks the key into logs, error messages, and the query cache — and invites injection.
+3. **Strong** — for normalised (cosine) embeddings, ~0.89 is a strong semantic match; ~0.75 moderate, below 0.5 weak (thresholds are corpus-relative).
+4. **Co-location** — one query can do vector search *and* graph traversal, so you retrieve a chunk and follow its relationships without a second system or round trip.
+</Fragment>
+</Diagnostic>
+
+<NarrativeBox title="Where we are">
+You can query the graph with Cypher. But RAG needs *semantic* search — finding
+chunks conceptually similar to a question even when the words differ. This chapter
+adds vector search to the graph: create an embedding index, generate embeddings,
+and query by similarity. For now Neo4j is just a vector store; combining vector
+search with graph traversal is the payoff of Modules 5–7.
+</NarrativeBox>
+
+## Creating a vector index
+
+A [**vector index**](../glossary#term-vector-index) tells Neo4j which node
+property holds embeddings, how many dimensions they have, and which similarity
+function to compare them with. It's idempotent with `IF NOT EXISTS`: <EvidenceTag kind="verified" />
+
+```cypher
+CREATE VECTOR INDEX movie_tagline_embeddings IF NOT EXISTS
+FOR (m:Movie) ON (m.taglineEmbedding)
+OPTIONS { indexConfig: {
+  `vector.dimensions`: 1536,
+  `vector.similarity_function`: 'cosine'
+}}
+```
+
+| Parameter | Value | Why |
+| --- | --- | --- |
+| `vector.dimensions` | 1536 | OpenAI's default embedding size — must match the model exactly |
+| `vector.similarity_function` | `cosine` | OpenAI's recommendation; normalises away vector magnitude |
+| `IF NOT EXISTS` | — | idempotent creation, safe to re-run |
+
+<Aside category="warning">
+After creating an index, `SHOW INDEXES` reports its status. A vector index in `POPULATING` is still building — wait for **`ONLINE`** before querying, or results come back incomplete or empty. <EvidenceTag kind="verified" />
+</Aside>
+
+<SelfCheck q="Write the Cypher to create a vector index on a Chunk node's textEmbedding property (1536 dims, cosine), and say what status means it's ready." los="KGR-3.1">
+`CREATE VECTOR INDEX chunk_embeddings IF NOT EXISTS FOR (c:Chunk) ON (c.textEmbedding) OPTIONS {indexConfig: {`vector.dimensions`: 1536, `vector.similarity_function`: 'cosine'}}`. It's ready when `SHOW INDEXES` reports its status as **`ONLINE`** (not `POPULATING`). The dimension must match the embedding model's output exactly, or searches return nothing.
+</SelfCheck>
+
+## Generating and storing embeddings
+
+<ConceptBox>
+**The key architectural decision.** Embeddings are stored as **node properties**,
+co-locating vector data with graph data — so a single query can later combine
+vector similarity *and* graph traversal, with no separate vector database.
+</ConceptBox>
+
+Neo4j's [`genai.vector.encode`](../glossary#term-genai-vector-encode) calls the
+embedding API from inside Cypher and writes the result onto the node. The API key
+goes in as a **query parameter**, never the query string:
+
+```cypher
+MATCH (m:Movie) WHERE m.tagline IS NOT NULL
+WITH m, genai.vector.encode(m.tagline, "OpenAI", { token: $openAiApiKey }) AS vector
+CALL db.create.setNodeVectorProperty(m, "taglineEmbedding", vector)
+```
+
+```cypher
+-- verify: tagline text, first values, and the vector size (1536)
+MATCH (m:Movie {title: "The Matrix"})
+RETURN m.tagline, m.taglineEmbedding[0..5] AS sample, size(m.taglineEmbedding) AS dims
+```
+
+An [**embedding**](../glossary#term-embedding) is a dense vector where
+semantically similar texts sit close together; OpenAI's default model outputs
+**1536** dimensions, which is exactly why the index above declares 1536.
+
+<SelfCheck q="What does genai.vector.encode do, and what three arguments does it take?" los="KGR-3.2">
+It calls an external embedding API (e.g. OpenAI) *from inside Cypher* and returns the embedding as a float array. Its three arguments are the **text** to encode, the **provider** name (`"OpenAI"`), and a **config** map (including the API `token`, passed as a query parameter). Paired with `db.create.setNodeVectorProperty`, it stores the vector directly on the node — co-locating vectors with the graph.
+</SelfCheck>
+
+## Searching by similarity
+
+With embeddings indexed, encode the question and find nearest neighbours with
+[`db.index.vector.queryNodes`](../glossary#term-vector-query-nodes) (top-K):
+
+```cypher
+WITH genai.vector.encode($question, "OpenAI", { token: $openAiApiKey }) AS qEmbedding
+CALL db.index.vector.queryNodes('movie_tagline_embeddings', $topK, qEmbedding)
+  YIELD node AS movie, score
+RETURN movie.title, movie.tagline, score
+```
+
+<PipelineBox title="Vector similarity search in Neo4j">
+1. **Encode** — the question becomes a vector via the *same* model that embedded the stored text.
+2. **Search** — `db.index.vector.queryNodes` finds the top-K nodes whose vectors are nearest the query vector.
+3. **Score** — each result carries a similarity score (0–1 for cosine); higher = more similar.
+4. **Return** — the matched nodes' text and metadata become the LLM's context.
+</PipelineBox>
+
+For "movies about love" the top hits are *Joe vs. the Volcano* (0.89) and *When
+Harry Met Sally* (0.87); switch the question to "adventure" and entirely different
+movies surface — the search is **semantic**, not keyword-based.
+
+<CompletionProblem id="vector-search-query" title="Complete the similarity search" level="completion">
+Fill in a top-K similarity search over a `chunk_embeddings` index for a user's
+`$question`, returning chunk text and score.
+
+**Your turn — fill the blanks:**
+- First encode the question: `WITH genai.vector.encode($question, "OpenAI", { token: $openAiApiKey }) AS ___`
+- Then call: `CALL db.index.vector.queryNodes('___', $topK, ___) YIELD node, ___`
+- The API key and topK must be passed as `___`, not interpolated.
+
+<Fragment slot="solution">
+```cypher
+WITH genai.vector.encode($question, "OpenAI", { token: $openAiApiKey }) AS qEmbedding
+CALL db.index.vector.queryNodes('chunk_embeddings', $topK, qEmbedding)
+  YIELD node, score
+RETURN node.text, score
+```
+- The encoded vector is bound to `qEmbedding`; `queryNodes` takes the **index name**, `$topK`, and that vector; it `YIELD`s `node` and `score`.
+- `$question`, `$openAiApiKey`, `$topK` are all **query parameters** — passed via the `params` argument, never string-interpolated.
+</Fragment>
+</CompletionProblem>
+
+<SelfCheck q="Write a similarity-search query that encodes a question, searches a movie_tagline_embeddings index, and returns titles with scores." los="KGR-3.3">
+`WITH genai.vector.encode($question, "OpenAI", {token: $openAiApiKey}) AS q CALL db.index.vector.queryNodes('movie_tagline_embeddings', $topK, q) YIELD node AS movie, score RETURN movie.title, score`. Encode the question with the *same* model used for the stored embeddings, call `queryNodes` with the index name + top-K + query vector, and project title + score. All inputs (`$question`, `$openAiApiKey`, `$topK`) are query parameters.
+</SelfCheck>
+
+## Parameterised queries: security and speed
+
+<RedFlag title="Never interpolate an API key into a query string">
+String-interpolating a key (f-strings, `format`) risks leaking it into logs, error
+messages, and the query cache, and invites injection. Always pass secrets and
+dynamic values as Cypher **query parameters** (`$variable` via the `params`
+argument). <EvidenceTag kind="verified" />
+</RedFlag>
+
+```python
+# WRONG: key in the query string
+kg.query(f'... {{ token: "{api_key}" }} ...')
+# RIGHT: key as a parameter
+kg.query("... { token: $openAiApiKey } ...", params={"openAiApiKey": api_key})
+```
+
+<KeyConcept title="Parameters buy security and plan caching" los="KGR-3.5">
+[Query parameters](../glossary#term-query-parameter) keep secrets and user input
+out of the query string (no injection, no leakage in logs) **and** let Neo4j
+**cache the execution plan** — the same parameterised query reused across calls
+skips re-planning. **When it breaks:** DDL statements (`CREATE INDEX`,
+`CREATE CONSTRAINT`) can't take parameters, so sanitise those inputs manually. <EvidenceTag kind="verified" />
+</KeyConcept>
+
+<SelfCheck q="Why pass an API key as a query parameter instead of interpolating it into the Cypher string? Name two benefits." los="KGR-3.5">
+**Security** — the key never appears in the query string, so it can't leak into logs/error messages/the query cache, and there's no injection surface. **Performance** — Neo4j caches the execution plan for a parameterised query and reuses it across calls with different values, skipping re-planning. (Caveat: DDL like `CREATE INDEX` can't be parameterised.)
+</SelfCheck>
+
+## Neo4j as a vector store
+
+Most RAG stacks bolt a separate vector database onto their primary store. Neo4j's
+[vector indexes](../glossary#term-vector-index) remove that split — embeddings are
+node properties in the *same* database as the graph, so one query can search by
+similarity, traverse relationships, and return both the matched text and its graph
+context. <EvidenceTag kind="verified" />
+
+| Capability | Dedicated vector DB | Neo4j |
+| --- | --- | --- |
+| Vector similarity search | yes | yes |
+| Graph traversal | no | yes |
+| Full-text search | sometimes | yes |
+| Combined vector + graph query | no | yes |
+| Systems to operate | two | one |
+
+<Aside category="pattern">
+Where practitioners disagree — *single engine (Neo4j) or a dedicated vector DB alongside the graph?* The co-location camp: one store, one round trip, combined vector+traversal queries, less ops. The best-of-breed camp: a purpose-built vector DB (Pinecone, Weaviate, Milvus) offers more ANN algorithms (IVF-PQ, ScaNN), easier embedding-model swaps, and independent scaling of the vector workload. The honest rule: co-locate when your retrieval genuinely *combines* similarity with traversal (this guide's whole thesis); split when the vector workload is large, standalone, and needs cutting-edge ANN — then the graph and vector DB each do what they're best at.
+</Aside>
+
+<SelfCheck q="What is the single biggest advantage of co-locating embeddings in Neo4j versus a separate vector database, and when might the separate DB still win?" los="KGR-3.6">
+The advantage is **combined queries**: one Cypher query can do vector similarity search *and* graph traversal (retrieve a chunk, then follow its relationships) in a single round trip, with one system to operate. A dedicated vector DB can still win when the vector workload is large and standalone and you need advanced ANN algorithms or frequent embedding-model swaps that Neo4j's vector support doesn't match — then best-of-breed beats single-engine.
+</SelfCheck>
+
+## Reading similarity scores
+
+<ConceptBox>
+**What scores mean.** Cosine scores run 0–1 for normalised vectors: ~0.89 is a
+strong match, ~0.75 moderate, below 0.5 weak — but there is **no universal "good"
+threshold**. It depends on the embedding model, the data distribution, and the
+application. The cosine formula: $\cos\theta = \frac{A \cdot B}{\lVert A\rVert\,\lVert B\rVert}$.
+</ConceptBox>
+
+When you [evaluate](../glossary#term-similarity-score) results, read the *shape*,
+not just the top value: a clear winner (0.92 vs 0.75 for the rest) is high
+confidence; a flat band (0.78–0.82) means an ambiguous query or no strong match. A
+**score threshold** (say 0.7) filters weak context that would otherwise tempt the
+LLM to hallucinate — and scores are *relative*, so 0.85 on movie taglines is not
+the same quality as 0.85 on SEC filings.
+
+<WorkedExample title="Interpret a result set and set a threshold" los="KGR-3.7">
+**Problem.** A search for "renewable energy initiatives" over corporate filings
+returns: solar manufacturing 0.91, wind investment 0.88, carbon-credit trading
+0.84, employee volunteering 0.82, office recycling 0.79. Which are relevant? What
+threshold? How to improve precision *without* changing the embedding model?
+
+**Reasoning.** The top three are squarely about energy/environment; the bottom two
+are corporate-responsibility neighbours, not *energy* — semantic near-misses. A
+threshold around **0.85** keeps the genuine matches and drops the rest (tune by
+need: ~0.78 for high recall, ~0.88+ for high precision). Precision without a new
+model: add a **re-ranker** (cross-encoder), chunk more granularly (more specific
+embeddings), pre-filter by metadata, or go **hybrid** (vector + keyword).
+
+**Answer.** Relevant: ranks 1–3; false positives: 4–5. Threshold ≈ 0.85. Improve
+with re-ranking, smaller chunks, metadata filtering, or hybrid search — because
+scores are *relative*, calibrate the threshold against this corpus, not an absolute.
+</WorkedExample>
+
+<WorkedExample title="Configure an index and debug zero results" los="KGR-3.1">
+**Problem.** Set up a vector index for 50,000 products whose description embeddings
+are **768**-dimensional. Then: a search returns *zero* results — three likely causes?
+
+**Reasoning.**
+
+```cypher
+CREATE VECTOR INDEX product_embeddings IF NOT EXISTS
+FOR (p:Product) ON (p.descriptionEmbedding)
+OPTIONS { indexConfig: {
+  `vector.dimensions`: 768,
+  `vector.similarity_function`: 'cosine'
+}}
+```
+
+(Use 768 to match the model; cosine is the safe default — for *normalised*
+embeddings cosine and Euclidean rank identically, so prefer Euclidean only when
+vector magnitude carries meaning, e.g. raw TF-IDF.)
+
+**Answer.** Zero results usually means: (1) the index is still **`POPULATING`**,
+not `ONLINE`; (2) a **dimension mismatch** (index 768 vs embeddings 1536); or (3)
+**no embeddings stored** (the property is null on every node). Debug a vector
+search with that checklist — index status → dimension match → embedding population
+→ query-vector format — before concluding the search itself is broken.
+</WorkedExample>
+
+<SelfCheck q="A similarity search returns uniformly low scores (all ~0.4). Name two possible causes." los="KGR-3.7">
+Two of: the query is **out of the corpus's domain** (nothing stored is genuinely similar, so even the nearest neighbours are far); a **dimension/model mismatch** (the query was encoded with a different model than the stored embeddings); embeddings were **never populated** or the index isn't `ONLINE`; or the corpus genuinely lacks relevant content. Low *absolute* scores can also just mean this corpus's scores run low — read the distribution, not one number.
+</SelfCheck>
+
+## Summary
+
+A vector index declares the embedding property, its dimensionality, and the
+similarity function. `genai.vector.encode` generates embeddings from inside Cypher
+and stores them as node properties — **co-located** with the graph, so no separate
+vector DB. `db.index.vector.queryNodes` does top-K nearest-neighbour search; query
+parameters keep API keys safe and enable plan caching; and cosine scores are
+relative signals to be read as a distribution, not absolute truth. Right now Neo4j
+is "just" a vector store — the transformative combination of vector search *with*
+graph traversal arrives in Module 5.
+
+- **Chapter 4** — *constructing the graph*: SEC 10-K chunks become nodes, indexed for vector search.
+- **Chapters 5–6** — adding relationships and expanding the SEC graph.
+- **Chapter 7** — combined retrieval with LLM-generated Cypher.

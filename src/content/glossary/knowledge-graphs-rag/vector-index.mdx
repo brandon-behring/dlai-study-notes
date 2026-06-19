@@ -1,0 +1,13 @@
+---
+term: Vector Index
+aliases: [Neo4j vector index]
+domain: text-for-rag
+see: [embedding, cosine-similarity, vector-query-nodes]
+tags: [vector-search, neo4j]
+---
+
+A Neo4j index for **approximate nearest-neighbour search** over a node property that holds
+embeddings, created with a fixed dimensionality and similarity function (`CREATE VECTOR INDEX
+… OPTIONS {indexConfig: {…}}`). Two hard requirements: the declared dimension **must match the
+embedding model's output** exactly, and the index must reach **`ONLINE`** status (not
+`POPULATING`) before searches return complete results.

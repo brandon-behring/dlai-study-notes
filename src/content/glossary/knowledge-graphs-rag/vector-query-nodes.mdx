@@ -1,0 +1,12 @@
+---
+term: db.index.vector.queryNodes
+aliases: [vector queryNodes, queryNodes]
+domain: text-for-rag
+see: [vector-index, similarity-score]
+tags: [vector-search, neo4j]
+---
+
+Neo4j's procedure for **top-K approximate nearest-neighbour search** over a vector index. It
+takes the index name, a `topK` count, and a query vector, and `YIELD`s the matched nodes with a
+similarity `score`. It is the *search* half of graph-RAG retrieval: encode the question (with
+`genai.vector.encode`), then `queryNodes` to find the closest stored embeddings.

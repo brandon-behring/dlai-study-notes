@@ -1,0 +1,13 @@
+---
+term: Hybrid Search
+aliases: [hybrid retrieval, re-ranking]
+domain: text-for-rag
+see: [similarity-score, score-threshold]
+tags: [vector-search, retrieval]
+---
+
+Combining vector similarity with **another signal** — full-text/keyword filtering, metadata
+pre-filters, or a cross-encoder re-rank — to raise precision *without changing the embedding
+model*. It is the standard fix for "semantic near-miss" false positives (results that are
+topically close but not what was asked). Smaller, more granular chunks help similarly by making
+each embedding more specific.

@@ -1,0 +1,13 @@
+---
+term: Embedding Dimensionality
+aliases: [vector dimensions]
+domain: text-for-rag
+see: [embedding, vector-index]
+tags: [embeddings]
+---
+
+The **number of dimensions in an embedding vector** (1536 for OpenAI's default model). Higher
+dimensionality captures more semantic nuance but costs more storage and search time. The key
+operational constraint: a vector index's declared dimension must **match the embedding model's
+output exactly** — a mismatch (index 768 vs vectors 1536) makes similarity search return
+nothing.

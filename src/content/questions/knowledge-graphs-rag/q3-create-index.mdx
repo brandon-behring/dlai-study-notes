@@ -1,0 +1,21 @@
+---
+id: kgr-3-create-index
+type: free
+chapter: 3
+domain: text-for-rag
+bloom_level: apply
+objective_id: KGR-3.1
+difficulty: '1'
+tags: [vector-search, neo4j]
+answer: >
+  `CREATE VECTOR INDEX chunk_embeddings IF NOT EXISTS FOR (c:Chunk) ON (c.textEmbedding) OPTIONS
+  {indexConfig: {`vector.dimensions`: 1536, `vector.similarity_function`: 'cosine'}}`. The
+  dimension (1536) must match the embedding model's output exactly, and `cosine` is the
+  recommended similarity function for OpenAI embeddings. `IF NOT EXISTS` makes creation
+  idempotent. It is ready to query when `SHOW INDEXES` reports its status as **ONLINE** — while
+  it is `POPULATING`, searches return incomplete or empty results. Common wrong answer: querying
+  immediately after creating it — you must wait for ONLINE, or the results are wrong.
+---
+
+Write the Cypher to create a vector index on a `Chunk` node's `textEmbedding` property (1536
+dimensions, cosine), and say which status from `SHOW INDEXES` means it's ready to query.

@@ -1,0 +1,13 @@
+---
+term: Query Parameter
+aliases: [Cypher parameter, params]
+domain: text-for-rag
+see: [genai-vector-encode]
+tags: [cypher, security]
+---
+
+A value passed to a Cypher query via the `params` argument and referenced with a `$` prefix
+(e.g. `$openAiApiKey`). It keeps secrets and user input **out of the query string** — no
+injection, no leakage into logs or the query cache — and lets Neo4j **cache the execution
+plan** across calls with different values. The one exception: DDL statements (`CREATE INDEX`,
+`CREATE CONSTRAINT`) can't be parameterised, so sanitise those inputs manually.

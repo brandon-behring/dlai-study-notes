@@ -1,0 +1,14 @@
+---
+term: Co-Located Vector Store
+aliases: [Neo4j as vector store, co-location]
+domain: text-for-rag
+see: [vector-index, hybrid-search]
+tags: [vector-search, architecture]
+---
+
+Storing embeddings as **node properties in the same database as the graph** (Neo4j) rather than
+in a separate vector database. The win: one query can combine vector similarity with graph
+traversal — retrieve a chunk *and* follow its relationships — in a single round trip, with one
+system to operate. The trade-off: you depend on Neo4j's embedding/ANN support, where a
+best-of-breed vector DB may offer more algorithms and easier model swaps for large standalone
+vector workloads.

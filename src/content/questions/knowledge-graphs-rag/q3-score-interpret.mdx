@@ -1,0 +1,32 @@
+---
+id: kgr-3-score-interpret
+type: mcq
+chapter: 3
+domain: text-for-rag
+bloom_level: analyze
+objective_id: KGR-3.7
+difficulty: '2'
+tags: [vector-search, evaluation]
+options:
+  - id: a
+    text: The vector index is corrupt and must be rebuilt
+  - id: b
+    text: The query is ambiguous or the corpus lacks a strong match — read the distribution and consider a threshold or hybrid search
+    correct: true
+  - id: c
+    text: The embeddings are unusually high quality
+  - id: d
+    text: Cosine similarity is malfunctioning
+---
+import Rationale from '@brandon_m_behring/book-scaffold-astro/components/Rationale.astro';
+
+A cosine similarity search returns a flat band of scores (0.78–0.82) with no clear winner. What
+does this most likely indicate?
+
+<Rationale title="Why">
+A flat band means no single stored item stands out — usually an ambiguous query or a corpus
+without a strong match — so you read the *distribution* (a clear winner like 0.92 vs 0.75 would
+signal confidence) and respond with a threshold or hybrid search. It is not evidence of a
+corrupt index or broken cosine math (those tend to give zero/garbage results, not a tidy band),
+and a flat band is the *opposite* of high-quality discrimination.
+</Rationale>

@@ -1,0 +1,24 @@
+---
+id: kgr-3-vs-vectordb
+type: free
+chapter: 3
+domain: text-for-rag
+bloom_level: analyze
+objective_id: KGR-3.6
+difficulty: '2'
+tags: [vector-search, architecture]
+answer: >
+  Co-locate in Neo4j when your retrieval genuinely *combines* similarity with traversal — the
+  whole graph-RAG thesis: one query finds the nearest chunk and follows its relationships to
+  pull in connected context, in a single round trip and one system to operate. Choose a dedicated
+  vector DB (Pinecone, Weaviate, Milvus) alongside the graph when the vector workload is large
+  and standalone and you need advanced ANN algorithms (IVF-PQ, ScaNN), frequent embedding-model
+  swaps, or independent scaling of the vector tier — capabilities a single-engine setup may not
+  match. The deciding question is whether the *queries* mix vector and graph, not whether the
+  data merely has both. Common wrong answer: "always co-locate, fewer systems is always better" —
+  fewer systems is simpler, but a heavy standalone vector workload can outgrow Neo4j's ANN
+  support.
+---
+
+When should you use Neo4j as your vector store versus a dedicated vector database alongside the
+graph? Give the deciding factor.

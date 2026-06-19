@@ -1,0 +1,23 @@
+---
+id: kgr-3-cosine-explain
+type: free
+chapter: 3
+domain: text-for-rag
+bloom_level: understand
+objective_id: KGR-3.4
+difficulty: '2'
+tags: [embeddings, metrics]
+answer: >
+  Cosine similarity measures the angle between two vectors and ignores their magnitude
+  ($\cos\theta = (A·B)/(\lVert A\rVert\lVert B\rVert)$), so it captures *direction* — the right
+  notion of semantic closeness for embeddings — and is OpenAI's recommended function; for
+  normalised vectors it also ranks identically to Euclidean. A cosine score of ~0.89 on
+  normalised embeddings is a strong semantic match (with ~0.75 moderate, below 0.5 weak), though
+  scores are relative to the model and corpus. And the index's declared dimension must equal the
+  model's output (1536 for OpenAI) — a mismatch makes search return nothing. Common wrong answer:
+  "a higher dimension always means better search" — more dimensions cost more storage/time and
+  only help if the model actually uses them well.
+---
+
+Why is cosine similarity recommended for OpenAI embeddings, what does a score of ~0.89 mean, and
+why must the index dimension match the model?

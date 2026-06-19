@@ -1,0 +1,24 @@
+---
+id: kgr-3-score-threshold
+type: free
+chapter: 3
+domain: text-for-rag
+bloom_level: analyze
+objective_id: KGR-3.7
+difficulty: '3'
+tags: [vector-search, evaluation]
+answer: >
+  Read relevance from the score gap, not absolute values. If a "renewable energy" search returns
+  solar 0.91, wind 0.88, carbon-credit 0.84, then employee-volunteering 0.82 and recycling 0.79,
+  the top three are squarely on-topic while the bottom two are corporate-responsibility
+  near-misses — semantically adjacent but not energy. A threshold around 0.85 keeps the genuine
+  matches and drops the rest; tune it by need (≈0.78 for high recall, ≈0.88+ for high precision),
+  and calibrate against *this* corpus since scores are relative. To improve precision without
+  changing the embedding model: add a cross-encoder re-rank, chunk more granularly, pre-filter by
+  metadata, or go hybrid (vector + keyword). Common wrong answer: applying a fixed threshold like
+  0.8 across corpora — a good cutoff for taglines may be wrong for filings.
+---
+
+A similarity search for "renewable energy initiatives" returns five chunks scored 0.91, 0.88,
+0.84, 0.82, 0.79 on related-but-varying topics. Which are relevant, what threshold would you set,
+and how would you raise precision without changing the embedding model?

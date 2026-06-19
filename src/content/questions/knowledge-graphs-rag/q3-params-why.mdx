@@ -1,0 +1,31 @@
+---
+id: kgr-3-params-why
+type: mcq
+chapter: 3
+domain: text-for-rag
+bloom_level: understand
+objective_id: KGR-3.5
+difficulty: '1'
+tags: [cypher, security]
+options:
+  - id: a
+    text: f-strings are slower to type than parameters
+  - id: b
+    text: Parameters let you store the API key inside the graph for reuse
+  - id: c
+    text: Parameters keep the key out of the query string (no log leakage, no injection) and let Neo4j cache the plan
+    correct: true
+  - id: d
+    text: Cypher doesn't support string interpolation, so parameters are the only option
+---
+import Rationale from '@brandon_m_behring/book-scaffold-astro/components/Rationale.astro';
+
+Why pass an API key into a Cypher query as a parameter (`$openAiApiKey`) rather than an f-string?
+
+<Rationale title="Why">
+A parameter keeps the secret out of the query string — so it can't leak into logs, error
+messages, or the query cache, and there's no injection surface — and it lets Neo4j reuse a
+cached execution plan across calls. Typing speed is irrelevant; you should *not* store API keys
+in the graph; and you technically *can* build a query string with interpolation (that's exactly
+the unsafe thing to avoid), so it isn't that Cypher forbids it.
+</Rationale>

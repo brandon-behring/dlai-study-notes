@@ -1,0 +1,12 @@
+---
+term: db.create.setNodeVectorProperty
+aliases: [setNodeVectorProperty]
+domain: text-for-rag
+see: [genai-vector-encode, co-located-vector-store]
+tags: [embeddings, neo4j]
+---
+
+Neo4j's procedure that **writes a computed embedding onto a node as a vector property** — the
+storage step that follows `genai.vector.encode`. Persisting the vector *on the node* (rather
+than in a separate store) is exactly what makes the data co-located, enabling a single query to
+later combine similarity search with graph traversal.
