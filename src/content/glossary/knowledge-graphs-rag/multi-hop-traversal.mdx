@@ -1,0 +1,13 @@
+---
+term: Multi-Hop Traversal
+aliases: [multi-hop query, two-hop]
+domain: cypher-querying
+see: [match-clause, graph-traversal]
+tags: [cypher, traversal]
+---
+
+Following a **chain of two or more relationships** to reach indirect connections — co-actors,
+co-directors, friends-of-friends. The shared middle node `(a)-[:R]->(b)<-[:R]-(c)` is the
+graph's equivalent of a SQL JOIN, written as a visual pattern. Cheap where SQL needs nested
+self-JOINs, but it **explodes combinatorially** on high-degree nodes (a 50-actor movie yields
+$50^2$ co-actor pairs), so bound it with `LIMIT` or filters.

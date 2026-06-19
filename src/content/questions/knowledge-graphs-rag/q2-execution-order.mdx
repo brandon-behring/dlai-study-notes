@@ -1,0 +1,31 @@
+---
+id: kgr-2-execution-order
+type: mcq
+chapter: 2
+domain: cypher-querying
+bloom_level: understand
+objective_id: KGR-2.7
+difficulty: '2'
+tags: [cypher, performance]
+options:
+  - id: a
+    text: plan → parse → project → execute
+  - id: b
+    text: execute → parse → plan → project
+  - id: c
+    text: parse → execute → plan → project
+  - id: d
+    text: parse → plan → execute → project
+    correct: true
+---
+import Rationale from '@brandon_m_behring/book-scaffold-astro/components/Rationale.astro';
+
+What is the order of the four stages a Cypher query passes through?
+
+<Rationale title="Why">
+**Parse → plan → execute → project.** The string is first parsed into an AST; the optimiser
+then *plans* (choosing indexes and scan order) before anything runs; the engine *executes* the
+plan by traversing the graph; finally `RETURN` *projects* the requested fields. You can't plan
+before parsing, can't execute before planning, and projection is last — it shapes the output of
+a completed match. (`EXPLAIN` stops after planning; `PROFILE` runs through execution.)
+</Rationale>

@@ -1,0 +1,21 @@
+---
+id: kgr-2-detach-delete
+type: free
+chapter: 2
+domain: cypher-querying
+bloom_level: apply
+objective_id: KGR-2.4
+difficulty: '1'
+tags: [cypher, write]
+answer: >
+  A plain `DELETE` on a node that still has relationships fails, because Neo4j won't leave
+  dangling relationships (referential integrity). Two fixes: delete the relationships first
+  (`MATCH (p:Person {name: $name})-[r]-() DELETE r`, then delete the node), or — simpler — use
+  `MATCH (p:Person {name: $name}) DETACH DELETE p`, which removes the node and all its
+  relationships in one atomic step. Use DETACH DELETE whenever you're dropping a connected node.
+  Common wrong answer: "DELETE removes the node and silently drops its edges" — it doesn't; it
+  refuses the operation rather than orphan relationships.
+---
+
+You need to remove a Person node that still has relationships. Show how (and why a plain DELETE
+fails).

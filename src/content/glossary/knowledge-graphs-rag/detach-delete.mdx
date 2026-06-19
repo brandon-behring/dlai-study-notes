@@ -1,0 +1,11 @@
+---
+term: DETACH DELETE
+aliases: [detach delete]
+domain: cypher-querying
+see: [delete]
+tags: [cypher, write]
+---
+
+A `DELETE` variant that removes a node **and all of its relationships in a single step**,
+satisfying referential integrity without manually deleting each connecting relationship first.
+It is the safe, idiomatic way to drop a connected node — a plain `DELETE` on such a node fails.

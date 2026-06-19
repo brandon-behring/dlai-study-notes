@@ -1,0 +1,22 @@
+---
+id: kgr-2-multihop-design
+type: free
+chapter: 2
+domain: cypher-querying
+bloom_level: analyze
+objective_id: KGR-2.2
+difficulty: '2'
+tags: [cypher, traversal]
+answer: >
+  Two relationship hops share the movie node: `MATCH (d:Person {name: $director})-[:DIRECTED]->
+  (m:Movie)<-[:ACTED_IN]-(actor:Person) RETURN actor.name, m.title`. The `DIRECTED` arrow points
+  forward from the director into the movie; the `ACTED_IN` arrow points backward from the actor
+  into the same movie — the shared `Movie` is the join. To bound the result on a high-degree
+  director, add a `LIMIT` or filter (e.g. by `released` year), since a director with many films
+  each with many actors can return a large cross-product. Common wrong answer: pointing both
+  arrows the same direction — then the pattern asks for an actor the *movie* acted in, which has
+  no match.
+---
+
+Design a Cypher query that finds every actor who appeared in a movie directed by a given person.
+Explain the arrow directions and how you'd keep the result set bounded.

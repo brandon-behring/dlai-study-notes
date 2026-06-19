@@ -1,0 +1,12 @@
+---
+term: CREATE
+aliases: [CREATE clause]
+domain: cypher-querying
+see: [merge, delete]
+tags: [cypher, write]
+---
+
+The Cypher clause that **unconditionally creates** a node or relationship — even if an identical
+one already exists. It is fast (no existence check), but **dangerous for relationships in
+retry-prone pipelines**, where re-running the same `CREATE` silently inserts duplicates. Reserve
+it for guaranteed-unique insertions; use [MERGE](#term-merge) everywhere a query might re-run.

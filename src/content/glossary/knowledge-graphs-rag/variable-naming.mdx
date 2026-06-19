@@ -1,0 +1,13 @@
+---
+term: Variable Naming (Cypher)
+aliases: [meaningful variable names]
+domain: cypher-querying
+see: [match-clause]
+tags: [cypher, readability]
+---
+
+The practice of naming Cypher pattern variables for **what they hold** — `tom`, `coActor`, `m`
+for Movie — rather than `n1`/`n2`. It has **zero runtime cost** (the engine ignores the names)
+but a large readability payoff: a multi-hop pattern with meaningful names is self-documenting,
+while cryptic names force the next reader to decode it. A maintainability investment, part of
+"design readable queries" (KGR-2.5).

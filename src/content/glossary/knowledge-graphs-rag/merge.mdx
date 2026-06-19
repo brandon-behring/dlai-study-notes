@@ -1,0 +1,14 @@
+---
+term: MERGE
+aliases: [MERGE clause]
+domain: cypher-querying
+see: [create, idempotent-pipeline, uniqueness-constraint]
+tags: [cypher, write]
+---
+
+The Cypher clause that creates a node or relationship **only if it does not already exist**
+(MATCH-then-create in one atomic step). It is the **idempotent default** for graph
+construction: re-processing the same data leaves the graph unchanged. Pair it with a uniqueness
+constraint and `ON CREATE SET` / `ON MATCH SET` for initial-vs-updated properties — and always
+MERGE on a *stable* identifier, since a volatile property (a changing timestamp) makes MERGE
+create a fresh element each run.

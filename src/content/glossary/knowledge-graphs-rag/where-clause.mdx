@@ -1,0 +1,12 @@
+---
+term: WHERE Clause
+aliases: [WHERE]
+domain: cypher-querying
+see: [match-clause]
+tags: [cypher]
+---
+
+Filters matched patterns by conditions **beyond inline equality** — comparisons (`>`, `<`,
+`=`), boolean logic (`AND`/`OR`/`NOT`), string matching, and regular expressions. Rule of thumb:
+use inline `{...}` property matching for simple equality, and `WHERE` for ranges or complex
+logic. `MATCH (m:Movie) WHERE m.released > 2000` is the canonical example.

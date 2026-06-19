@@ -1,0 +1,32 @@
+---
+id: kgr-2-delete-node
+type: mcq
+chapter: 2
+domain: cypher-querying
+bloom_level: understand
+objective_id: KGR-2.4
+difficulty: '2'
+tags: [cypher, write]
+options:
+  - id: a
+    text: The node and all its relationships are removed automatically
+  - id: b
+    text: The node is deleted but its relationships are left orphaned
+  - id: c
+    text: The DELETE fails (referential integrity); remove the relationships first or use DETACH DELETE
+    correct: true
+  - id: d
+    text: Neo4j converts it to a soft-deleted node flagged as inactive
+---
+import Rationale from '@brandon_m_behring/book-scaffold-astro/components/Rationale.astro';
+
+You run a plain `DELETE` on a `Person` node that still has an `ACTED_IN` relationship. What
+happens, and what's the fix?
+
+<Rationale title="Why">
+A plain `DELETE` on a node that still has relationships **fails** — Neo4j won't leave dangling
+relationships, so it protects referential integrity. The fix is to delete the relationships
+first, or use `DETACH DELETE` to remove the node and its relationships in one step. Neo4j does
+not auto-remove the relationships, leave them orphaned, or soft-delete — it refuses the
+operation outright.
+</Rationale>

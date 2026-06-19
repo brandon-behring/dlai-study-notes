@@ -1,0 +1,30 @@
+---
+id: kgr-2-where-vs-match
+type: mcq
+chapter: 2
+domain: cypher-querying
+bloom_level: apply
+objective_id: KGR-2.1
+difficulty: '1'
+tags: [cypher]
+options:
+  - id: a
+    text: "MATCH (m:Movie {released > 2000}) RETURN m"
+  - id: b
+    text: "MATCH (m:Movie) WHERE m.released > 2000 RETURN m"
+    correct: true
+  - id: c
+    text: "MATCH (m:Movie) RETURN m IF m.released > 2000"
+  - id: d
+    text: "FILTER (m:Movie) WHERE m.released > 2000 RETURN m"
+---
+import Rationale from '@brandon_m_behring/book-scaffold-astro/components/Rationale.astro';
+
+Which Cypher query returns all movies released after 2000?
+
+<Rationale title="Why">
+A range comparison needs a `WHERE` clause: `MATCH (m:Movie) WHERE m.released > 2000 RETURN m`.
+Inline `{...}` property matching only does *equality*, so `{released > 2000}` isn't valid
+syntax. Cypher has no `RETURN ... IF` construct, and the pattern clause is `MATCH`, not
+`FILTER`. Use inline `{}` for equality and `WHERE` for ranges and boolean logic.
+</Rationale>

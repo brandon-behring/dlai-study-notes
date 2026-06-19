@@ -1,0 +1,33 @@
+---
+id: kgr-2-create-vs-merge
+type: mcq
+chapter: 2
+domain: cypher-querying
+bloom_level: analyze
+objective_id: KGR-2.3
+difficulty: '2'
+tags: [cypher, write]
+options:
+  - id: a
+    text: CREATE — it's faster because it skips the existence check
+  - id: b
+    text: MERGE — it creates the relationship only if absent, so retries don't duplicate (idempotent)
+    correct: true
+  - id: c
+    text: CREATE with a LIMIT 1 to avoid making duplicates
+  - id: d
+    text: DELETE then CREATE on every run to stay consistent
+---
+import Rationale from '@brandon_m_behring/book-scaffold-astro/components/Rationale.astro';
+
+A bulk-load pipeline retries a batch and re-runs a relationship insert. Which clause is correct,
+and why?
+
+<Rationale title="Why">
+`MERGE` checks for the relationship and creates it only if it's missing, so re-processing the
+same batch leaves the graph unchanged — the idempotency a retry-prone pipeline needs. `CREATE`
+does skip the existence check, but that's exactly why it duplicates on every retry; `LIMIT`
+bounds *returned rows*, not writes, so it doesn't prevent duplicate creation; and delete-then-
+create is wasteful and races with concurrent readers. `MERGE` is the production default for
+relationships.
+</Rationale>

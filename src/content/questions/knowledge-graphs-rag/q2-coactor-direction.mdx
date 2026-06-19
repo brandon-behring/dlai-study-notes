@@ -1,0 +1,32 @@
+---
+id: kgr-2-coactor-direction
+type: mcq
+chapter: 2
+domain: cypher-querying
+bloom_level: analyze
+objective_id: KGR-2.2
+difficulty: '2'
+tags: [cypher, traversal]
+options:
+  - id: a
+    text: "(tom)-[:ACTED_IN]->(m)-[:ACTED_IN]->(coActor)"
+  - id: b
+    text: "(tom)<-[:ACTED_IN]-(m)-[:ACTED_IN]->(coActor)"
+  - id: c
+    text: "(tom)-[:ACTED_IN]->(m)<-[:ACTED_IN]-(coActor)"
+    correct: true
+  - id: d
+    text: "(tom)-[:ACTED_IN]-(coActor)"
+---
+import Rationale from '@brandon_m_behring/book-scaffold-astro/components/Rationale.astro';
+
+Which pattern finds Tom Hanks's co-actors — people who acted in the *same movie*?
+
+<Rationale title="Why">
+Both actors point *into* the shared movie, so the arrows must converge on `m`: forward from
+Tom (`-[:ACTED_IN]->`) and backward from the co-actor (`<-[:ACTED_IN]-`). The variant with both
+arrows pointing the same way would require the movie to itself act in a movie; the one starting
+`(tom)<-[:ACTED_IN]-(m)` says a movie acted in Tom (wrong direction); and the single-hop
+`(tom)-[:ACTED_IN]-(coActor)` skips the shared movie entirely. The convergent two-hop through
+the movie is the co-actor pattern.
+</Rationale>

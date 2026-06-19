@@ -1,0 +1,22 @@
+---
+id: kgr-2-connection
+type: free
+chapter: 2
+domain: cypher-querying
+bloom_level: understand
+objective_id: KGR-2.6
+difficulty: '1'
+tags: [neo4j, tooling]
+answer: >
+  LangChain's `Neo4jGraph` class wraps a Neo4j driver. You construct it with three parameters —
+  a connection `url` (the Neo4j URI), a `username`, and a `password` — loaded from environment
+  variables or a `.env` file, never hard-coded. It then exposes a `query()` method: pass a Cypher
+  string (optionally with a `params` dict for parameterised queries) and it returns the result as
+  a list of Python dictionaries, handling connection pooling and authentication for you. That's
+  the bridge from Python application code to the graph. Common wrong answer: "pass the credentials
+  inline in the query string" — credentials belong in the connection (from the environment), not
+  in Cypher.
+---
+
+Explain how the LangChain Neo4j Graph class connects a Python application to Neo4j: the three
+parameters it needs and the method used to run Cypher.

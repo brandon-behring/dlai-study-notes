@@ -1,0 +1,337 @@
+---
+book: knowledge-graphs-rag
+title: 'Querying Knowledge Graphs'
+chapter: 2
+part: 1
+description: >
+  A working Cypher tutorial — MATCH patterns with label/property filters and
+  WHERE, one-hop and multi-hop relationship traversal (co-actors), modifying the
+  graph with CREATE/MERGE/DELETE (and why MERGE is the idempotent default),
+  connecting from Python via the LangChain Neo4j Graph class, and the parse →
+  plan → execute → project execution model.
+learning_outcomes:
+  - id: KGR-2.1
+    verb: Apply
+    text: >
+      Cypher MATCH patterns with label filtering, property matching, and WHERE
+      clauses to retrieve nodes and relationships.
+  - id: KGR-2.2
+    verb: Design
+    text: >
+      multi-hop traversal queries that follow chains of relationships to discover
+      indirect connections (e.g. co-actors).
+  - id: KGR-2.3
+    verb: Compare
+    text: >
+      CREATE and MERGE for adding nodes and relationships, explaining when MERGE
+      prevents duplicate creation.
+  - id: KGR-2.4
+    verb: Apply
+    text: >
+      DELETE operations to remove nodes and relationships while respecting
+      referential-integrity constraints (DETACH DELETE).
+  - id: KGR-2.5
+    verb: Design
+    text: >
+      meaningful variable naming and query structure for readable, maintainable
+      Cypher.
+  - id: KGR-2.6
+    verb: Explain
+    text: >
+      how the LangChain Neo4j Graph class connects a Python application to Neo4j
+      and executes Cypher.
+  - id: KGR-2.7
+    verb: Trace
+    text: >
+      the execution of a Cypher query from pattern specification through matching
+      to result projection.
+tags:
+  - cypher
+  - querying
+  - neo4j
+  - merge
+  - traversal
+last_verified: 2026-06-19
+volatility: feature-surface
+sources:
+  - francis2018cypher
+  - langchain2023
+  - angles2017foundations
+draft: false
+---
+
+<Diagnostic skimTo="Modifying the graph">
+Predict before reading — check each against the chapter.
+
+1. To find Tom Hanks's *co-actors*, you traverse two `ACTED_IN` relationships through a shared movie. Predict the direction of each arrow.
+2. A bulk-load pipeline retries a batch and re-runs the same relationship insert. Predict what happens with `CREATE` vs `MERGE`.
+3. You try to `DELETE` a `Person` node that still has an `ACTED_IN` relationship. Predict the result.
+4. A query names its variables `n1`, `n2`, `n3`. Predict the main cost — to the *machine* or to the *next engineer*?
+
+<Fragment slot="answers">
+1. Tom `-[:ACTED_IN]->` Movie `<-[:ACTED_IN]-` CoActor — *forward* to the shared movie, then *backward* from the co-actor (the reverse arrow `<-`).
+2. `CREATE` makes a **duplicate** every run; `MERGE` is **idempotent** — it creates the relationship only if it doesn't already exist.
+3. It **fails** — you can't delete a node with relationships. Delete the relationships first, or use `DETACH DELETE` to remove the node and its relationships together.
+4. The **next engineer** — Cypher runs the same either way, but `n1/n2/n3` make a query unreadable. Meaningful names (`tom`, `coActor`) make it self-documenting.
+</Fragment>
+</Diagnostic>
+
+<NarrativeBox title="Where we are">
+Chapter 1 gave you the vocabulary — nodes, relationships, properties, labels. Now
+you *use* it. [Cypher](../glossary#term-cypher) turns graph structure into answers:
+you draw a pattern, and the engine returns every matching subgraph. This chapter
+is a working tutorial on the movie dataset — read, write, and modify graph data —
+and the patterns here recur in every later module.
+</NarrativeBox>
+
+## Connecting from Python
+
+The notebook talks to Neo4j through LangChain's
+[**Neo4j Graph**](../glossary#term-neo4jgraph) class, which wraps the connection
+and exposes a `query()` method that sends Cypher and returns Python dicts. It
+needs three credentials, loaded from the environment — never hard-coded: <EvidenceTag kind="verified" />
+
+```python
+from langchain_community.graphs import Neo4jGraph
+
+kg = Neo4jGraph(url=NEO4J_URI, username=NEO4J_USERNAME, password=NEO4J_PASSWORD)
+result = kg.query("MATCH (n) RETURN count(n)")   # [{'count(n)': 171}]
+```
+
+<SelfCheck q="How does kg.query() connect a Python app to Neo4j, and what three parameters does the connection need?" los="KGR-2.6">
+The LangChain `Neo4jGraph` class wraps a Neo4j driver: you construct it with a **URL**, a **username**, and a **password** (loaded from environment variables, not hard-coded), and it handles connection pooling and auth. Its `query()` method sends a Cypher string to the database and returns the results as a list of Python dictionaries — the bridge between application code and the graph.
+</SelfCheck>
+
+## The movie dataset
+
+The training graph models **Person** and **Movie** nodes (171 nodes, 38 movies)
+joined by relationship types that make Chapter 1's "identity through
+relationships" concrete — a person is an actor or a director purely by their
+relationships, not by a label:
+
+| Relationship | Direction | Meaning |
+| --- | --- | --- |
+| `ACTED_IN` | Person → Movie | acted in |
+| `DIRECTED` | Person → Movie | directed |
+| `WROTE` | Person → Movie | wrote |
+| `REVIEWED` | Person → Movie | reviewed |
+| `FOLLOWS` | Person → Person | a reviewer follows another |
+
+`Person` carries `name`, `born`; `Movie` carries `title`, `tagline`, `released`.
+
+## Reading the graph
+
+A Cypher [**MATCH**](../glossary#term-match-clause) specifies a pattern; the engine
+binds variables to every matching element. Filter by **label** inside the
+parentheses, match a **property** with braces, or add conditions with
+[**WHERE**](../glossary#term-where-clause):
+
+```cypher
+MATCH (n) RETURN count(n) AS totalNodes              -- all nodes (171)
+MATCH (m:Movie) RETURN count(m) AS movies            -- filter by label (38)
+MATCH (tom:Person {name: "Tom Hanks"}) RETURN tom    -- property match
+MATCH (m:Movie) WHERE m.released > 1990 AND m.released < 2000 RETURN m.title
+```
+
+<ConceptBox>
+**Property match vs WHERE.** `MATCH (p:Person {name: "Tom Hanks"})` and
+`MATCH (p:Person) WHERE p.name = "Tom Hanks"` are *equivalent*. Use inline
+property matching for simple equality; use `WHERE` for ranges, boolean logic, or
+anything more complex. Return whole nodes (`RETURN p`) or individual properties
+with dot notation (`RETURN p.name`).
+</ConceptBox>
+
+<SelfCheck q="Write a Cypher query that returns the titles of all movies released after 2000, and say which clause does the filtering." los="KGR-2.1">
+`MATCH (m:Movie) WHERE m.released > 2000 RETURN m.title`. The **`MATCH`** clause binds every `Movie` node; the **`WHERE`** clause filters them to those with `released > 2000`; `RETURN m.title` projects just the title. (Equivalently, a range like this needs `WHERE` — inline `{...}` property matching only does equality.)
+</SelfCheck>
+
+## Traversing relationships
+
+Extend the pattern with relationship syntax to follow connections. The arrow gives
+direction — `ACTED_IN` goes Person → Movie:
+
+```cypher
+-- All movies Tom Hanks acted in
+MATCH (tom:Person {name: "Tom Hanks"})-[:ACTED_IN]->(movie:Movie)
+RETURN tom.name, movie.title
+```
+
+[**Multi-hop traversal**](../glossary#term-multi-hop-traversal) is where graphs
+earn their keep: chain relationships to reach indirect connections. To find Tom
+Hanks's co-actors, go *forward* to a shared movie, then *backward* (the reverse
+arrow `<-`) from the co-actor:
+
+```cypher
+-- Co-actors: forward to the movie, backward from the co-actor
+MATCH (tom:Person {name: "Tom Hanks"})-[:ACTED_IN]->(m)<-[:ACTED_IN]-(coActor:Person)
+RETURN coActor.name, m.title
+```
+
+<KeyConcept title="The shared node is the graph's JOIN" los="KGR-2.2">
+A two-hop pattern through a shared node — `(a)-[:R]->(b)<-[:R]-(c)` — is the
+canonical way to discover indirect connections; the middle node `b` is the graph
+equivalent of a SQL JOIN, but written as a visual pattern instead of nested JOINs.
+**When it breaks:** traversals explode combinatorially on high-degree nodes — a
+movie with 50 actors yields $50^2$ co-actor pairs, and three hops can return
+millions of rows. Always bound results with `LIMIT` or a label/property filter. <EvidenceTag kind="verified" />
+</KeyConcept>
+
+<WorkedExample title="Two hops through a shared node" los="KGR-2.2">
+**Problem.** Find everyone who *directed* a movie Tom Hanks *acted in*; return
+director and title.
+
+**Reasoning.** Two relationship patterns share the movie node: `ACTED_IN`
+*forward* from Tom, `DIRECTED` *backward* from the director.
+
+```cypher
+MATCH (tom:Person {name: "Tom Hanks"})-[:ACTED_IN]->(m:Movie)<-[:DIRECTED]-(director:Person)
+RETURN director.name, m.title
+```
+
+**Answer.** Step 1: match Tom by `name`. Step 2: follow `ACTED_IN` forward to his
+movies. Step 3: follow `DIRECTED` *backward* from the same movie to its directors
+(e.g. Robert Zemeckis for *Forrest Gump*). The movie node is the join point — the
+whole query is one visual pattern, no self-JOINs.
+</WorkedExample>
+
+<CompletionProblem id="cypher-multihop" title="Complete the multi-hop query" level="completion">
+On the movie dataset, find the **co-directors** of a given person — two people who
+*directed the same movie*. Both `DIRECTED` relationships point Person → Movie.
+
+**Your turn — fill the blanks:**
+- The two directors connect through a shared `___` node.
+- One arrow points `___` (into the movie), the other `___` (out toward the second director).
+- `MATCH (a:Person {name: $name})-[:DIRECTED]->(m:Movie)<-[:___]-(b:Person)` … and you must also exclude `a = b`.
+
+<Fragment slot="solution">
+- Shared node: the **`Movie`**.
+- First arrow `->` (a *into* the movie), second `<-` (back *out* to b).
+- `MATCH (a:Person {name: $name})-[:DIRECTED]->(m:Movie)<-[:DIRECTED]-(b:Person) WHERE a <> b RETURN b.name, m.title`
+
+The `WHERE a <> b` matters — without it the pattern matches each director with *themselves* through their own movie. Same shape as co-actors, swapping `ACTED_IN` for `DIRECTED`; the shared `Movie` is the join.
+</Fragment>
+</CompletionProblem>
+
+## Modifying the graph
+
+`MATCH` + `RETURN` reads; [`CREATE`](../glossary#term-create),
+[`MERGE`](../glossary#term-merge), and [`DELETE`](../glossary#term-delete) write.
+Reads dominate in production, but graph-construction pipelines (Modules 4–6) live
+on writes.
+
+```cypher
+CREATE (andreas:Person {name: "Andreas"}) RETURN andreas       -- unconditional insert
+
+MATCH (a:Person {name: "Andreas"}), (e:Person {name: "Emil Eifrem"})
+MERGE (a)-[r:KNOWS]->(e) RETURN r                              -- idempotent: only if absent
+
+MATCH (p:Person {name: "Emil Eifrem"})-[r:ACTED_IN]->(:Movie)
+DELETE r                                                       -- remove a relationship
+```
+
+<RedFlag title="CREATE for relationships duplicates on every run">
+Using `CREATE` for a relationship inserts a *new* copy each time the query runs —
+so a retried bulk load silently builds duplicates. Use **`MERGE`** for
+relationships: it checks existence first and creates only if absent. This is the
+single most important production habit in graph construction. <EvidenceTag kind="verified" />
+</RedFlag>
+
+<KeyConcept title="MERGE is the idempotent default" los="KGR-2.3">
+`MERGE` combines existence-check + create in one atomic step, so re-processing the
+same data yields the *same* graph — the pipeline is **idempotent**, which is
+exactly what you need when data arrives from unreliable sources (API retries,
+replays, duplicate messages). Pair it with a uniqueness constraint and
+`ON CREATE SET` / `ON MATCH SET` to set initial vs updated properties. **When it
+breaks:** if you `MERGE` a pattern that includes a *volatile* property (a
+changing `timestamp`), MERGE treats each value as new and creates a fresh element
+every run — so MERGE on the *stable* identifier, then `ON MATCH SET` the volatile
+fields. <EvidenceTag kind="verified" />
+</KeyConcept>
+
+<Aside category="warning">
+You can't `DELETE` a node that still has relationships — Neo4j protects referential integrity. Delete its relationships first, or use **`DETACH DELETE`** to remove the node and all its relationships in one step.
+</Aside>
+
+<WorkedExample title="An idempotent ingest" los="KGR-2.3">
+**Problem.** A pipeline ingests social posts (`postId`, `author`, `text`,
+`timestamp`) and may re-process a batch on failure. Make ingestion idempotent.
+
+**Reasoning.** A uniqueness constraint + `MERGE` on the stable id + conditional
+`SET`:
+
+```cypher
+CREATE CONSTRAINT unique_post IF NOT EXISTS
+FOR (p:Post) REQUIRE p.postId IS UNIQUE;
+
+MERGE (p:Post {postId: $post.postId})
+ON CREATE SET p.author = $post.author, p.text = $post.text,
+              p.timestamp = $post.timestamp, p.createdAt = datetime()
+ON MATCH SET  p.timestamp = $post.timestamp, p.updatedAt = datetime()
+```
+
+**Answer.** With `CREATE`, three retries make three identical posts (or fail the
+second time if a constraint exists). `MERGE` on `postId` updates the existing node
+instead, giving **exactly-once** semantics regardless of retries. Constraint +
+`MERGE` + `ON CREATE`/`ON MATCH SET` *is* the production idempotent-ingest pattern.
+</WorkedExample>
+
+<SelfCheck q="Compare CREATE and MERGE for a bulk-loading pipeline that may retry batches. Which is safe, and why?" los="KGR-2.3">
+`CREATE` inserts unconditionally, so a retried batch duplicates nodes/relationships (or hits a constraint error). `MERGE` checks for the element first and creates only if absent, so re-processing the same data leaves the graph unchanged — it's **idempotent**, the property a retry-prone pipeline needs. Use `MERGE` on a *stable* identifier and `ON MATCH SET` for volatile fields; reserve `CREATE` for guaranteed-new inserts where you want to skip the existence check.
+</SelfCheck>
+
+## How a query executes
+
+Understanding the pipeline helps you write fast queries:
+
+<PipelineBox title="Cypher query execution">
+1. **Parse** — the query string becomes an abstract syntax tree; label filters and property matches are identified.
+2. **Plan** — the optimiser picks indexes, scan order, and join strategy; labels and indexes shrink the search space.
+3. **Execute** — the engine traverses the graph hop by hop, binding variables to matched elements.
+4. **Project** — only the properties/aggregations in `RETURN` are extracted and returned.
+</PipelineBox>
+
+Run `EXPLAIN` before a query to see the plan without executing; `PROFILE` to run
+it and see actual row counts per step.
+
+<SelfCheck q="Trace what the engine does for MATCH (p:Person)-[:ACTED_IN]->(m:Movie) RETURN p.name, m.title LIMIT 5." los="KGR-2.7">
+**Parse** the string into a pattern (a `Person` linked by `ACTED_IN` to a `Movie`). **Plan**: use the `Person`/`Movie` labels (and any index) to choose where to start and how to expand. **Execute**: find `Person` nodes, traverse outgoing `ACTED_IN` relationships to `Movie` nodes, binding `p` and `m` — stopping early thanks to `LIMIT 5`. **Project**: return only `p.name` and `m.title` for those 5 matches. Pattern spec → match → projection.
+</SelfCheck>
+
+## Cypher pattern cheat-sheet
+
+Nine patterns cover most knowledge-graph query needs and recur through every later
+module:
+
+| Need | Cypher |
+| --- | --- |
+| Count all nodes | `MATCH (n) RETURN count(n)` |
+| Filter by label | `MATCH (m:Movie) RETURN m` |
+| Property match | `MATCH (p:Person {name: "Tom"}) RETURN p` |
+| Conditional | `MATCH (m:Movie) WHERE m.released > 2000 RETURN m` |
+| One hop | `MATCH (p)-[:ACTED_IN]->(m) RETURN p, m` |
+| Two hops | `MATCH (a)-[:R]->(b)<-[:R]-(c) RETURN a, c` |
+| Create node | `MATCH` … `CREATE (n:Label {k: "v"})` |
+| Merge relationship | `MATCH (a),(b) MERGE (a)-[:R]->(b)` |
+| Delete relationship | `MATCH ()-[r:R]->() DELETE r` |
+
+<Aside category="pattern">
+**Readable queries are a design choice** (KGR-2.5): name variables for what they hold — `tom`, `coActor`, `m` for Movie — not `n1`, `n2`. Cypher executes identically either way, so the cost of cryptic names is paid entirely by the next person to read the query (often you, in three months). Self-documenting patterns are part of maintainable graph code.
+</Aside>
+
+<SelfCheck q="Why should Cypher variable names be meaningful, given the engine runs the query the same regardless?" los="KGR-2.5">
+Because the names are for *humans*, not the engine: `(tom:Person)-[:ACTED_IN]->(m:Movie)` reads as its own documentation, while `(n1)-[:ACTED_IN]->(n2)` forces the reader to reconstruct what each variable means. In multi-hop queries the difference is the gap between a pattern you can scan and one you have to decode — meaningful names are a maintainability investment with zero runtime cost.
+</SelfCheck>
+
+## Summary
+
+Cypher mirrors the graph: `()` nodes, `[]` relationships, arrows for direction.
+`MATCH` binds patterns, labels and `WHERE` filter, dot notation projects.
+Multi-hop traversals through a shared node are the graph's JOIN, natural where SQL
+needs nested self-JOINs. `MERGE` (not `CREATE`) is the idempotent default for
+writes; `DELETE`/`DETACH DELETE` respect referential integrity. These fundamentals
+power every later module — where you build, query, and extend a knowledge graph
+from SEC filings.
+
+- **Chapter 3** — *preparing text for RAG*: vector indexes and embeddings on the graph.
+- **Chapters 4–6** — constructing and expanding the SEC knowledge graph.
+- **Chapter 7** — an LLM writes this Cypher for you.

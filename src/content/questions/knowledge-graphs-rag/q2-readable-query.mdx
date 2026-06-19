@@ -1,0 +1,21 @@
+---
+id: kgr-2-readable-query
+type: free
+chapter: 2
+domain: cypher-querying
+bloom_level: apply
+objective_id: KGR-2.5
+difficulty: '2'
+tags: [cypher, readability]
+answer: >
+  Rewrite `MATCH (a)-[:ACTED_IN]->(b)<-[:DIRECTED]-(c) RETURN a.name, c.name` with names that say
+  what each variable is: `MATCH (actor:Person)-[:ACTED_IN]->(movie:Movie)<-[:DIRECTED]-(director:
+  Person) RETURN actor.name, director.name`. Adding the `Person`/`Movie` labels also lets the
+  planner narrow the search, and the structure now reads as "an actor's movie, also directed by
+  a director." Same execution, far clearer intent — and the labels can improve the plan. Common
+  wrong answer: leaving the single-letter variables and adding a comment instead — a comment
+  drifts out of date, whereas self-describing variable names stay correct because they're part of
+  the query.
+---
+
+Rewrite this query for readability and explain what improved: `MATCH (a)-[:ACTED_IN]->(b)<-[:DIRECTED]-(c) RETURN a.name, c.name`.
