@@ -1,0 +1,13 @@
+---
+term: Memory and State
+aliases: [agent memory, state]
+domain: eval-foundations
+see: [router, skill]
+tags: [agents]
+---
+
+The agent's **notebook** — retrieved context, configuration, and the log of previous
+execution steps that later decisions depend on. Evaluating it asks whether the *right*
+information persists across steps: stale, missing, or corrupted state is a failure mode
+distinct from a wrong route or a bad skill output, and one that end-to-end scoring often
+misattributes to the skill that acted on the bad state.

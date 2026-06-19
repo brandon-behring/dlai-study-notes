@@ -1,0 +1,23 @@
+---
+id: eaa-1-edd-loop
+type: free
+chapter: 1
+domain: eval-foundations
+bloom_level: understand
+objective_id: EAA-1.5
+difficulty: '1'
+tags: [eval-driven-development, workflow]
+answer: >
+  The three steps are: trace (capture each step's inputs and outputs), evaluate (score each
+  component against its criteria — routing accuracy, skill output quality, and so on), and
+  iterate (fix the worst-scoring component) — repeated on every code or prompt change. The
+  difference from a pre-deployment gate is timing: evaluation-driven development makes
+  evaluation the primary feedback loop *during* development, so regressions surface
+  immediately and are cheap to localise, whereas a gate catches them only at the end when they
+  are expensive to trace back. Common wrong answer: "it's the same as running the test suite
+  before release" — that is exactly the gate model EDD replaces; EDD evaluates continuously,
+  not once at the end.
+---
+
+Describe the three steps of evaluation-driven development and explain how it differs from
+running evaluations as a pre-deployment gate.

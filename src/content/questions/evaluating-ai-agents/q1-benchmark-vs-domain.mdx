@@ -1,0 +1,25 @@
+---
+id: eaa-1-benchmark-vs-domain
+type: free
+chapter: 1
+domain: eval-foundations
+bloom_level: apply
+objective_id: EAA-1.2
+difficulty: '3'
+tags: [evaluation, benchmarks, model-selection]
+answer: >
+  Leaderboards measure isolated-model capability on general benchmarks (model evaluation);
+  they say nothing about how the model performs inside your prompts, retrieval, and tools on
+  *legal* data (system evaluation). Benchmark scores also suffer saturation, possible training
+  contamination, and distribution mismatch with a specialised legal domain. The right process:
+  use the leaderboard to shortlist two or three candidates, then run system evaluation on a
+  curated set of representative legal queries with domain-appropriate criteria — citation
+  correctness, hallucination rate, refusal on out-of-scope questions — and pick the winner on
+  that. Common wrong answer: "the top-ranked model is the safe choice" — ranking predicts
+  general capability, not domain performance; the only decision-grade signal is evaluation on
+  your own data.
+---
+
+Your manager wants to choose a model for a legal-document assistant purely by leaderboard
+ranking. Make the case for what additional evaluation is required and why the leaderboard
+alone is insufficient.

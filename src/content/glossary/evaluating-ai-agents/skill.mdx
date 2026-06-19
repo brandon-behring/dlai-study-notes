@@ -1,0 +1,13 @@
+---
+term: Skill
+aliases: [agent skill, capability]
+domain: eval-foundations
+see: [router, memory-and-state]
+tags: [agents]
+---
+
+An individual **capability** within an agent — query a database, generate analysis, build a
+chart. A skill may contain several sub-steps (LLM calls, API calls, code), and **each
+sub-step is its own evaluation target**. An entire LLM application can itself be a single
+skill inside a larger agent, which is why agent decomposition recurses: the unit you
+evaluate depends on the level at which you draw the boundary.

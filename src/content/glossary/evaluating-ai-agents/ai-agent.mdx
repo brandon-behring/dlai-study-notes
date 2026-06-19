@@ -1,0 +1,14 @@
+---
+term: AI Agent
+aliases: [agent, agentic system]
+domain: eval-foundations
+see: [router, skill, memory-and-state, three-layer-evaluation]
+tags: [agents]
+---
+
+A software system that **takes actions on behalf of a user using reasoning** — deciding
+*what* to do next, *which* tool to call, and *when* to stop, rather than emitting a single
+fixed response. It composes three capabilities: reasoning (the LLM), routing (tool
+selection), and action (execution), then loops on the result. What makes an agent harder to
+evaluate than a plain LLM application is the third, *agent* layer: multi-step, dynamic paths
+whose success depends on choices made at run time.

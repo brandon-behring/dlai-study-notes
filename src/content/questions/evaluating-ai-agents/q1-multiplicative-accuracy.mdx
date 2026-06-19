@@ -1,0 +1,34 @@
+---
+id: eaa-1-multiplicative-accuracy
+type: mcq
+chapter: 1
+domain: eval-foundations
+bloom_level: analyze
+objective_id: EAA-1.4
+difficulty: '2'
+tags: [evaluation, reliability]
+options:
+  - id: a
+    text: 90% — the steps don't compound because they are independent
+  - id: b
+    text: 95% — independent steps average their success rates
+  - id: c
+    text: 81% — independent step successes multiply (0.9 × 0.9), so component quality compounds and end-to-end-only metrics hide where the loss occurs
+    correct: true
+  - id: d
+    text: 99% — combining two strong components raises overall reliability
+---
+import Rationale from '@brandon_m_behring/book-scaffold-astro/components/Rationale.astro';
+
+An agent routes correctly 90% of the time, and its single skill produces a correct output
+90% of the time, independently. What end-to-end success rate should you expect, and what does
+it imply?
+
+<Rationale title="Why">
+End-to-end success requires *both* independent steps to succeed, so the probabilities
+multiply: $0.9 \times 0.9 = 0.81$. Independence does cause compounding — the claim that they
+don't is exactly the error. Success rates are not averaged (that would give 90%), and
+chaining components lowers reliability rather than raising it toward 99%. The takeaway: two
+"90% — looks fine" components yield a system that fails roughly one in five times, which is
+the quantitative case for evaluating components, not just the endpoint.
+</Rationale>

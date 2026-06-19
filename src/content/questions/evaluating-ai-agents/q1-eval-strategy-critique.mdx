@@ -1,0 +1,26 @@
+---
+id: eaa-1-eval-strategy-critique
+type: free
+chapter: 1
+domain: eval-foundations
+bloom_level: analyze
+objective_id: EAA-1.8
+difficulty: '3'
+tags: [evaluation, layers, strategy]
+answer: >
+  End-to-end task-resolution rate is necessary but not sufficient. What it catches: whether the
+  agent succeeded overall, reflecting real user outcomes — keep it. What it misses: *where* and
+  *why* it failed. A single number aggregates router, skill, and state failures, so a drop
+  can't tell you which component broke; the multiplicative-accuracy effect means several
+  mediocre components can sink the rate invisibly; and rare failure modes hide inside the
+  average. What to add: component-level evals (routing accuracy, per-skill output quality) and
+  trajectory/trace inspection so a regression localises to a layer, plus slicing by query type
+  to expose rare failures. Layer the metric to the failure mode — end-to-end for outcome,
+  component for diagnosis. Common wrong answer: "resolution rate is ground truth, so it's
+  enough" — it is the right *outcome* metric but cannot localise failures, which is exactly
+  what you need to fix them.
+---
+
+A team proposes to catch every agent failure by tracking a single metric: end-to-end
+task-resolution rate. Evaluate this strategy — what will it catch, what will it miss, and what
+would you add?

@@ -1,0 +1,14 @@
+---
+term: LLM Model Evaluation
+aliases: [model eval, benchmark evaluation]
+domain: eval-foundations
+see: [llm-system-evaluation, three-layer-evaluation]
+tags: [evaluation, benchmarks]
+---
+
+Evaluation of an **isolated LLM** using standardised benchmarks — MMLU (knowledge),
+HumanEval (code), GSM8K (math). Model providers run it; it answers "how capable is this
+model in general?" It does **not** predict performance in a specific application, where the
+surrounding prompts, retrieval, and tools dominate the outcome. Use model evaluation to
+*shortlist* candidate models, never to decide whether your system actually works — that is
+the job of [system evaluation](#term-llm-system-evaluation).

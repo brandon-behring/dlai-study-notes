@@ -1,0 +1,13 @@
+---
+term: Evaluation-Driven Development
+aliases: [eval-driven development, EDD]
+domain: eval-foundations
+see: [llm-system-evaluation, non-determinism]
+tags: [evaluation, workflow]
+---
+
+A methodology where **every code or prompt change triggers an evaluation cycle**: trace
+execution, evaluate each component against its criteria, then iterate on the worst-scoring
+one. It is the LLM analogue of test-driven development. The defining shift is *timing* —
+evaluation is the primary feedback loop **during** development, not a gate cleared just
+before deployment — so regressions surface while they are still cheap to fix.

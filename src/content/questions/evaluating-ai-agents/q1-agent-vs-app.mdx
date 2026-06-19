@@ -1,0 +1,32 @@
+---
+id: eaa-1-agent-vs-app
+type: mcq
+chapter: 1
+domain: eval-foundations
+bloom_level: apply
+objective_id: EAA-1.1
+difficulty: '2'
+tags: [agents, fundamentals]
+options:
+  - id: a
+    text: A prompt that summarises a pasted document in a single LLM call
+  - id: b
+    text: A RAG pipeline that retrieves, then generates an answer, in a fixed two-step sequence
+  - id: c
+    text: A classifier that labels incoming emails by topic with one LLM call
+  - id: d
+    text: A system that decides per request whether to search the web, query a database, or answer directly, then picks the next step from what it found
+    correct: true
+---
+import Rationale from '@brandon_m_behring/book-scaffold-astro/components/Rationale.astro';
+
+You have four LLM features. Which one is an *agent* rather than a fixed LLM application?
+
+<Rationale title="Why">
+The distinguishing mark of an agent is **run-time reasoning about what to do next** — the
+system that chooses among searching, querying, or answering, and then routes based on the
+result, is making routing decisions an application doesn't. The single-call summariser and
+the email classifier are one-shot LLM calls with no routing. The RAG pipeline runs a
+*predetermined* retrieve-then-generate sequence — useful, but the path is fixed in advance,
+so it is an application, not an agent.
+</Rationale>

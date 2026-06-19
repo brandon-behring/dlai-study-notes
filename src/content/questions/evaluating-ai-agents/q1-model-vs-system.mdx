@@ -1,0 +1,34 @@
+---
+id: eaa-1-model-vs-system
+type: mcq
+chapter: 1
+domain: eval-foundations
+bloom_level: understand
+objective_id: EAA-1.2
+difficulty: '2'
+tags: [evaluation, benchmarks]
+options:
+  - id: a
+    text: Benchmark scores measure isolated-model capability and don't reflect how the model performs inside their specific prompts, retrieval, and tools
+    correct: true
+  - id: b
+    text: MMLU and HumanEval are outdated benchmarks that no longer correlate with model capability
+  - id: c
+    text: The team should have used GSM8K, which better matches agent tasks
+  - id: d
+    text: Benchmark evaluation is valid only if it is re-run on every prompt change
+---
+import Rationale from '@brandon_m_behring/book-scaffold-astro/components/Rationale.astro';
+
+A team reports their agent "passed evaluation" because the underlying model ranks in the top
+tier on MMLU and HumanEval. What is the most important limitation of this claim?
+
+<Rationale title="Why">
+A high benchmark score is **model evaluation** — it measures the isolated model's general
+capability, not how that model behaves inside the team's prompts, retrieval, and tools on
+their own data, which is **system evaluation**. The age of the benchmarks isn't the core
+issue; they remain useful as a capability signal. Swapping to GSM8K just substitutes one
+general benchmark for another — still not their domain. And benchmark evaluation isn't
+something you re-run per prompt change; that frequency describes system evaluation. The gap
+is that "the model is capable" was mistaken for "our system works."
+</Rationale>

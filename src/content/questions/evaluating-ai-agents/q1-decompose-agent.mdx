@@ -1,0 +1,24 @@
+---
+id: eaa-1-decompose-agent
+type: free
+chapter: 1
+domain: eval-foundations
+bloom_level: analyze
+objective_id: EAA-1.4
+difficulty: '2'
+tags: [agents, routing, decomposition]
+answer: >
+  Router: the LLM function-calling step that chooses among the four skills. Skills: flight
+  search, loyalty-balance check, reservation hold, and email drafting (each possibly
+  multi-step). Memory/state: the trip parameters and conversation history carried between
+  steps. Evaluate the router first — if it picks the wrong skill, all downstream work is
+  wasted, and routing is the most common origin of agent failure. Build a labelled dataset of
+  user messages paired with the expected skill and measure per-category routing accuracy, then
+  move to the lowest-scoring skill. Common wrong answer: "evaluate the final email quality" —
+  that is an end-to-end measure that tells you *that* the agent failed, not *where*; a routing
+  error would masquerade as a bad skill output and send you debugging the wrong component.
+---
+
+A travel-booking agent can search flights, check a loyalty balance, hold a reservation, and
+draft a confirmation email, routed by LLM function calling. Decompose it into router /
+skills / memory, and say which you would evaluate first and how.

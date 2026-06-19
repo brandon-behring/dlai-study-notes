@@ -49,6 +49,12 @@ export default await defineBookConfig({
     'data-and-grading',
     'reasoning-and-safety',
     'production-pipelines',
+    // evaluating-ai-agents
+    'eval-foundations',
+    'observability',
+    'component-evals',
+    'trajectory-evals',
+    'llm-judge-monitoring',
   ],
   markdown: {
     remarkPlugins: [remarkMath],

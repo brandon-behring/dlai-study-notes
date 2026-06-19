@@ -1,0 +1,14 @@
+---
+term: Non-Determinism
+aliases: [non-deterministic behaviour, stochasticity]
+domain: eval-foundations
+see: [llm-system-evaluation, evaluation-driven-development]
+tags: [evaluation, fundamentals]
+---
+
+The property that **identical inputs can produce different outputs** across runs — caused by
+sampling temperature, floating-point non-associativity, batching, and provider-side model
+updates. It is why a single passing run is a *sample*, not a proof: a change can raise
+average quality while introducing rare failures one run never surfaces. Evaluation must
+therefore be **statistical** over a representative dataset, not a binary pass/fail on one
+run. Setting temperature to 0 reduces but does not eliminate it.

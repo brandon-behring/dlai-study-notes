@@ -1,0 +1,326 @@
+---
+book: evaluating-ai-agents
+title: 'Evaluation Foundations'
+chapter: 1
+part: 1
+description: >
+  Why non-determinism breaks traditional testing for LLM systems, the
+  model-vs-system evaluation distinction, the three-layer (model / application /
+  agent) view, decomposing an agent into router / skills / memory as independent
+  evaluation targets, and the evaluation-driven development loop.
+learning_outcomes:
+  - id: EAA-1.1
+    verb: Define
+    text: >
+      an AI agent as a system with reasoning, routing, and action capabilities,
+      distinguishing it from simpler LLM applications.
+  - id: EAA-1.2
+    verb: Compare
+    text: >
+      LLM model evaluation (benchmarks on isolated models) with LLM system
+      evaluation (end-to-end performance on domain data).
+  - id: EAA-1.3
+    verb: Explain
+    text: >
+      why non-determinism makes LLM system testing fundamentally different from
+      traditional software testing.
+  - id: EAA-1.4
+    verb: Analyze
+    text: >
+      an agent into router, skills, and memory/state components to create
+      independent evaluation targets.
+  - id: EAA-1.5
+    verb: Describe
+    text: >
+      the evaluation-driven development workflow: trace agent steps, evaluate
+      component-wise, iterate on failures.
+  - id: EAA-1.6
+    verb: Compare
+    text: >
+      centralised and distributed routing architectures and their trade-offs for
+      evaluation coverage.
+  - id: EAA-1.7
+    verb: Apply
+    text: >
+      the agent–application–model layer model to classify a real evaluation
+      activity as Layer 1, 2, or 3.
+  - id: EAA-1.8
+    verb: Evaluate
+    text: >
+      whether a proposed evaluation strategy targets the right layer for the
+      failure mode it claims to detect.
+tags:
+  - evaluation
+  - agents
+  - non-determinism
+  - routing
+  - eval-driven-development
+last_verified: 2026-06-19
+volatility: architectural-pattern
+sources:
+  - yao2022react
+draft: false
+---
+
+<Diagnostic skimTo="Decomposing the agent">
+Before reading, commit to an answer for each — you will check them against the chapter.
+
+1. You change one prompt and an *unrelated* part of your agent regresses. Predict why a single passing test run would miss this.
+2. A model tops the MMLU leaderboard. Estimate how much that tells you about whether it will work in *your* application. High, some, or almost none?
+3. A four-step agent is 90% reliable at every step. Guess the end-to-end success rate — above 80%, around 65%, or below 50%?
+4. If you could evaluate only *one* component of a tool-using agent first, predict which one returns the most signal per unit effort.
+
+<Fragment slot="answers">
+1. The single run sampled one of many possible paths; the regression shows up only on the *other* inputs/samples you didn't draw. Non-determinism makes one run a sample, not a proof — you need statistical evaluation over a dataset.
+2. **Almost none, directly.** Benchmarks measure isolated-model capability; your app's success depends on prompts, retrieval, and tools. Use benchmarks to shortlist models, not to decide.
+3. **Around 65%** — $0.9^4 \approx 0.66$. Per-step reliability compounds multiplicatively; "looks fine" components make a failing system.
+4. The **router**. If it picks the wrong skill, every downstream step is wasted — routing errors cascade and are the cheapest to catch early.
+</Fragment>
+</Diagnostic>
+
+<NarrativeBox title="Where we are">
+You can build an LLM application — a prompt chain, a RAG pipeline, maybe a
+small agent. It works in the demo. Then you change a prompt, swap a model, or
+add a tool, and something *else* breaks. This chapter establishes the core
+problem: LLM systems are non-deterministic, so traditional pass/fail testing is
+not enough. The fix is **evaluation-driven development** — and it starts by
+decomposing the agent into pieces you can measure independently.
+</NarrativeBox>
+
+## The evaluation problem
+
+<Newthought>Building an LLM application is easy;</Newthought> knowing whether it
+*works well* is the hard part. Traditional software testing rests on a guarantee
+LLM systems do not honour: the same input produces the same output. Break that
+guarantee and the whole apparatus of deterministic assertions — `assertEqual`,
+golden files, a green test run as proof of correctness — stops meaning what you
+think it means.
+
+Picture a research agent: it searches the web, picks relevant sources, collects
+content, summarises, and iterates. Every step is an LLM call, and every call can
+produce different output on every run. Improve the summarisation prompt and you
+might quietly degrade the search step, which now receives slightly different
+queries. Without systematic evaluation, that regression hides until a user hits
+it in production.
+
+<Aside category="warning">
+Even a small prompt change can regress an unrelated component. Without evaluation coverage, you find out when users complain — not when you ship.
+</Aside>
+
+## Model evaluation vs system evaluation
+
+The first distinction to internalise — and a frequent interview opener — is
+between two layers that the word "evaluation" conflates.
+
+[**LLM model evaluation**](../glossary#term-llm-model-evaluation) measures an
+*isolated* model's capability with standardised benchmarks — MMLU for knowledge,
+HumanEval for code, GSM8K for math. Model providers run these. They answer: *how
+capable is this model in general?*
+
+[**LLM system evaluation**](../glossary#term-llm-system-evaluation) measures how
+well *your entire application* performs on real-world, domain-specific data. It
+answers the only question that pays the bills: *does my system solve the user's
+actual problem?*
+
+| Dimension | Model eval | System eval |
+| --- | --- | --- |
+| Data source | Standardised benchmarks | Your domain data |
+| What is tested | Isolated model capability | End-to-end application |
+| Run frequency | Once, before model selection | On every prompt/code change |
+
+<KeyConcept title="Model eval tells you what a model *can* do; system eval tells you what your application *actually does*" los="EAA-1.2">
+A top-ranked model on MMLU can still produce a failing application if the
+prompts, retrieval, or tools around it are poor. Teams that evaluate only the
+model ship applications that "should work" but don't. The catch: system
+evaluation needs representative test data, which is expensive to curate early —
+so start with a small synthetic test set and grow it as real traffic arrives. <EvidenceTag kind="verified" />
+</KeyConcept>
+
+<Aside category="pattern">
+Where practitioners disagree — *do benchmark scores predict production performance?* One camp treats leaderboard gains (MMLU, agent benchmarks) as a real capability signal and a useful filter. The other points to benchmark saturation, training-set contamination, and distribution mismatch: a top-benchmark model routinely underperforms on a specific domain. The workable resolution most teams converge on: use **model eval to shortlist** candidates, **system eval on your own data to decide**. The debate sharpens in Chapter 3 (component metrics) and Chapter 4 (which number is the *honest* one).
+</Aside>
+
+<SelfCheck q="State the difference between model evaluation and system evaluation, with one concrete example of each and when each is run." los="EAA-1.2">
+**Model eval** = isolated-model capability on standardised benchmarks (e.g. MMLU on GPT-4o), run once before selecting a model. **System eval** = end-to-end performance of your application on domain data (e.g. resolution rate of your support agent on 100 real tickets), run on every prompt or code change. Model eval filters candidates; system eval decides whether *your* system works.
+</SelfCheck>
+
+## Non-determinism and the testing gap
+
+The course's analogy is worth keeping. Testing traditional software is a **train
+on a track**: the same input follows a fixed path to a deterministic output.
+Testing an LLM system is **driving through a busy city**: the same start can take
+different routes depending on conditions. A binary pass/fail assertion cannot
+describe the second world.
+
+[Non-determinism](../glossary#term-non-determinism) has a concrete consequence: a
+prompt change that improves *average* quality can introduce occasional failures a
+single run never reveals. You sampled one path; the failure lives on a path you
+didn't draw. The remedy is **statistical evaluation** over a representative
+dataset, run on every change — not one demo that happened to go well.
+
+<Aside category="warning">
+Setting temperature to 0 *reduces* variation but does not eliminate it — floating-point non-associativity, batching, and provider-side model updates still drift outputs. Treat evaluation as statistical, never binary. <EvidenceTag kind="verified" />
+</Aside>
+
+<SelfCheck q="Why is one passing test run insufficient evidence that an LLM system change is safe?" los="EAA-1.3">
+Because identical inputs can yield different outputs across runs, a single run samples *one* of many possible behaviours. A change can raise average quality while adding rare failures the one run didn't surface. Only statistical evaluation over a representative dataset estimates the real failure rate.
+</SelfCheck>
+
+## What is an AI agent?
+
+<ConceptBox>
+**Definition.** An [AI agent](../glossary#term-ai-agent) is a software system
+that **takes actions on behalf of a user using reasoning**. Unlike a fixed LLM
+application, an agent decides *what* to do next, *which* tool to use, and *when*
+to stop — all through LLM-powered reasoning. <EvidenceTag kind="verified" />
+</ConceptBox>
+
+Concretely, an agent composes three capabilities: **reasoning** (the LLM),
+**routing** (choosing a tool or skill), and **action** (executing it), then loops
+on the result. That action-taking-via-reasoning loop is what the ReAct line of
+work formalised. <EvidenceTag kind="verified" />
+
+Agents add a *third* layer of evaluation difficulty on top of model and
+application. Holding the [three-layer view](../glossary#term-three-layer-evaluation)
+in mind is what lets you place any evaluation activity correctly.
+
+| Layer | What | Evaluation challenge |
+| --- | --- | --- |
+| 1 — Model | The isolated LLM | Fixed benchmarks; handled by the provider |
+| 2 — Application | Your prompts + retrieval | Domain-specific, end-to-end |
+| 3 — Agent | Multi-step routing | Dynamic, variable paths, state across steps |
+
+<Aside category="interview">
+"How would you evaluate an agent?" — start by naming the three layers (model / application / agent) *before* proposing any metric. It signals you understand the problem's structure rather than reaching for "accuracy" reflexively.
+</Aside>
+
+<SelfCheck q="Define an AI agent and name its three core capabilities." los="EAA-1.1">
+An AI agent is a software system that takes actions on a user's behalf using reasoning. Its three capabilities are **reasoning** (LLM decides what to do), **routing** (selects which tool/skill to call), and **action** (executes the tool), iterating on the result. The reasoning-driven choice of *what next* is what separates it from a fixed prompt chain.
+</SelfCheck>
+
+## Decomposing the agent
+
+Decomposition is not architectural tidiness — it is an **evaluation strategy**.
+Each component has different failure modes and therefore different evaluation
+criteria, so each becomes an independent target you can measure and fix in
+isolation.
+
+- **The [router](../glossary#term-router) is the brain.** It decides which skill or function to call. Routers span a spectrum from rules-based code (deterministic, limited) to LLM function calling (flexible, non-deterministic). <EvidenceTag kind="verified" />
+- **[Skills](../glossary#term-skill) are the hands.** Each is a capability — query a database, generate analysis, build a chart. A skill may itself contain several sub-steps, and *each sub-step* is its own evaluation target. An entire LLM application can be a single skill inside a larger agent.
+- **[Memory and state](../glossary#term-memory-and-state) is the notebook.** Retrieved context, configuration, and the log of prior steps that later decisions depend on.
+
+The cycle — router → skill → memory update → router — makes every transition an
+evaluation boundary.
+
+### Centralised vs distributed routing
+
+In [**centralised routing**](../glossary#term-centralised-routing) a single
+router makes every decision: easy to trace, easy to evaluate, but a bottleneck
+for complex flows. In [**distributed routing**](../glossary#term-distributed-routing)
+(LangGraph, OpenAI Swarm-style graphs) routing logic is spread across the graph:
+more flexible, but harder to evaluate because routing decisions happen at many
+points, each a separate place a wrong turn can originate.
+
+The course's running example is a **data-analysis assistant** over a sales
+database, with three skills — *data lookup* (LLM-generated SQL run on DuckDB),
+*data analysis* (a single LLM call returning markdown), and *data visualisation*
+(two sequential calls: chart-config extraction, then code generation). Note that
+visualisation is itself two evaluation targets, illustrating how a single "skill"
+decomposes further into sub-steps you score independently.
+
+<WorkedExample title="Why component reliability compounds" los="EAA-1.4">
+**Problem.** An agent answers a query in one route step plus one skill step. The
+router picks the right skill 90% of the time; the skill produces a correct
+output 90% of the time. What is the end-to-end success rate? Now extend to a
+four-step agent at 90% per step.
+
+**Reasoning.** End-to-end success requires *every* independent step to succeed,
+so the probabilities multiply:
+
+$$P(\text{success}) = P(\text{route}) \times P(\text{skill}) = 0.9 \times 0.9 = 0.81.$$
+
+For a four-step chain at 90% each:
+
+$$P(\text{success}) = 0.9^4 \approx 0.66.$$
+
+**Answer.** Two "90% — looks fine" components yield an agent that fails roughly
+**1 in 5** times; four such steps fail **1 in 3**. The lesson: per-component
+quality compounds, so end-to-end-only evaluation hides where the loss comes
+from, and you need *high* per-component reliability before a multi-step agent is
+trustworthy. This multiplicative reality is the quantitative case for
+component-wise evaluation.
+</WorkedExample>
+
+<KeyConcept title="Decomposition turns one opaque failure into localisable ones" los="EAA-1.4">
+End-to-end evaluation tells you *that* the agent failed. Component-wise
+evaluation tells you *where* and *why*. The router is scored on skill-selection
+accuracy, each skill on output quality, each sub-step on its own correctness
+criterion. The caveat: component evaluation can miss *interaction* effects
+(each piece passes, the composition still fails), so you need both component and
+end-to-end views.
+</KeyConcept>
+
+<SelfCheck q="Name the three components of agent decomposition and why each is a separate evaluation target." los="EAA-1.4">
+**Router** (chooses the skill — scored on selection accuracy), **skills** (execute capabilities — scored on output quality, sub-step by sub-step), and **memory/state** (carried context — scored on whether the right information persists). Each has distinct failure modes, so evaluating them separately localises a failure that end-to-end scoring would only report as "the agent was wrong."
+</SelfCheck>
+
+## Evaluation-driven development
+
+<ConceptBox>
+**The loop.** [Evaluation-driven development](../glossary#term-evaluation-driven-development)
+runs three steps on *every* change: (1) **trace** the agent's execution to
+capture each step's inputs and outputs, (2) **evaluate** each component against
+defined criteria, (3) **iterate** on the component that scored worst. It is the
+LLM analogue of test-driven development.
+</ConceptBox>
+
+The difference from "testing" is *when* it runs. Evaluation-driven development
+treats eval runs as the primary feedback loop *during* development — not a gate
+you clear right before deployment. Teams that evaluate only before shipping catch
+regressions too late to be cheap. The supporting toolkit is small and familiar:
+trace instrumentation, an eval runner (often including LLM-as-a-judge), datasets
+for repeatable experiments, human annotation, and a prompt playground for fast
+iteration — all introduced in the coming chapters.
+
+<WorkedExample title="Decompose and prioritise a support agent" los="EAA-1.4">
+**Problem.** A customer-support agent can (1) look up order status, (2) check
+return eligibility, (3) escalate to a human, and (4) draft a response. It uses
+GPT-4o function calling for routing. Identify the router, skills, and
+memory/state — then decide which component to evaluate first, and how.
+
+**Reasoning.**
+- *Router* — the GPT-4o function-calling step choosing among the four skills.
+- *Skills* — order lookup, return-eligibility check, escalation, response drafting.
+- *Memory/state* — the full conversation history passed between turns.
+- *Evaluate first* — the **router**. If it selects the wrong skill, every
+  downstream step is wasted effort, so routing errors are both the most common
+  origin of agent failure and the cheapest to catch. Build a labelled set of
+  customer messages paired with the *expected* skill, then measure per-category
+  routing accuracy.
+
+**Answer.** Router = GPT-4o function calling; skills = the four functions;
+memory = conversation history. Evaluate the router first with a labelled
+message→expected-skill dataset and per-category accuracy, because routing errors
+cascade and cost the most to debug downstream.
+</WorkedExample>
+
+<Aside category="interview">
+At L4/L5 AI-engineering screens, "how would you evaluate an agent's reliability?" is really testing whether you *decompose before metricising*. Strong answer: name router → skill → end-to-end as independent targets with distinct failure modes; quantify the multiplicative-accuracy problem ($0.9 \times 0.9 = 0.81$); propose a trace → evaluate → iterate loop with a curated dataset. Red flag: "I'd write a unit test for each prompt" — that treats non-deterministic outputs as deterministic.
+</Aside>
+
+<SelfCheck q="List the three steps of the evaluation-driven development loop and what makes it different from testing-before-deploy." los="EAA-1.5">
+**Trace** (capture each step's inputs/outputs), **evaluate** (score each component against its criteria), **iterate** (fix the worst-scoring component) — repeated on *every* change. Unlike a pre-deploy gate, it runs continuously during development, so regressions surface immediately instead of after they ship.
+</SelfCheck>
+
+## Summary — what this sets up
+
+The foundation is laid: LLM systems are non-deterministic, so evaluation must be
+statistical and continuous, not binary and final. The model/application/agent
+layering tells you *where* a question lives; the router/skills/memory
+decomposition tells you *what* to measure; evaluation-driven development tells you
+*when* (always). The rest of the guide builds the machinery:
+
+- **Chapter 2** — *observability and tracing*: how to capture the execution you need to evaluate.
+- **Chapter 3** — *component evaluations*: metrics for routers, skills, and tool calls.
+- **Chapter 4** — *trajectory and structured evals*: scoring the whole path, not just the endpoints.
+- **Chapter 5** — *LLM-as-a-judge and monitoring*: automated grading and keeping it honest in production.
