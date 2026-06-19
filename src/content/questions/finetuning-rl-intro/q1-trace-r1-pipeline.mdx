@@ -1,0 +1,25 @@
+---
+id: fri-1-trace-r1-pipeline
+type: free
+chapter: 1
+domain: post-training-foundations
+bloom_level: apply
+objective_id: FRI-1.5
+difficulty: '3'
+tags: [post-training, reasoning]
+answer: >
+  Start from the base model (DeepSeek-V3, broad capability). (1) Cold-start CoT SFT — a small,
+  high-quality set of reasoning traces bootstraps the "think step by step" format. (2) RL with
+  verifiers (GRPO) on math/code — discovers reasoning strategies beyond the demonstrations,
+  graded by deterministic correctness, no learned reward model. (3) Synthetic reasoning data +
+  filtering — the improved model generates ~600K reasoning examples, aggressively filtered for
+  correctness. (4) Final SFT mix (~800K, ~75/25 reasoning/non-reasoning) — rebalances so
+  reasoning gains do not regress general capability. (5) Deploy, plus distillation into smaller
+  checkpoints. Each stage adds one thing: format → capability → data scale → balance → reach.
+  Common wrong answer: "base → SFT → RLHF with a reward model" — R1's signature is
+  verifier-based RL (not a learned reward model for the reasoning) plus a heavy
+  synthetic-data generate-and-filter loop, not vanilla RLHF.
+---
+
+Trace DeepSeek R1's post-training pipeline from base model to deployment, naming what each
+stage contributes.

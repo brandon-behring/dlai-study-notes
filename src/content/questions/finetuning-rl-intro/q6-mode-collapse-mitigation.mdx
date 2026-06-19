@@ -13,7 +13,7 @@ options:
   - id: b
     text: Train for more steps to escape the collapse
   - id: c
-    text: Switch optimizer from Adam to SGD
+    text: Raise the sampling temperature to force more diverse rollouts
   - id: d
     text: Strengthen the KL-divergence penalty against the reference policy
     correct: true
@@ -31,6 +31,7 @@ the diverse reference *constrains* that drift and keeps behavior varied. (RLHF
 usually already includes a KL term, so the lever is to raise it — an entropy bonus
 is the other standard diversity lever.) Raising the reward weight or training
 longer both *accelerate* the hack — a stronger or longer-optimized broken reward
-collapses harder. Changing the optimizer is irrelevant to specification gaming.
-Note KL *constrains* collapse; it doesn't repair a broken judge — fix the reward too.
+collapses harder. Raising the sampling temperature adds surface randomness but leaves the
+reward incentive intact, so the policy still converges on the high-reward mode. Note KL
+*constrains* collapse; it doesn't repair a broken judge — fix the reward too.
 </Rationale>

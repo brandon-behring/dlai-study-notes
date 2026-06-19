@@ -8,6 +8,7 @@ tags: [rl, grpo]
 
 DeepSeek's RL algorithm (used for R1). Replaces PPO's learned critic with a
 **group-relative baseline**: sample $G$ outputs per prompt and set each advantage
-to $\hat{A}_i = r(y_i) - \frac1G\sum_j r(y_j)$. No value model → three models in
+to $\hat{A}_i = r(y_i) - \frac1G\sum_j r(y_j)$ (the original DeepSeekMath form also divides
+by the group's standard deviation). No value model → three models in
 memory instead of four. If all rollouts in a group score equally, every advantage
 is 0 (no gradient) — so it needs prompts of intermediate difficulty.

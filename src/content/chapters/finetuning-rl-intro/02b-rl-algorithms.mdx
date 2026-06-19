@@ -64,7 +64,8 @@ objective, then to the PPO → GRPO algorithm line that powers today's reasoning
 [RL](../glossary#term-rl) needs something to score the model's own generations. Two kinds:
 
 - **Verifiers** — deterministic checks ("is this math answer correct?", "does the code
-  pass?"). No ambiguity, no gaming surface. DeepSeek R1 Zero famously used just two:
+  pass?"). No ambiguity, and far less to game than a learned model — though a weak or
+  incomplete checker can still be exploited. DeepSeek R1 Zero famously used just two:
   math correctness and format compliance.
 - [Reward models](../glossary#term-reward-model) — neural nets trained on human
   **preference pairs** to score open-ended outputs where no verifier exists.
@@ -128,7 +129,7 @@ implemented it.
 ## PPO and GRPO
 
 [PPO](../glossary#term-ppo) (the algorithm behind ChatGPT's RLHF) updates the policy with a
-**clipped** surrogate objective so a single step can't move too far:
+**clipped** surrogate objective that discourages steps which move the policy too far:
 
 $$
 \mathcal{L}^{\text{PPO}} = \min\!\Bigl(\rho_t\,\hat{A}_t,\; \mathrm{clip}(\rho_t,\,1-\epsilon,\,1+\epsilon)\,\hat{A}_t\Bigr),
@@ -136,8 +137,10 @@ $$
 $$
 
 The probability ratio $\rho_t$ measures how much the new policy changed; **clipping**
-(typically $\epsilon = 0.2$) caps it near 1.0 for stability. PPO uses **GAE** for
-token-level credit assignment — and a learned **critic**, the 4th model.
+(typically $\epsilon = 0.2$) holds it within $[1-\epsilon,\,1+\epsilon]$ on the side that
+would otherwise inflate the objective — a *soft* trust region that removes the incentive to
+move far, not a hard cap on the update (so KL is still worth watching). PPO uses **GAE** with
+a learned **critic** (the 4th model) for per-token credit.
 
 [GRPO](../glossary#term-grpo) (DeepSeek's algorithm for R1) removes the critic. For each
 prompt it samples a **group** of $G$ outputs and uses the group mean as the baseline:
@@ -147,7 +150,9 @@ $$
 $$
 
 Each output's advantage is simply how much better than its peers it scored — **no value
-model**, so memory drops from four models to three.
+model**, so memory drops from four models to three. (The original DeepSeekMath GRPO also
+divides by the group's standard deviation, $\hat{A}_i = (r_i - \text{mean})/\text{std}$; we
+use the mean-only form here for clarity — the sign and ranking carry the lesson.)
 
 <WorkedExample id="grpo-advantage" title="Worked example: a GRPO advantage update">
 A prompt is rolled out $G=4$ times against a math verifier (reward 1 = correct, 0 = wrong).
@@ -171,7 +176,7 @@ of intermediate difficulty to learn efficiently.
 | Aspect | PPO | GRPO |
 |---|---|---|
 | Advantage | Learned critic (GAE) | Group-mean baseline |
-| Credit assignment | Token-level | Sequence-level |
+| Credit assignment | Per-token (GAE) | One advantage per sequence |
 | Models in memory | 4 (policy, ref, reward, critic) | 3 (policy, ref, reward) |
 | Complexity | Higher | Lower |
 | Notable use | ChatGPT | DeepSeek-R1 |

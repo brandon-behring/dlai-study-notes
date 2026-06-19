@@ -204,8 +204,8 @@ over 3–5 seeds.
 The weight update during fine-tuning, $\Delta W$, is empirically **low-rank** — the useful
 adaptation lives in a small subspace. So instead of updating the full $d\times d$ matrix,
 [LoRA](../glossary#term-lora) freezes $W$ and trains two thin matrices
-$A \in \mathbb{R}^{d\times r}$ and $B \in \mathbb{R}^{r\times d}$ with $r \ll d$. The
-effective update is $\Delta W = BA$.
+$B \in \mathbb{R}^{d\times r}$ and $A \in \mathbb{R}^{r\times d}$ with $r \ll d$ (so the
+product $BA$ is $d\times d$). The effective update is $\Delta W = BA$.
 </ConceptBox>
 
 <Figure
@@ -223,12 +223,12 @@ ratio $\alpha/r$ is what actually controls adaptation magnitude.
 Take one attention projection, $d = 4096$, adapted at rank $r = 8$.
 
 - **Full fine-tune** of that matrix: $d^2 = 4096^2 \approx 16.8\text{M}$ parameters.
-- **LoRA:** $A$ is $d\times r$ and $B$ is $r\times d$, so $2dr = 2 \cdot 4096 \cdot 8 = 65{,}536$ — about **0.39%** of the full matrix.
+- **LoRA:** $B$ is $d\times r$ and $A$ is $r\times d$, so $2dr = 2 \cdot 4096 \cdot 8 = 65{,}536$ — about **0.39%** of the full matrix.
 
 Across a whole 1.2B model adapting Q and V projections, `print_trainable_parameters()`
 reports ~1.57M trainable of 1.24B — **0.13%**. Two practical consequences fall out of the
 math: (1) you train with a **~10× higher learning rate** than full FT, because $A$ starts
-near zero and $B$ starts at exactly zero (so $\Delta W = 0$ at step 0 — no perturbation) and
+as small random values and $B$ starts at exactly zero (so $\Delta W = BA = 0$ at step 0 — no perturbation) and
 the small matrices need larger steps to move; (2) after training the adapter can be **merged**
 back into $W$ for zero inference overhead.
 </WorkedExample>

@@ -16,7 +16,7 @@ options:
   - id: c
     text: Increase the learning rate to escape the plateau
   - id: d
-    text: Switch from AdamW to SGD
+    text: Increase the batch size to stabilize the gradient estimate
 ---
 import Rationale from '@brandon_m_behring/book-scaffold-astro/components/Rationale.astro';
 
@@ -27,6 +27,6 @@ change?
 **Reduce the learning rate ~10×.** `NaN` loss is the signature of an
 LR-too-high blow-up: a step overshoots, weights explode, the loss becomes
 undefined. Training more epochs just runs the broken dynamics longer; raising the
-LR makes it worse; swapping the optimizer doesn't address the step size. The
-reflex from the loss-curve diagnosis table: NaN → LR too high → cut 10×.
+LR makes it worse; a bigger batch lowers gradient variance but doesn't shrink the oversized
+step that's overflowing. The reflex from the loss-curve diagnosis table: NaN → LR too high → cut 10×.
 </Rationale>

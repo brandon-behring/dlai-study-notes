@@ -124,7 +124,8 @@ self-verify, code generation — HumanEval).
 **Calibration & refusal.** [Expected Calibration Error](../glossary#term-ece) (ECE)
 measures whether expressed confidence matches actual accuracy — critical when users
 trust confidence signals. A [refusal threshold](../glossary#term-refusal-threshold)
-(commonly 0.7) sets where the model should abstain rather than hallucinate, trading
+(an illustrative cutoff, e.g. ~0.7, tuned per domain — no canonical value) sets where the
+model should abstain rather than hallucinate, trading
 **over-refusal** (annoying) against **under-refusal** (dangerous).
 
 <Aside category="warning">
@@ -147,8 +148,8 @@ update, not environment drift.
 
 <KeyConcept title="Verifiers over reward models for grading" los="FRI-3.2">
 Whenever possible, grade with **verifiers** (deterministic, rule-based checks) rather
-than **reward models** (learned, drifting). Verifiers are reproducible and can't be
-gamed; reward models are neither. <EvidenceTag kind="verified" />
+than **reward models** (learned, drifting). Verifiers are reproducible and far harder to
+game; reward models are neither. <EvidenceTag kind="verified" />
 
 **When it breaks:** a frozen environment drifts from production (tool APIs update, user
 distributions shift) — re-sync it periodically or you optimize for a stale target.
@@ -156,9 +157,10 @@ distributions shift) — re-sync it periodically or you optimize for a stale tar
 
 Three signals to watch during RL training:
 
-- **[KL divergence](../glossary#term-kl-divergence)** from the reference policy — safe
-  range **0.1–0.2 nats**. Below 0.1, RL is barely changing the model; above 0.5 signals
-  mode collapse or reward hacking.
+- **[KL divergence](../glossary#term-kl-divergence)** from the reference policy — a common
+  operating heuristic is **~0.1–0.2 nats**, but it is implementation-dependent (it shifts with
+  per-token vs sequence normalization and $\beta$). Persistently below ~0.1, RL is barely
+  moving the model; a sharp climb past ~0.5 often signals mode collapse or reward hacking.
 - **[Alignment tax](../glossary#term-alignment-tax)** — the gap between reward-model
   score and true human preference. A *growing* tax means the model is gaming the reward.
 - **Rollout diversity** — collapsing variety (every rollout converging on one phrasing)
@@ -176,7 +178,8 @@ optimize the proxy too hard and the model exploits the gap.
 scores stagnate; rollout diversity collapsing; output length growing monotonically.
 
 **Mitigation (the DeepSeek R1 stance):** grade with **verifiers** where you can — they
-check ground truth, so there's nothing to game. <EvidenceTag kind="verified" />
+check ground truth, so there's far less to game (though a weak or incomplete checker can
+still be exploited). <EvidenceTag kind="verified" />
 </RedFlag>
 
 <WorkedExample id="reward-hacking-detect" title="Worked example: is this reward hacking?">
@@ -304,12 +307,12 @@ Answer from memory, then expand to check — or go deeper in the
 Define the capability *in the eval suite* → train → measure on held-out data → diagnose failures → fix data/reward/hyperparameters → repeat. Most skipped: **adding the capability to the evals *before* training for it** — otherwise you can't measure progress.
 </SelfCheck>
 
-<SelfCheck q="Give the safe KL range and what values below or above it signal." los="FRI-3.2">
-**0.1–0.2 nats.** Below 0.1, RL is barely changing the model. Above ~0.5, the policy has drifted far — a sign of mode collapse or reward hacking.
+<SelfCheck q="Give the common KL operating range and what values below or above it signal." los="FRI-3.2">
+**~0.1–0.2 nats**, as a rough, implementation-dependent heuristic (it shifts with KL normalization and $\beta$). Persistently below ~0.1, RL is barely changing the model; a sharp climb past ~0.5 suggests mode collapse or reward hacking.
 </SelfCheck>
 
 <SelfCheck q="Name four reward-hacking detection signals; what's the verifier-based fix?" los="FRI-3.3">
-KL spiking above 0.5 nats; reward rising while human-preference scores stay flat (growing alignment tax); rollout diversity collapsing; output length growing monotonically. Fix: grade with **verifiers** — they check ground truth, so there's nothing to game.
+KL spiking above ~0.5 nats; reward rising while human-preference scores stay flat (growing alignment tax); rollout diversity collapsing; output length growing monotonically. Fix: grade with **verifiers** where you can — they check ground truth, so there's far less to game.
 </SelfCheck>
 
 <SelfCheck q="Walk the error-analysis workflow and explain frequency × severity ÷ effort." los="FRI-3.4">

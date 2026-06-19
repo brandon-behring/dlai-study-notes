@@ -100,8 +100,9 @@ every example carries more weight.
 | Tens of thousands | Frontier-lab scale across diverse tasks |
 | Hundreds of thousands | An entirely new domain or language |
 
-ChatGPT's original SFT stage used roughly **13K** high-quality demonstrations plus
-thousands of preference pairs — a remarkably small dataset for a model that changed
+InstructGPT (ChatGPT's predecessor, and the one with published figures) used roughly **13K**
+high-quality SFT demonstrations plus thousands of preference pairs — a remarkably small
+dataset for a model line that changed
 an industry. That is the whole lesson of post-training data: **quality over quantity.**
 
 Different data *types* also saturate at very different scales:
@@ -138,16 +139,19 @@ Balance thresholds across correctness, fluency, format, *and* diversity.
 
 <WorkedExample id="sft-saturation" title="Worked example: when do diminishing returns end SFT?">
 You fine-tune on 20, 50, 100, 200, 500, and 1,000 curated GSM8K examples and measure
-accuracy: 18%, 31%, 42%, 51%, 58%, 61%. Fit a power law $\text{acc} = a\cdot n^{b}$ to
-estimate how many examples reach 65%.
+accuracy in percent: 18, 31, 42, 51, 58, 61. Fit a power law $\text{acc} = a\cdot n^{b}$
+(accuracy in percent) to estimate how many examples reach 65%.
 
-Log-log regression ($\log \text{acc} = \log a + b\log n$) gives roughly $a \approx 4.5$,
-$b \approx 0.38$. Solving $0.65 = 4.5\cdot n^{0.38}$ gives **$n \approx 1{,}800$ examples**.
+Log-log regression ($\log \text{acc} = \log a + b\log n$) gives roughly $a \approx 8.9$,
+$b \approx 0.30$. Setting $8.9\cdot n^{0.30} = 65$ gives **$n \approx 750$**.
 
-The point is not the exact number — it is the *shape*. Going 500 → 1,000 (+500) bought
-3 points; 1,000 → 1,800 (+800) buys about 4 more. Once the curve flattens like this,
-**RL with a verifier is more efficient than collecting more SFT data**. Knowing when to
-stop adding SFT data is as important as knowing how to add it.
+But read the data, not just the fit: the measured points at $n=500$ and $n=1{,}000$ (58, 61)
+already sit *below* the fitted curve — accuracy is saturating **faster** than a power law, so
+750 is optimistic and 65% may need far more, or never arrive efficiently via SFT at all. That
+is the real signal. Going 500 → 1,000 (+500 examples) bought only 3 points; the marginal
+return has collapsed. Once you are here, **RL with a verifier is more efficient than
+collecting more SFT data** — which is exactly why the next chapters exist. Knowing when to
+*stop* adding SFT data matters as much as knowing how to add it.
 </WorkedExample>
 
 <Aside category="interview">
@@ -245,7 +249,10 @@ r = 0.6\,\text{test\_pass} + 0.2\,\text{doc\_score} + 0.1\,\text{efficiency} + 0
 $$
 
 **Justification.** Correctness must *dominate* (over 50% of the weight): without
-working code, documentation and efficiency are worthless, so anything less invites the
+working code, documentation and efficiency are worthless. Note that even at 0.6 a pure
+weighted sum still pays 0.4 for broken code — when correctness is non-negotiable, *gate* it
+(multiply the shaped terms by a correctness factor) rather than only weighting it; anything
+less invites the
 model to optimize style at the expense of substance. `doc_score` (LLM-judged) is second
 because undocumented code is unmaintainable. Efficiency and formatting get small weights
 — real signals, but easy to fix post-hoc and not worth distorting the primary objective.
@@ -393,7 +400,7 @@ prevent systematic bias from compounding.
 
 <Aside category="interview">
 CAI is Anthropic's core alignment method. The one-line insight interviewers want: the
-**constitution replaces human labelers with auditable rules** — and templates do double
+**constitution replaces human preference labelers with auditable rules** — and templates do double
 duty as both data generators and reward-function specs, which is what makes the loop
 self-improving.
 </Aside>
@@ -488,7 +495,7 @@ distribution and add targeted counterexamples rather than volume. RL reshapes da
 rollouts scored by verifiers or composite rewards, with the alignment gap as the
 reward-hacking alarm. When real data runs out, synthetic pipelines generate at scale —
 but **filtering, not generation, creates the quality**, a claim the efficiency math
-makes concrete. Constitutional AI and RLAIF push further, replacing human labelers with
-auditable principles, trading grounding for scale — the central live debate of modern
+makes concrete. Constitutional AI and RLAIF push further, replacing much of the human
+preference labeling with auditable principles, trading grounding for scale — the central live debate of modern
 alignment. Chapter 5 turns to **production**: serving, monitoring, and operating these
 models once they ship.
