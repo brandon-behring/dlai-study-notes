@@ -1,0 +1,12 @@
+---
+term: Multi-Model Routing (LoRA)
+aliases: [adapter routing, LoRA serving]
+domain: production-pipelines
+see: [lora, quantization]
+tags: [infrastructure, serving]
+---
+
+Serving a **single base model** with many hot-swappable LoRA adapters, routing each request to
+the appropriate adapter by task type. It avoids duplicating the full model per specialization
+and lets you add or swap adapters without restarting inference — the cost-efficient way to
+serve many fine-tuned variants from one set of base weights.

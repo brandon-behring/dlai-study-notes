@@ -1,0 +1,13 @@
+---
+term: Shadow Deployment
+aliases: [shadow mode, canary]
+domain: production-pipelines
+see: [promotion-rules, ab-testing]
+tags: [production]
+---
+
+Running a candidate model on **live traffic without serving its outputs** to users, comparing
+its responses against the production baseline offline. It is the first rung of the
+staging→production ladder: **shadow** (≈5K requests over 24h) → **canary** (1–5% of live
+traffic, now actually served and watched closely) → **full rollout** with automated rollback
+triggers.

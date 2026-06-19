@@ -1,0 +1,13 @@
+---
+term: R1 Zero
+aliases: [DeepSeek R1-Zero, pure-RL baseline]
+domain: production-pipelines
+see: [grpo, verifier, cold-start-sft]
+tags: [rl, production]
+---
+
+DeepSeek's proof that **pure RL with no SFT data** can produce reasoning: GRPO with a math
+verifier and a code verifier (no learned reward model) lifted AIME accuracy **15.6% → 86.7%**,
+and the model spontaneously developed chain-of-thought reflection ("wait, let me reconsider…").
+Its limitation — capability stayed confined to *verifiable* domains (math, code), which is why
+the full R1 pipeline adds cold-start SFT and non-reasoning data.

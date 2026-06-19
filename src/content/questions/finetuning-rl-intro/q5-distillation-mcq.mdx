@@ -1,0 +1,32 @@
+---
+id: fri-5-distillation
+type: mcq
+chapter: 5
+domain: production-pipelines
+bloom_level: analyze
+objective_id: FRI-5.5
+difficulty: '3'
+tags: [infrastructure, distillation]
+options:
+  - id: a
+    text: Distillation is faster to run, and the caveat is that it needs more GPUs than RL
+  - id: b
+    text: The student copies the teacher's weights directly, and the caveat is licensing
+  - id: c
+    text: Distillation works for math but not code, and that is its main limitation
+  - id: d
+    text: Reasoning transfers more efficiently through SFT on verified teacher traces than through a small model's own RL — but it transfers style, bounded by the student's parametric capacity
+    correct: true
+---
+import Rationale from '@brandon_m_behring/book-scaffold-astro/components/Rationale.astro';
+
+DeepSeek showed a 7B model **distilled** from R1 beats a 7B trained with direct GRPO. The best
+explanation, with its main caveat, is that…
+
+<Rationale title="Why">
+A small model explores poorly on its own; SFT on the teacher's *verified* chain-of-thought
+traces hands it reasoning patterns it would struggle to discover through its own RL — hence the
+win. The caveat is **capacity**: distillation transfers the reasoning *style*, not the teacher's
+ceiling, so a too-small student (e.g. 671B → 1.5B) degrades on hard problems. It is not about
+GPU count or copying weights, and it is not math-only.
+</Rationale>

@@ -1,0 +1,24 @@
+---
+id: fri-5-agent-credit
+type: free
+chapter: 5
+domain: production-pipelines
+bloom_level: analyze
+objective_id: FRI-5.2
+difficulty: '3'
+tags: [agents, rl]
+answer: >
+  The reward is sparse and delayed: a single signal arrives at the end of a long action
+  sequence, so RL faces a credit-assignment problem — it cannot tell which of the ten steps
+  caused the failure (a bad early tool call? a sound plan with one wrong final step?). Choices
+  that make the signal more learnable: reward the final answer but add shaped, verifiable
+  intermediate signals where you can (did each tool call succeed, was the retrieved fact used);
+  use process- or step-level rewards on checkable sub-goals; and keep episodes short enough that
+  credit is not smeared across dozens of steps. Common wrong answer: "give a big reward for the
+  final answer and let RL sort it out" — with only a terminal reward over a long horizon, the
+  gradient is too diffuse to attribute blame, so learning is slow and noisy.
+---
+
+An agent completes a 10-step task (several tool calls plus a final answer) and the answer is
+wrong. Why is it hard for RL to learn from this, and what design choices make the signal more
+learnable?

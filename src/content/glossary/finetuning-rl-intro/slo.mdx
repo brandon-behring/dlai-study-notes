@@ -1,0 +1,13 @@
+---
+term: Service-Level Objective (SLO)
+aliases: [SLO]
+domain: production-pipelines
+see: [reward-collapse, ab-testing]
+tags: [production, monitoring]
+---
+
+A target threshold on a production metric (latency p95, error rate, user satisfaction) that
+triggers an alert or **automated rollback** when breached. The key move against reward
+collapse: set SLOs on **both** the automated reward *and* user satisfaction, so a divergence
+between them — high reward, falling satisfaction — fires automatically rather than waiting for a
+human to notice.

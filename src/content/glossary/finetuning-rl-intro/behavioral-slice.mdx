@@ -1,0 +1,12 @@
+---
+term: Behavioral Slice
+aliases: [slice, eval slice]
+domain: production-pipelines
+see: [promotion-rules, frozen-test-environment]
+tags: [production, evaluation]
+---
+
+A behaviorally meaningful subset of the test set (e.g. "multi-turn math," "safety refusals,"
+"long-context retrieval") used for **targeted no-regression checks**. Slices catch the failure
+an aggregate metric hides — a model can improve overall while quietly regressing on a
+safety-critical slice, which a hard per-slice ceiling would block.

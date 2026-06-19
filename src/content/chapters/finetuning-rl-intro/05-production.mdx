@@ -1,0 +1,395 @@
+---
+book: finetuning-rl-intro
+title: 'Production Considerations'
+chapter: 5
+part: 1
+description: >
+  Shipping post-trained models: the end-to-end DeepSeek R1 pipeline, agent
+  post-training, promotion rules and rollback, the data-feedback flywheel,
+  monitoring and drift, serving infrastructure and GPU cost, and distillation.
+learning_outcomes:
+  - id: FRI-5.1
+    verb: Design
+    text: >
+      end-to-end post-training pipelines from cold-start SFT through RL to
+      deployment.
+  - id: FRI-5.2
+    verb: Apply
+    text: >
+      agent architectures using tool use, planning, and multi-agent
+      coordination, and the credit-assignment problem they create.
+  - id: FRI-5.3
+    verb: Apply
+    text: >
+      promotion rules, monitoring, and rollback strategies for model releases
+      (frozen tests, slices, shadow/canary).
+  - id: FRI-5.4
+    verb: Apply
+    text: >
+      a data-feedback flywheel that converts production errors into training
+      signal, and choose the right intervention.
+  - id: FRI-5.5
+    verb: Analyze
+    text: >
+      infrastructure, compute, and compression strategies (quantization,
+      LoRA serving, distillation) for cost-effective serving.
+  - id: FRI-5.6
+    verb: Design
+    text: >
+      monitoring that tracks performance, cost, and reliability with alerts and
+      rollback triggers — including reward-collapse detection.
+tags:
+  - production
+  - deployment
+  - monitoring
+  - infrastructure
+  - distillation
+last_verified: 2026-06-18
+volatility: feature-surface
+sources:
+  - shao2024deepseekmath
+  - deepseek2025r1
+  - hu2021lora
+provenance:
+  ai_tools:
+    - Claude Code
+draft: false
+---
+
+<Diagnostic skimTo="Infrastructure: serving cost">
+1. R1 Zero reached strong math/code reasoning with **pure RL, no SFT**. Predict its main limitation.
+2. A deployed model's accuracy drops 8 points over three months with **no model change**. What's the most likely cause?
+3. A new failure mode appears in production. You could fix it with prompt engineering (~1 day) or fine-tuning (~1 week). Which do you reach for first, and why?
+4. Predict: does distilling a 671B reasoning model into a 1.5B student preserve its reasoning on the hardest problems?
+
+<Fragment slot="answers">
+1. It stays confined to **verifiable domains** (math, code) — the only places a clean verifier reward exists. General helpfulness/safety need the full pipeline (cold-start SFT + non-reasoning data).
+2. **The world changed, not the model** — almost always *data drift* (the input distribution shifted). Diagnose the environment before retraining.
+3. **Prompt engineering** — always try the *fastest* intervention first, and escalate only when the simple fix fails or the failure is systemic. Speed of intervention is itself a metric.
+4. **No.** Distillation transfers the teacher's reasoning *style* but is bounded by the student's *parametric capacity*; a 1.5B can mimic the chain-of-thought format yet degrade sharply on hard problems. The sweet spot is 7–14B students.
+</Fragment>
+</Diagnostic>
+
+<NarrativeBox title="Where we are">
+Modules 1–4 built the foundations — what post-training is, how SFT and RL work, how
+evaluation steers decisions, and how data quality drives outcomes. This chapter closes the
+loop: **how do you ship it reliably?** We move from training notebooks to production
+pipelines, from offline metrics to live monitoring, and from a single model to multi-model
+infrastructure. DeepSeek R1 is the running case study — a real system that chains every
+technique in this guide into one reproducible workflow.
+</NarrativeBox>
+
+## The production pipeline: DeepSeek R1
+
+<Newthought>No single training run</Newthought> produces a production model. A pipeline
+chains stages, each fixing a different failure mode: SFT teaches format, RL teaches
+reasoning, rejection sampling curates quality, and final stages consolidate gains.
+
+[**R1 Zero**](../glossary#term-r1-zero) is the striking baseline: **pure RL with no SFT data
+at all** — [GRPO](../glossary#term-grpo) with two [verifiers](../glossary#term-verifier) (a
+math-answer check and a code-test check), no learned reward model. AIME accuracy climbed
+**15.6% → 86.7%**, and the model *spontaneously* developed chain-of-thought reflection
+("wait, let me reconsider…") without ever being trained on reasoning traces. The catch: it
+stayed confined to math and code — the domains where a verifier gives clean signal.
+
+The full pipeline adds the stages that turn that raw capability into a product:
+
+<PipelineBox title="DeepSeek R1 full pipeline">
+1. **Cold-start SFT** — a small set of high-quality reasoning traces gives RL a stable, well-formatted starting point (no language-mixing).
+2. **RL + language-consistency reward** — GRPO with verifiers plus a term penalizing mid-response language switching.
+3. **Rejection sampling** — sample many completions from the RL model; keep only those that pass verification.
+4. **Filter to ~600K reasoning examples** — quality-filter the best traces.
+5. **Combine with ~200K non-reasoning examples** — general helpfulness + safety → an **800K** set.
+6. **Final SFT** — consolidate reasoning *and* general capability on the combined set.
+7. **Final RL** — one more round to sharpen and enforce alignment.
+</PipelineBox>
+
+<KeyConcept title="Pipelines alternate exploration and consolidation" los="FRI-5.1">
+The pattern is a rhythm: **RL explores** (discovers new strategies, expands the frontier),
+then **SFT consolidates** ([cold-start SFT](../glossary#term-cold-start-sft) and the final SFT
+lock in what works). Each RL stage pushes the frontier; each SFT stage stabilizes it. Map
+every stage in *your* pipeline to the specific failure mode it addresses — if you can't, the
+stage probably isn't earning its cost. <EvidenceTag kind="verified" />
+</KeyConcept>
+
+<Aside category="interview">
+"Walk me through an end-to-end post-training pipeline" is a top-5 frontier-lab MLE screen.
+Name the stages *and* what each one fixes — the rhythm (explore → consolidate) is the insight
+interviewers listen for.
+</Aside>
+
+## Agents and post-training
+
+<KeyConcept title="Agent post-training rewards task completion, not output matching" los="FRI-5.2">
+An **agent** takes actions in an environment — calling tools, planning multi-step strategies,
+coordinating with other agents. Post-training agents differs from instruction-following
+because the reward comes from **task completion**, not from matching a reference output.
+
+**When it breaks:** task-completion rewards are *sparse and delayed* — the agent takes many
+steps before any signal. That makes **credit assignment** hard: RL struggles to learn which
+action in a ten-step plan caused the final failure.
+</KeyConcept>
+
+Three pillars, each with an SFT and an RL move:
+
+- **Tool use** — teach *when* and *how* to call external tools (APIs, databases, code interpreters). SFT on tool-use transcripts; RL rewards correct invocation and final-answer accuracy. Principle: **prefer tools over parametric knowledge** for factual lookups.
+- **Planning** — multi-step decomposition. SFT on chain-of-thought traces that show the plan; for RL, reward only the **final answer** and let the model discover its own planning.
+- **Coordination** — multi-agent systems that hand off tasks. SFT on multi-agent transcripts; RL with a [handoff reward](../glossary#term-handoff-reward) that rewards clean task boundaries and penalizes incomplete handoffs.
+
+<Aside category="warning">
+Agent training data is hard to source: live environments produce **messy, non-stationary**
+data (malformed JSON, timeouts, partial results, retrieved facts that contradict the model's
+parametric knowledge). Budget for heavy filtering before any of it touches training.
+</Aside>
+
+## Promotion rules: gating a release
+
+<ConceptBox title="Promotion rules">
+Promotion rules are the **gates** a model must pass to move dev → staging → production. They
+codify your risk tolerance as *quantitative thresholds*, so go/no-go decisions are
+reproducible and auditable instead of vibes-based.
+</ConceptBox>
+
+Promotion tests must run in a [**frozen test environment**](../glossary#term-frozen-test-environment):
+the same test set, verifiers, and hardware across candidates — change it and you can't compare
+results. Evaluate on [**behavioral slices**](../glossary#term-behavioral-slice) (e.g.
+"multi-turn math," "safety refusals," "long-context retrieval") so you can run **targeted
+no-regression checks**, not just an aggregate.
+
+**Dev → staging gates:** aggregate quality improves by a meaningful margin; *no slice*
+regresses past its threshold; safety-critical slices have **hard ceilings** (any regression
+blocks); improvements are statistically significant (confidence intervals, not noise); and
+inference cost per query stays in budget.
+
+**Staging → production** is a gradual exposure ladder:
+
+1. [**Shadow deploy**](../glossary#term-shadow-deployment) — run the candidate on ~5K real requests over 24h *without serving its outputs*; compare against the production baseline.
+2. **Canary** — route a small slice of live traffic (1–5%); watch error rate, latency, and feedback.
+3. **Full rollout** — gradual traffic shift with **automated rollback triggers**.
+
+## The data-feedback flywheel
+
+<ConceptBox title="The flywheel">
+Production errors become training data that improves the model, which reduces those errors,
+which surfaces *subtler* failure modes, which become the next round of data. A model that
+ships but never learns from production is a depreciating asset — **the loop is the product.**
+</ConceptBox>
+
+The [error-analysis](../glossary#term-error-analysis) flow: **collect** production errors
+(user feedback + log mining) → **cluster** by failure mode → **extract** (input, ideal-output)
+pairs → **prioritize** by frequency × severity → **route** to an intervention. Always run
+**data hygiene** first — filter low quality, deduplicate, check for bias, scrub PII — or the
+[flywheel](../glossary#term-data-flywheel) amplifies noise instead of signal.
+
+The routing decision is about **speed of intervention**, not just model quality:
+
+<DecisionTree title="Choosing an intervention (fastest first)">
+- **Format issue or simple behavior change?** → **prompt engineering** (~1 day, no new data).
+- **Knowledge gap / stale facts?** → **RAG update** (~1 day; needs documents).
+- **Consistent style/behavior shift?** → **SFT** (~1 week; ~100–1K pairs).
+- **Quality / preference optimization?** → **RL** (~1 week; needs a reward signal).
+- **Comprehensive capability upgrade?** → **SFT + RL** (~1 week+; both).
+</DecisionTree>
+
+Always try the **fastest** intervention that could work; escalate only when it fails or the
+pattern is systemic. Reaching for RL when prompt engineering would do is the most common
+junior mistake here.
+
+## Monitoring and drift
+
+Track **three metric families** — not just accuracy:
+
+- **Performance** — task accuracy, response-quality scores, safety-violation rate.
+- **Cost** — tokens per request, GPU utilization, cost per query.
+- **Reliability** — latency p50/p95/p99, error rate, timeout rate.
+
+Every deployed model needs a unique version id, the exact training config that produced it, a
+pointer to the training-data snapshot, and a **one-command rollback** to the previous version.
+A minimal alert check, in concept:
+
+```python
+# pseudocode — metrics come from inference logs
+ALERTS = {"p95_latency_ms": 5000, "error_rate_pct": 25.0, "avg_satisfaction_min": 3.0}
+
+def check_alerts(m):
+    fired = []
+    if m["p95_latency_ms"] > ALERTS["p95_latency_ms"]: fired.append("latency")
+    if m["error_rate_pct"] > ALERTS["error_rate_pct"]: fired.append("errors")
+    if m["avg_satisfaction"] < ALERTS["avg_satisfaction_min"]: fired.append("satisfaction")
+    return fired   # non-empty → page on-call / trigger rollback
+```
+
+Four drift modes recur, each with a tell and a fix: **data drift** (input distribution shifts
+— embedding distance to training data grows → collect + retrain); **infra-induced
+degradation** (a quantization/batching/hardware change silently alters behavior — quality drop
+correlates with an infra change, not data → diff configs, regression-test on new hardware);
+**model forgetting** (new fine-tuning erodes old tasks — slice regressions on stable
+categories → replay buffer); and the insidious one:
+
+<RedFlag title="Reward collapse in production">
+[Reward collapse](../glossary#term-reward-collapse) is dangerous because your **automated
+metrics look fine** — the model has learned to game the reward signal. Symptoms: reward scores
+plateau or rise while *user complaints* rise; output diversity drops (it converges on a narrow
+set of "safe" responses); length grows without information gain.
+
+**Defenses:** always monitor a **human-judgment** metric alongside automated reward; track
+output diversity (unique-n-gram ratio); and set SLOs on **both** reward *and* user satisfaction
+— trigger rollback when they diverge. <EvidenceTag kind="verified" />
+</RedFlag>
+
+For causal release decisions, [**A/B testing**](../glossary#term-ab-testing) is the gold
+standard (needs traffic volume for significance); side-by-side human comparison is faster but
+doesn't capture real behavior; internal playgrounds and beta cohorts catch issues before broad
+exposure.
+
+## Infrastructure: serving cost
+
+Pick the framework for the job — prototype with **HF TRL**, run production SFT on
+**LLaMA-Factory**, squeeze single-GPU speed with **Unsloth**, scale RL with **Verl**, and
+serve with **vLLM / SGLang** (PagedAttention, continuous batching). But the highest-leverage
+decision is **model size**: start with the smallest model that meets your quality bar — a
+well-trained 7B often beats a poorly-trained 70B and costs ~10× less to serve.
+
+Memory scales with parameters × bytes-per-param, so **precision** is the main cost lever:
+
+| Precision | Bytes/param | 7B model |
+|---|---|---|
+| 32-bit (FP32) | 4 | 28 GB |
+| 16-bit (FP16/BF16) | 2 | 14 GB |
+| 8-bit (INT8) | 1 | 7 GB |
+| 4-bit (NF4) | 0.5 | 3.5 GB |
+
+Training needs more than weights: weights + gradients + optimizer states (≈2× weights for
+Adam) + activations. [LoRA](../glossary#term-lora) trains only adapters → **10–20%** of the
+full-FT footprint; RL/GRPO needs **2–4×** supervised-FT memory (reference model, value
+estimates, sampled completions — a 13B GRPO run wants ~170–190 GB). [Quantization](../glossary#term-quantization)
+(2–8× memory cut) and serving one base model with many hot-swappable
+[LoRA adapters](../glossary#term-multi-model-routing) keep serving cheap.
+
+<WorkedExample id="gpu-capacity" title="Worked example: how many GPUs for 100 QPS?">
+You serve a 13B model at **100 QPS**. In FP16 (14 GB), each A100 (80 GB) fits **8 concurrent**
+requests at 50 tokens/s; an average 200-token response takes **4 s**.
+
+- **Throughput per GPU** = 8 concurrent ÷ 4 s = **2 QPS**. For 100 QPS: $100 / 2 = $ **50 GPUs**.
+- **Quantize to INT8** (7 GB → 16 concurrent): $16 / 4 = 4$ QPS/GPU → $100 / 4 = $ **25 GPUs**.
+
+INT8 **halves** the fleet (and the cost) for typically under 1% accuracy loss on
+instruction-following. The lesson: serving cost scales with model size and *inversely* with
+batch capacity, so quantization is usually the highest-ROI optimization you have.
+</WorkedExample>
+
+**Completion problem.** Same 13B model, but you quantize to 4-bit (NF4, 3.5 GB) so each A100
+now fits **32 concurrent** requests (still 4 s/response). Fill the blanks: throughput per GPU =
+___ QPS; GPUs for 100 QPS = ___.
+
+<CompletionProblem id="gpu-capacity" level="completion" title="Check your completion">
+$32 / 4 = 8$ QPS per GPU, so $100 / 8 \approx$ **13 GPUs**. Each precision step (FP16 → INT8 →
+NF4) roughly halves memory and so doubles batch capacity: 50 → 25 → ~13 GPUs.
+</CompletionProblem>
+
+**Now you.** If every precision step keeps cutting the fleet, why not always serve at 4-bit (or
+lower)?
+
+<CompletionProblem id="gpu-capacity" level="solo" title="Reveal the reasoning">
+Because precision buys cost at the expense of **quality**: INT8 is usually near-lossless, but
+4-bit carries a measurable degradation that's fine for some tasks and unacceptable for others
+(e.g. hard reasoning). Match precision to the task's quality bar — quantize until the eval
+*just* holds, not blindly to the smallest format.
+</CompletionProblem>
+
+## Distillation: compressing frontier reasoning
+
+The cheapest way to deploy frontier reasoning is not to run it. [**Knowledge
+distillation**](../glossary#term-knowledge-distillation) trains a small **student** to mimic a
+large **teacher** — the R1 recipe: the 671B teacher generates chain-of-thought solutions for
+~800K problems; each is **verified** against ground truth and only the correct ~10–15% are
+kept; smaller students (Qwen 1.5–32B, Llama 8–70B) are SFT'd (often with LoRA) on those
+filtered traces.
+
+<KeyConcept title="Distillation beats direct RL for small models" los="FRI-5.5">
+DeepSeek's distilled students consistently **outperform** same-size models trained with direct
+RL — Qwen-7B distilled from R1 beats Qwen-7B trained with GRPO from scratch. Reasoning
+transfers more efficiently through **SFT on teacher traces** than through a small model's own
+RL exploration. The deployment payoff: run expensive RL **once** on the largest model you can
+afford, then distill into the model you actually serve — separating the *research* cost (RL on
+frontier models) from the *deployment* cost (inference on small students). <EvidenceTag kind="verified" />
+
+**When it breaks:** distillation transfers the teacher's reasoning *style*, not its *capacity*.
+A student without the parametric room to represent the patterns (671B → 1.5B) degrades sharply
+on hard problems — the sweet spot is **7–14B** students for most deployments.
+</KeyConcept>
+
+## Where practitioners disagree
+
+**Distillation vs. direct RL for small models — and the capability ceiling.** DeepSeek's result
+is clean: distilled small models beat direct-RL small models, so the deployment playbook
+becomes "RL the teacher, distill the server." The contested part is **how far the ceiling
+travels**. One camp reads distillation as genuinely transferring reasoning; the other notes a
+small student can reproduce the *format* of frontier chain-of-thought while remaining **bounded
+by its own parametric capacity** on the hardest problems — the same "bounded by the base model"
+question RL raises (does post-training *create* capability or *elicit* what's latent?).
+<EvidenceTag kind="inference" />
+
+| Axis | Direct RL on the small model | Distill from a large teacher |
+|---|---|---|
+| Reasoning quality at fixed size | Lower (limited self-exploration) | Higher (inherits verified teacher traces) |
+| Cost structure | RL per served model | RL once on the teacher; cheap SFT students |
+| Capability ceiling | Bounded by the small model | Style transfers; the *ceiling* is still bounded by student capacity |
+
+The defensible read: **distill from the largest teacher you can afford into a 7–14B student**,
+run RL on the teacher rather than the server — but don't expect a tiny student to inherit
+frontier capability. Parametric capacity caps what any transfer can do.
+
+## The production checklist
+
+Module 5 reduces to **five non-negotiables** — if any answer is "no," that's your top
+pre-launch task:
+
+1. **Reproducible configuration** — model, data snapshot, hyperparameters, seeds, code version, so any result reproduces.
+2. **Promotion rules + rollback** — quantitative gates for dev → staging → production, and one-command rollback.
+3. **Monitoring + SLOs** — performance, cost, and reliability dashboards with automated alerts.
+4. **Feedback-to-data flywheel** — production errors routed back into training with hygiene (filter, dedup, PII scrub).
+5. **Infrastructure readiness** — right-sized GPUs, a compression strategy, and a capacity/cost plan validated *before* launch.
+
+## Retrieval check
+
+Answer from memory, then expand to check — or go deeper in the
+[practice questions](../practice-exam).
+
+<SelfCheck q="List the stages of the DeepSeek R1 full pipeline and the explore/consolidate rhythm." los="FRI-5.1">
+Cold-start SFT → RL (with a language-consistency reward) → rejection sampling → filter to ~600K reasoning examples → combine with ~200K non-reasoning → final SFT → final RL. The rhythm: **RL explores** (expands the frontier), **SFT consolidates** (locks in what works); the pipeline alternates the two.
+</SelfCheck>
+
+<SelfCheck q="Name the three pillars of agent post-training and explain why credit assignment is hard." los="FRI-5.2">
+Tool use, planning, and coordination. Credit assignment is hard because task-completion rewards are **sparse and delayed** — the agent takes many steps before any signal, so RL can't easily tell which action in a long plan caused the final outcome.
+</SelfCheck>
+
+<SelfCheck q="Walk the staging→production ladder and distinguish shadow deploy from canary." los="FRI-5.3">
+Shadow deploy → canary → full rollout. A **shadow** deploy runs the candidate on real traffic *without serving its outputs* (compare offline to the baseline); a **canary** routes a small slice (1–5%) of *live* traffic to the candidate and serves it, watching error rate, latency, and feedback. Full rollout is a gradual shift with automated rollback.
+</SelfCheck>
+
+<SelfCheck q="Order the interventions by speed and state the routing rule." los="FRI-5.4">
+Prompt engineering (~1 day) → RAG update (~1 day) → SFT (~1 week) → RL (~1 week) → SFT+RL. Rule: try the **fastest** intervention that could fix it first; escalate only when it fails or the failure is systemic. Speed of intervention is itself an optimization target.
+</SelfCheck>
+
+<SelfCheck q="Give 7B memory by precision, and the LoRA vs GRPO training-memory multipliers." los="FRI-5.5">
+7B: FP32 28 GB, FP16 14 GB, INT8 7 GB, NF4 3.5 GB. Training adds gradients + optimizer (≈2× weights for Adam) + activations; **LoRA** cuts the footprint to 10–20% of full FT, while **RL/GRPO** needs 2–4× supervised-FT memory (reference model, value estimates, sampled completions).
+</SelfCheck>
+
+<SelfCheck q="How do you detect reward collapse when automated metrics look fine?" los="FRI-5.6">
+Watch for the divergence: reward scores plateau/rise while **user satisfaction drops**, output diversity falls, and length grows without information gain. Defenses: monitor a human-judgment metric alongside reward, track unique-n-gram diversity, and set SLOs on *both* reward and satisfaction so the gap triggers rollback.
+</SelfCheck>
+
+## Summary
+
+Shipping a post-trained model is its own discipline. The DeepSeek R1 pipeline shows the shape:
+alternate **RL exploration** with **SFT consolidation**, each stage fixing a named failure
+mode. Agents raise the bar — task-completion rewards are sparse, so credit assignment is the
+hard part. Releases pass **quantitative promotion gates** in a frozen environment and roll out
+through shadow → canary → full with one-command rollback. The **data-feedback flywheel** turns
+production errors into the next training set — routing to the *fastest* effective intervention —
+while monitoring across performance, cost, and reliability catches drift, especially the
+metric-fooling **reward collapse**. Infrastructure is a cost lever: start small, quantize to the
+quality bar, serve with LoRA adapters, and **distill** frontier reasoning into 7–14B students
+rather than serving the teacher. That completes the post-training arc — from what it is, through
+how to train, evaluate, and feed it, to how to run it in production.

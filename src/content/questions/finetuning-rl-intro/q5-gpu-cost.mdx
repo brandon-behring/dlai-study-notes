@@ -1,0 +1,23 @@
+---
+id: fri-5-gpu-cost
+type: free
+chapter: 5
+domain: production-pipelines
+bloom_level: apply
+objective_id: FRI-5.5
+difficulty: '2'
+tags: [infrastructure, serving]
+answer: >
+  Annual difference = (0.08 - 0.03) x 1,000,000 x 365 = about $18.25M/year — that is the price
+  of choosing Model B. The single fact that justifies it: Model B's quality edge must directly
+  drive enough revenue (or avoid enough cost/risk) to clear ~$18M — for example a premium
+  math-tutoring product where higher accuracy raises subscriptions, or a safety-critical setting
+  where B's lower error rate avoids large liabilities. Absent that revenue/risk link, the cheaper
+  model wins. Common wrong answer: "B is better, so deploy B" — a quality edge that does not pay
+  for its serving cost is a net loss at scale; serving cost is a first-class promotion gate, not
+  an afterthought.
+---
+
+Two models meet your quality bar: Model A at \$0.03/query and Model B at \$0.08/query. At 1M
+queries/day, what is the annual cost difference, and what single fact would justify choosing the
+more expensive one?

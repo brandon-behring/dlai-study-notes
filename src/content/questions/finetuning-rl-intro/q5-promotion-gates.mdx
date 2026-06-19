@@ -1,0 +1,23 @@
+---
+id: fri-5-promotion-gates
+type: free
+chapter: 5
+domain: production-pipelines
+bloom_level: apply
+objective_id: FRI-5.3
+difficulty: '2'
+tags: [production, evaluation]
+answer: >
+  Gates: (1) aggregate quality improves by a meaningful, statistically significant margin
+  (confidence intervals, not noise); (2) no behavioral slice regresses past its threshold —
+  including a "policy-accuracy" slice; (3) a hard ceiling on the policy-accuracy slice, where any
+  regression is a blocker, since wrong policy answers are the top risk; (4) cost per query stays
+  in budget. The hard blocker is the policy-accuracy slice ceiling: aggregate gains cannot buy
+  back a regression on the safety-critical behavior. All gates run in a frozen test environment
+  (same set, verifiers, hardware) so candidates are comparable. Common wrong answer: "promote if
+  overall accuracy went up" — an aggregate metric can rise while the critical policy slice
+  silently regresses, which is exactly the failure the slice ceiling guards against.
+---
+
+Design promotion gates (dev → staging) for a customer-support model whose top risk is giving
+wrong policy answers. Name at least four gates and say which is a hard blocker.
