@@ -1,0 +1,14 @@
+---
+term: Feedback Quality Filter
+aliases: [feedback filter]
+domain: llm-judge-monitoring
+see: [feedback-poisoning, golden-dataset]
+tags: [production, pipeline]
+---
+
+The defenses that keep noisy feedback out of a self-improving pipeline: an **engagement-time
+threshold** (discard sub-2-second clicks), **cross-signal validation** (a "helpful" click
+followed by an immediate re-query of the same topic is treated as noise), **confidence
+weighting** (trust users with a history over first-touch clicks), and a periodic **human
+audit** of a sample. Together they are the firewall between automated feedback and dataset
+quality.

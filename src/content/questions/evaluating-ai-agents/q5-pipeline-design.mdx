@@ -1,0 +1,22 @@
+---
+id: eaa-5-pipeline-design
+type: free
+chapter: 5
+domain: llm-judge-monitoring
+bloom_level: analyze
+objective_id: EAA-5.5
+difficulty: '2'
+tags: [self-improving, pipeline, design]
+answer: >
+  Five stages: (1) collect user feedback from production; (2) augment the evaluation dataset with
+  both successful and failed interactions; (3) run CI/CD experiments on every dataset update; (4)
+  incorporate few-shot examples drawn from the collected data; (5) gate deployment via the golden
+  dataset. Tracing (from the observability layer) supplies the raw data, and automation is the
+  multiplier — each interaction makes the system incrementally better. Crucially, insert quality
+  gates: a feedback filter before stage 2 and the human-curated golden dataset at stage 5, so
+  noisy data can't silently degrade the agent. Common wrong answer: "retrain on all feedback
+  automatically" — without filters and the golden gate, the pipeline poisons itself.
+---
+
+Design a self-improving agent pipeline that turns production feedback into continuous
+improvement. Name its stages and where the data comes from.

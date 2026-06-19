@@ -1,0 +1,13 @@
+---
+term: Self-Improving Agent
+aliases: [self-improving pipeline]
+domain: llm-judge-monitoring
+see: [feedback-poisoning, golden-dataset]
+tags: [production, pipeline]
+---
+
+An automated pipeline where production feedback continuously **updates the eval dataset,
+triggers CI/CD experiments, adds few-shot examples, and gates deployment via the golden
+dataset** — improving the agent with minimal human intervention. Automation is the multiplier:
+each interaction makes the system incrementally better. The catch: without quality gates it can
+poison itself, so a human-curated golden dataset and feedback filters are mandatory.

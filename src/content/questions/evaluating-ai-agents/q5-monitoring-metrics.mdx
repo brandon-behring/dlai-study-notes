@@ -1,0 +1,22 @@
+---
+id: eaa-5-monitoring-metrics
+type: free
+chapter: 5
+domain: llm-judge-monitoring
+bloom_level: understand
+objective_id: EAA-5.4
+difficulty: '2'
+tags: [monitoring, production]
+answer: >
+  Track, with alert thresholds (~>10% deviation from baseline): running evaluator scores per
+  dimension (quality), convergence / steps-to-terminal (efficiency and loop detection), LLM-call
+  counts per query (a spike signals a runaway loop), latency p50/p99 broken by component, and
+  cost per query/model/skill. The failure these exist to catch is the silent regression —
+  plausible-looking but wrong answers that throw no error, so latency and error-rate dashboards
+  stay green; only content-quality evaluator scores over sampled live traces (plus provenance
+  checks) reveal it. Common wrong answer: "monitor latency and error rate" alone — those miss the
+  silent regression entirely, which is the most dangerous production failure.
+---
+
+Name the production-monitoring metrics you would track with alert thresholds, and explain which
+failure mode the content-quality metrics catch that latency/error dashboards miss.

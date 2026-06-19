@@ -1,0 +1,13 @@
+---
+term: Golden Dataset
+aliases: [golden set]
+domain: llm-judge-monitoring
+see: [ci-shipping-gate, golden-dataset-evolution]
+tags: [evaluation, shipping]
+---
+
+A curated set of **must-pass scenarios** used as a shipping gate: every agent change runs
+against it and a regression blocks deployment. It differs from a general eval set — curated for
+*criticality* (every row must pass), seeded with *known failure modes* codified from past
+production bugs, and *grown continuously*. Because agent runs are probabilistic, run it several
+times and take the median or worst score with tolerance bands.

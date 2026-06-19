@@ -1,0 +1,23 @@
+---
+id: eaa-5-meta-eval-design
+type: free
+chapter: 5
+domain: llm-judge-monitoring
+bloom_level: apply
+objective_id: EAA-5.1
+difficulty: '2'
+tags: [meta-evaluation, design]
+answer: >
+  Ground-truth evaluator: execute the generated code in a sandbox and compare actual vs expected
+  output — 100% accurate by construction. Dataset: ~40–50 cases mixing correct code, syntax
+  errors, subtle logic bugs (at least ~30% of the set, since that's where leniency shows), and
+  edge-case failures. Metrics: binary agreement rate AND false-positive rate (judge says
+  "correct" when the code fails) — FPR is the leniency signal you specifically suspect.
+  Acceptance: ship the judge only if agreement ≥ 85% AND FPR ≤ 10%. Common wrong answer: "measure
+  overall agreement only" — a single rate hides the asymmetric leniency; you must break out FPR
+  (and FNR) to see which way it errs.
+---
+
+Your LLM judge scores code correctness and you suspect it is too lenient. Design a
+meta-evaluation: the ground-truth evaluator, the dataset, the metric(s), and the acceptance
+threshold.

@@ -1,0 +1,13 @@
+---
+term: Silent Regression
+aliases: [silent failure]
+domain: llm-judge-monitoring
+see: [production-monitoring, alert-threshold]
+tags: [production, monitoring]
+---
+
+The most dangerous production failure: **plausible-looking but wrong outputs that throw no
+error** — for example, an agent fabricating an answer when a data source returns empty. Latency
+and error-rate dashboards stay green because nothing crashed, so only content-quality
+monitoring — evaluator scores over sampled live traces, plus provenance checks — catches it. It
+is the reason production monitoring needs *output* metrics, not just *system* metrics.

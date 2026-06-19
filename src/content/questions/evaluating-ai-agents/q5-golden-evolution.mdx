@@ -1,0 +1,24 @@
+---
+id: eaa-5-golden-evolution
+type: free
+chapter: 5
+domain: llm-judge-monitoring
+bloom_level: analyze
+objective_id: EAA-5.8
+difficulty: '2'
+tags: [golden-dataset, shipping]
+answer: >
+  Month 1 (grow): add a regression row for every production bug as it's found (~5–10 rows), so
+  the gate starts encoding real failures. Month 2 (prune + extend): remove rows that have never
+  triggered a failure on a stable feature, and add rows for every new feature/workflow shipped.
+  Month 3 (stabilise): settle at ~40–60 rows with a quarterly review, keeping run time low enough
+  to gate every PR. Throughout: add on every incident, new feature, and testing-discovered edge
+  case; prune only stable-feature rows that never fire; never prune safety-critical rows. The
+  guiding signal is that a gate which never fails is stale, not safe. Common wrong answer: "keep
+  adding every case forever" — past ~100 rows the gate is too slow to run on each PR, so pruning
+  stale non-safety rows is part of the policy.
+---
+
+Sketch a golden-dataset evolution policy for the first 90 days — when to add rows, when to
+prune, when to stabilise — so the gate keeps catching real regressions without growing
+unboundedly.

@@ -1,0 +1,13 @@
+---
+term: Feedback Poisoning
+aliases: [dataset poisoning]
+domain: llm-judge-monitoring
+see: [feedback-quality-filter, self-improving-agent]
+tags: [production, pipeline, risk]
+---
+
+When **noisy or adversarial user feedback contaminates** a self-improving pipeline's dataset
+and few-shot examples. The trap is self-confirming: because the *evaluator* learns from the
+same poisoned data, the automated score can **rise while real quality falls**, so the metric
+endorses the degradation. Only independent signals — user surveys and the human-curated golden
+dataset — reveal the truth, which is why those firewalls are essential.

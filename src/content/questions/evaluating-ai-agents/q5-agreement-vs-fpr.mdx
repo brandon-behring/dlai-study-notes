@@ -1,0 +1,33 @@
+---
+id: eaa-5-agreement-vs-fpr
+type: mcq
+chapter: 5
+domain: llm-judge-monitoring
+bloom_level: analyze
+objective_id: EAA-5.7
+difficulty: '2'
+tags: [meta-evaluation, metrics]
+options:
+  - id: a
+    text: Yes — 95% agreement clears the usual bar
+  - id: b
+    text: Yes, provided you raise the agreement target to 97%
+  - id: c
+    text: No — its false-negative rate is clearly too high
+  - id: d
+    text: No — a 30% FPR means it passes nearly a third of wrong answers (leniency); a gate needs high agreement and a low FPR
+    correct: true
+---
+import Rationale from '@brandon_m_behring/book-scaffold-astro/components/Rationale.astro';
+
+A judge has 95% agreement with ground truth but a 30% false-positive rate. Is it safe to gate
+releases with, and why?
+
+<Rationale title="Why">
+Agreement and FPR are different indicators: agreement is the overall match rate, while FPR
+isolates leniency — wrong answers passed as correct. A 30% FPR means the judge waves through
+nearly a third of bad answers, which is disqualifying for a gate even at 95% agreement (the
+errors are concentrated in the dangerous direction). Raising the agreement target doesn't
+address the leniency, and the *false-negative* rate (strictness) isn't the problem here — the
+false-*positive* rate is.
+</Rationale>

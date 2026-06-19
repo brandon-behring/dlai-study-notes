@@ -1,0 +1,22 @@
+---
+id: eaa-5-fpr-threshold
+type: free
+chapter: 5
+domain: llm-judge-monitoring
+bloom_level: analyze
+objective_id: EAA-5.7
+difficulty: '2'
+tags: [meta-evaluation, metrics]
+answer: >
+  Agreement rate is the overall match with ground truth; the false-positive rate isolates one
+  direction — wrong answers the judge passes as correct (leniency) — and the false-negative rate
+  the other (strictness). They differ because a high agreement can still hide many false
+  positives if errors cluster on the rarer class, and for a *gate*, leniency is the dangerous
+  error: a lenient judge ships bad answers. Pick both thresholds: require overall agreement ≥ 85%
+  AND FPR ≤ 10% (tighten the FPR cap further for safety-critical gates). Reject the judge if
+  either fails. Common wrong answer: "agreement ≥ 90% is enough" — it can coexist with a high FPR,
+  so a single threshold lets a lenient judge through.
+---
+
+Explain why agreement rate and false-positive rate are different leniency indicators for an LLM
+judge, and how you would set an acceptance threshold for each.

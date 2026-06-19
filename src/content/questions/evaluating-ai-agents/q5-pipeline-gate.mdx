@@ -1,0 +1,23 @@
+---
+id: eaa-5-pipeline-gate
+type: free
+chapter: 5
+domain: llm-judge-monitoring
+bloom_level: analyze
+objective_id: EAA-5.5
+difficulty: '3'
+tags: [self-improving, pipeline, safety]
+answer: >
+  The human safety valve and the golden dataset are the two firewalls. The golden dataset is
+  human-curated and fixed, so it can't be moved by noisy feedback: a pipeline update that
+  degrades a must-pass scenario fails the gate and can't ship, even if the automated eval (which
+  *can* drift) looks fine. The human review sample (auditing a fraction of feedback and of
+  promoted dataset rows) catches contamination the automatic filters miss. So the pipeline
+  automates the high-volume work but keeps two human-anchored checkpoints — the curated golden
+  gate at deploy time and periodic human audit of the feedback stream. Common wrong answer:
+  "trust the automated eval as the gate" — it learns from the same data the pipeline ingests, so
+  it can be poisoned along with the agent; the gate must be independent and human-curated.
+---
+
+In a self-improving pipeline, where is the human safety valve, and why must the deployment gate
+be the human-curated golden dataset rather than the automated eval score?

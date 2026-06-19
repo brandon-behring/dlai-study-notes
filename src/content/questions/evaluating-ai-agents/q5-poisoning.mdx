@@ -1,0 +1,32 @@
+---
+id: eaa-5-poisoning
+type: mcq
+chapter: 5
+domain: llm-judge-monitoring
+bloom_level: analyze
+objective_id: EAA-5.6
+difficulty: '2'
+tags: [feedback-poisoning, pipeline]
+options:
+  - id: a
+    text: The survey is biased; trust the automated eval score
+  - id: b
+    text: The agent genuinely improved on metrics but users dislike the change
+  - id: c
+    text: Feedback poisoning — noisy feedback contaminated the eval dataset, so the evaluator learned to reward the degraded behaviour and the score self-confirms
+    correct: true
+  - id: d
+    text: The golden dataset grew too large to run
+---
+import Rationale from '@brandon_m_behring/book-scaffold-astro/components/Rationale.astro';
+
+In a self-improving pipeline, the automated eval score rises while user-survey satisfaction
+falls. What most likely happened?
+
+<Rationale title="Why">
+The eval dataset and few-shot examples are built from user feedback; when that feedback is
+noisy, the *evaluator* learns from the same poison, so its score climbs as quality drops — the
+metric self-confirms the degradation. The independent survey is the trustworthy signal here,
+not the biased one. The agent didn't genuinely improve (the survey says otherwise), and golden
+dataset size affects run time, not whether the automated score diverges from reality.
+</Rationale>
