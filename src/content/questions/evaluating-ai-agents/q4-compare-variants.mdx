@@ -1,0 +1,24 @@
+---
+id: eaa-4-compare-variants
+type: free
+chapter: 4
+domain: trajectory-evals
+bloom_level: analyze
+objective_id: EAA-4.5
+difficulty: '2'
+tags: [experiments, shipping]
+answer: >
+  Read the whole row, not an aggregate. V2 (new prompt) improves routing (+2pp) and SQL (+3pp),
+  improves clarity, holds runnability, and adds only ~0.1s latency — broad gains, no meaningful
+  regression. V3 (new model) has the best routing and SQL but regresses clarity and runnability
+  and more than doubles latency. Ship V2: it's a clear improvement with no dimension clearly
+  worse, whereas V3 trades correctness for clarity/latency losses a latency SLO might reject.
+  Before committing, get statistical significance, a per-category breakdown, cost/query, and a
+  small A/B on user satisfaction. Common wrong answer: "ship V3 because its routing and SQL are
+  highest" — that ignores the clarity, runnability, and latency regressions the dashboard exists
+  to surface.
+---
+
+A dashboard shows V1 (baseline), V2 (new prompt: small gains on routing/SQL/clarity, +0.1s
+latency), and V3 (new model: best routing/SQL, worse clarity/runnability, 2.8s latency vs
+1.2s). Which would you ship, and what else do you need before committing?

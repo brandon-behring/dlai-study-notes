@@ -1,0 +1,311 @@
+---
+book: evaluating-ai-agents
+title: 'Trajectory & Structured Evals'
+chapter: 4
+part: 1
+description: >
+  Why the path matters beyond the final answer, convergence scoring and its blind
+  spots, the Phoenix Experiments framework (dataset → task → experiment →
+  evaluators), comprehensive-not-exhaustive datasets, comparing agent variants on a
+  dashboard, the production feedback flywheel, and turning wasted work into a cost.
+learning_outcomes:
+  - id: EAA-4.1
+    verb: Define
+    text: >
+      trajectory evaluation and explain why the path taken matters beyond just the
+      final answer.
+  - id: EAA-4.2
+    verb: Calculate
+    text: >
+      a convergence score from multiple agent runs and identify its limitations.
+  - id: EAA-4.3
+    verb: Apply
+    text: >
+      the Phoenix Experiments framework: dataset → task → experiment → evaluators.
+  - id: EAA-4.4
+    verb: Design
+    text: >
+      evaluation datasets that are "comprehensive, not exhaustive" with input keys
+      and output keys.
+  - id: EAA-4.5
+    verb: Compare
+    text: >
+      agent variants across evaluator dimensions using a dashboard view to identify
+      regressions and improvements.
+  - id: EAA-4.6
+    verb: Explain
+    text: >
+      the production feedback flywheel that continuously improves evaluation
+      datasets from live traffic.
+  - id: EAA-4.7
+    verb: Evaluate
+    text: >
+      whether to ship a candidate variant by combining per-evaluator scores with
+      cost, latency, and statistical-significance context — not aggregate score alone.
+  - id: EAA-4.8
+    verb: Trace
+    text: >
+      wasted-work cost in agent runs (number of non-optimal steps) and convert it to
+      a daily-cost figure for variant comparison.
+tags:
+  - trajectory
+  - convergence
+  - experiments
+  - evaluation-datasets
+  - shipping-decisions
+last_verified: 2026-06-19
+volatility: architectural-pattern
+sources:
+  - yao2022react
+  - arize2024phoenix
+draft: false
+---
+
+<Diagnostic skimTo="Convergence scoring">
+Predict before reading — check each against the chapter.
+
+1. Two agents return the *same correct answer*; one takes 3 steps, the other 9. Predict why an evaluation that only checks the final answer is missing something important.
+2. An agent always takes the exact same 5-step path. Guess what a "convergence score" of 1.0 does and doesn't tell you about correctness.
+3. Variant V3 wins on routing and SQL accuracy but loses on clarity and latency. Predict whether a single aggregate score should decide the ship call.
+4. Of 12 runs, the minimum is 4 steps and the total is 58 steps. Estimate the fraction of steps that were "wasted."
+
+<Fragment slot="answers">
+1. The 9-step path costs ~3× the LLM calls, adds latency, and introduces more stochastic-failure opportunities — "correct" hides "wasteful," which can make an agent unviable at scale.
+2. Convergence 1.0 means the agent always takes the *same* path — **consistency**, not **correctness**. It can be consistently wrong; pair it with per-step correctness evals.
+3. **No** — a single number hides the trade-off. Decide on the full row plus cost, latency, and statistical significance.
+4. Optimal = $12 \times 4 = 48$; wasted = $58 - 48 = 10$; $10/58 \approx \mathbf{17\%}$.
+</Fragment>
+</Diagnostic>
+
+<NarrativeBox title="Where we are">
+Chapter 3 evaluated components in isolation. But a correct *final answer* can hide
+a wasteful *path* — calling 5 tools when 2 suffice. This chapter shifts from
+"what did the agent produce?" to "how did it get there?", then introduces the
+structured experiments framework that turns isolated checks into a repeatable
+development process.
+</NarrativeBox>
+
+## What is a trajectory?
+
+A [**trajectory**](../glossary#term-trajectory) is the ordered sequence of *all*
+steps — router decisions, tool calls, LLM completions — from input to final
+response. It captures not just what the agent produced but *how* it got there.
+
+<Newthought>Two agents</Newthought> can reach the same correct answer through
+radically different paths. <EvidenceTag kind="verified" /> The longer path means
+more LLM calls, more latency, more cost, and more chances for a stochastic
+failure — so at scale the trajectory, not just the answer, decides viability.
+
+<Aside category="warning">
+Correct answer ≠ efficient trajectory. An agent that produces correct outputs can still be unusable at \$0.03/step × 10 steps per query — three times the cost of a 3-step path for the same result.
+</Aside>
+
+## Convergence scoring
+
+The [**convergence score**](../glossary#term-convergence-score) measures how often
+the agent takes the *optimal* (minimum-step) path across similar queries:
+
+$$\text{convergence} = \frac{\#\{\text{runs at the minimum step count}\}}{\#\{\text{completed runs}\}} \in [0, 1].$$
+
+A rough reading: ≥ 0.8 is stable, 0.5–0.8 warrants investigation, below 0.5 is
+unreliable.
+
+<WorkedExample title="Convergence and the cost of wasted work" los="EAA-4.2">
+**Problem.** An agent handling "return item" requests produces these step counts
+over 12 runs: 4, 6, 4, 4, 8, 4, 4, 4, 6, 4, 4, 6. (a) Convergence? (b) Run 5
+(8 steps) errored mid-way — exclude it and recompute. (c) At 10,000 queries/day and
+\$0.03/step, what is the daily cost of the wasted steps?
+
+**Reasoning.**
+- (a) Minimum = 4 steps; runs at 4 = **8** of 12 → convergence = $8/12 = \mathbf{0.667}$.
+- (b) Drop the errored run: 11 completed, min still 4, 8 at min → $8/11 = \mathbf{0.727}$. (Always filter to *completed* runs — a crash at 2 steps would falsely lower the minimum.)
+- (c) Total steps = 58; optimal = $12 \times 4 = 48$; wasted = $58 - 48 = 10$ steps, i.e. $10/58 \approx 17\%$ of step spend. At 10,000 queries/day and \$0.03/step, daily step spend is about \$1,450, so roughly **\$250/day** is wasted work.
+
+**Answer.** Convergence ≈ **0.67** (0.73 excluding the errored run), and roughly
+**17%** of step cost — on the order of **\$250/day** here — is spent on non-optimal
+paths. That dollar figure is what makes a trajectory inefficiency a *shipping*
+concern, not a curiosity.
+</WorkedExample>
+
+<KeyConcept title="Convergence measures consistency, not correctness" los="EAA-4.2">
+A convergence of 1.0 means the agent always takes the **same** path — not
+necessarily the **correct** one. High convergence on a *wrong* path is worse than
+low convergence with some correct runs, so always pair it with the per-step
+correctness evals from Chapter 3. Its three blind spots: **universal waste** (if
+every run includes the same unnecessary step, the minimum includes it and
+convergence reports 1.0), **errored runs** (filter to completed runs or a crash
+deflates the minimum), and **parallel tool calls** (decide whether 3 tools in one
+step counts as 1 or 3, and apply it uniformly). <EvidenceTag kind="verified" />
+</KeyConcept>
+
+<CompletionProblem id="wasted-work-cost" title="Turn wasted steps into a daily cost" level="completion">
+A *different* agent runs **20,000 queries/day**. Its average run uses **6 steps**,
+but the optimal path is **4 steps**. Each step costs **\$0.02**.
+
+**Your turn — fill the blanks:**
+- Wasted steps per run = $6 - 4 = \_\_\_$
+- Daily wasted steps = $20{,}000 \times \_\_\_ = \_\_\_$
+- Daily wasted cost = daily wasted steps × \$0.02 = \_\_\_
+- If a new variant cuts the average to 5 steps, what's the *new* daily wasted cost, and the saving?
+
+<Fragment slot="solution">
+- Wasted steps per run = **2**.
+- Daily wasted steps = $20{,}000 \times 2 = \mathbf{40{,}000}$.
+- Daily wasted cost = $40{,}000 \times 0.02 = 800$ → **\$800/day**.
+- New variant at 5 steps → 1 wasted step/run → $20{,}000 \times 1 \times 0.02 = 400$ → **\$400/day**, a **\$400/day saving** (~\$146K/year). Expressing waste as a daily dollar figure is exactly what lets you compare two variants on efficiency, not just accuracy.
+</Fragment>
+</CompletionProblem>
+
+<SelfCheck q="What does a convergence score of 1.0 tell you, and what does it not tell you?" los="EAA-4.2">
+It tells you the agent is perfectly **consistent** — every run takes the same minimum-step path. It does *not* tell you the path is **correct**: the agent could consistently take a wrong shortcut, and if every run shares the same unnecessary step, that waste is baked into the minimum and convergence still reports 1.0. Pair it with per-step correctness evaluators.
+</SelfCheck>
+
+## The Phoenix Experiments framework
+
+An [**experiment**](../glossary#term-phoenix-experiment) is a structured,
+versioned evaluation run. The workflow has four stages — and it maps cleanly onto
+`pytest`: <EvidenceTag kind="verified" />
+
+1. **Create a [dataset](../glossary#term-evaluation-dataset)** of test cases with input keys (forwarded to the agent) and optional output keys (forwarded to evaluators). *(≈ test cases / `parametrize`.)*
+2. **Define a [task](../glossary#term-task-function)** — a function taking one dataset row, running the agent, returning output + metadata. *(≈ the test function.)*
+3. **Run the experiment** — iterate over the dataset, managing parallelism and errors.
+4. **Apply evaluators** — scoring functions over each result. *(≈ assertions.)*
+
+<SelfCheck q="Name the four stages of the Phoenix Experiments pipeline in order." los="EAA-4.3">
+**Dataset** (test cases with input/output keys) → **task** (a function that runs the agent on one row) → **experiment** (run the task over the whole dataset) → **evaluators** (scoring functions applied to each result). It's the agent analogue of `pytest`: dataset = cases, task = test function, evaluators = assertions.
+</SelfCheck>
+
+## Designing the dataset
+
+An [**evaluation dataset**](../glossary#term-evaluation-dataset) pairs
+[**input keys**](../glossary#term-input-output-keys) (sent to the agent) with
+output keys (sent to evaluators). The guiding principle is
+[**comprehensive, not exhaustive**](../glossary#term-comprehensive-not-exhaustive):
+1–2 examples per *input type*, not 100 per category — the sweet spot for iteration
+speed.
+
+<Aside category="pattern">
+Three sources feed a good dataset: **manually constructed** (for edge cases), **model-generated** (for coverage), and **production-sampled** (highest ecological validity). Include expected outputs wherever you can — an `expected_sql_tables` output key turns an expensive LLM-judge call into a free string comparison.
+</Aside>
+
+To improve an agent there are five levers — **prompts, tool definitions, router
+logic, skill structure, model selection** — and the rule is **change one at a
+time**: modify the prompt *and* the model together and you can't attribute the
+result to either.
+
+<SelfCheck q="Why should an evaluation dataset be 'comprehensive, not exhaustive', and what are the two key-types in it?" los="EAA-4.4">
+Because iteration speed matters more than volume: 1–2 cases per *input type* cover the behaviour space well enough to catch regressions while keeping each experiment fast to run and cheap to maintain; 100 near-duplicates per category slow the loop without adding signal. The two key-types are **input keys** (forwarded to the agent) and **output keys** (forwarded to evaluators for comparison, e.g. expected SQL tables or trend direction).
+</SelfCheck>
+
+## Comparing variants on the dashboard
+
+No single evaluator captures the full picture, so an experiment **composes**
+several — function-calling correctness, SQL accuracy, clarity (LLM judge), entity
+correctness, runnability — and lays the variants out on a dashboard:
+
+| Variant | Routing | SQL | Clarity | Runnable | Latency |
+| --- | --- | --- | --- | --- | --- |
+| V1 (baseline) | 0.82 | 0.75 | 0.88 | 0.95 | 1.2 s |
+| V2 (new prompt) | 0.85 | 0.78 | 0.91 | 0.95 | 1.3 s |
+| V3 (new model) | 0.90 | 0.82 | 0.86 | 0.90 | 2.8 s |
+
+<KeyConcept title="The dashboard reveals trade-offs a single metric hides" los="EAA-4.5">
+Comparing across dimensions at once surfaces trade-offs an aggregate score masks:
+V3 improves routing and SQL but *regresses* clarity, runnability, and latency. A
+shipping call needs the whole row — and it breaks down if the evaluators are too
+coarse (binary pass/fail can't show a 3-point clarity dip). <EvidenceTag kind="inference" />
+</KeyConcept>
+
+<WorkedExample title="Should you ship V3?" los="EAA-4.7">
+**Problem.** Using the dashboard above, decide whether to ship V2 or V3, and say
+what *else* you'd need to know.
+
+**Reasoning.** V3 has the best routing (0.90) and SQL (0.82) but the worst clarity
+(0.86), runnability (0.90), and a latency of 2.8 s — more than double V1. V2
+improves routing and SQL modestly *and* clarity, holds runnability, and adds only
+0.1 s. There's no dimension where V2 is clearly bad.
+
+**Answer.** Ship **V2**: broad improvement with no meaningful regression. V3 trades
+correctness gains for clarity/runnability/latency losses that a latency SLO might
+reject outright. But don't decide on the table alone — first get **statistical
+significance** (are these gaps real or noise on a small dataset?), a **per-category
+breakdown**, **cost per query**, and ideally a small **A/B on user satisfaction**.
+Aggregate scores need cost, latency, and significance context before they're a
+decision.
+</WorkedExample>
+
+<SelfCheck q="Variant B scores higher on correctness but costs more, and the difference isn't statistically significant. How do you decide whether to ship it?" los="EAA-4.7">
+Don't ship on the higher score alone. With the difference not significant, the "improvement" may be noise — gather more data or a larger eval set first. Weigh the correctness gain against the extra cost (and any latency change) explicitly, check a per-category breakdown for hidden regressions, and confirm the gain holds on a significance test (or an A/B on real users) before committing. Ship only if a *real* gain justifies the added cost.
+</SelfCheck>
+
+## The production feedback flywheel
+
+The [**evaluation flywheel**](../glossary#term-evaluation-flywheel) is the
+self-reinforcing loop: production traces → new test cases → updated evaluators →
+agent improvements → better production data → repeat. Chapter 2's tracing is what
+supplies the raw production data.
+
+<KeyConcept title="The flywheel is only as fast as its slowest stage" los="EAA-4.6">
+If promoting a production trace into the dataset takes a week of manual review, the
+flywheel stalls — teams that **automate** trace-to-dataset promotion, annotation,
+and evaluator updates iterate roughly 10× faster. The failure mode: noisy
+production data (bots, adversarial inputs) entering *unfiltered* degrades the
+evaluation set, so the automation must include a quality gate. <EvidenceTag kind="inference" />
+</KeyConcept>
+
+<Aside category="pattern">
+Where practitioners disagree — *what is the honest headline metric for an agent?* One camp reports **single-run accuracy** (what a user gets on one try); another insists on **pass^k / consistency** (does it succeed on *every* one of k tries), arguing single-run hides the variance non-determinism creates; a third says no scalar is honest and you must show the **per-evaluator row** plus cost and latency. This chapter sides with the last for *shipping* decisions (EAA-4.7) — but which number you headline to stakeholders remains genuinely contested, and the right answer depends on whether your users retry.
+</Aside>
+
+<SelfCheck q="Describe the production feedback flywheel and its most common bottleneck." los="EAA-4.6">
+The flywheel is the loop production traces → new test cases → updated evaluators → agent improvements → better production data, repeating. Its most common bottleneck is the **speed of trace-to-dataset promotion**: if turning a real failure into a dataset case needs slow manual review, the loop stalls. The fix is automation (with a quality filter so noisy/adversarial traffic doesn't pollute the dataset).
+</SelfCheck>
+
+## A cautionary tale
+
+<Vignette title="The Efficient but Wrong Agent">
+Your team ships **V2** with a new prompt: convergence jumps to **0.95** (from V1's
+0.72), and it completes queries in a steady 3 steps instead of V1's variable 3–7.
+Every *trajectory* metric improves. Two weeks later, users report the agent's SQL
+returns **stale data** — and the investigation finds V2 skips the `data_lookup`
+skill entirely, generating analysis from cached context: fast, consistent, and
+**wrong**.
+
+**Why high convergence masked it.** Convergence measures whether the agent reaches
+a *stable* answer in few steps, not whether the answer is *correct*. V2 converges
+precisely *because* it took a consistent shortcut — skipping the data lookup — and
+convergence rewards exactly that. A **factual-accuracy / freshness** evaluator
+comparing outputs against ground-truth query results would have caught it.
+
+The fuller dashboard makes the call obvious:
+
+| Variant | Convergence | SQL accuracy | Freshness | Latency |
+| --- | --- | --- | --- | --- |
+| V1 (baseline) | 0.72 | 0.85 | 100% | 3.1 s |
+| V2 (new prompt) | 0.95 | 0.40 | 12% | 1.4 s |
+| V3 (hybrid) | 0.83 | 0.82 | 95% | 2.6 s |
+
+**Ship V3.** It recovers 95% freshness and 0.82 SQL accuracy (near V1) while still
+lifting convergence to 0.83 and cutting latency 16%. V2 is disqualified by 12%
+freshness and 0.40 SQL — no latency win justifies serving stale data. **The fix
+that generalises:** add a freshness evaluator that checks each trajectory for a
+`data_lookup` call when the query needs live data, and auto-fails responses that
+skip it — so the next regression of this class can't hide behind a high convergence
+score.
+</Vignette>
+
+<Aside category="interview">
+"How would you decide whether to ship a new agent variant?" — read the *whole* dashboard row, not an aggregate: name the gains and the regressions, then say what's missing (statistical significance, per-category breakdown, cost/query, an A/B on satisfaction). Bonus signal: explain why a high convergence score alone can be a *trap* (consistency ≠ correctness), and compose a trajectory eval with a correctness/freshness eval. Red flag: "the aggregate score went up, so ship it."
+</Aside>
+
+## Summary — what this sets up
+
+You can now evaluate the *path*, not just the answer: convergence scores
+consistency (never mistake it for correctness), the Phoenix Experiments framework
+makes evaluation repeatable (dataset → task → experiment → evaluators), composed
+evaluators on a dashboard expose trade-offs, shipping decisions weigh the full row
+plus cost/latency/significance, and the flywheel feeds production reality back into
+the dataset — and turning wasted steps into a daily dollar figure makes efficiency
+a first-class shipping metric.
+
+- **Chapter 5** — *LLM-as-a-judge & monitoring*: making the judge that powers many of these evaluators trustworthy, and watching all of this in production.

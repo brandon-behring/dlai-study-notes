@@ -1,0 +1,13 @@
+---
+term: Dashboard Comparison
+aliases: [experiment dashboard, variant dashboard]
+domain: trajectory-evals
+see: [agent-variant, ship-decision]
+tags: [experiments, evaluation]
+---
+
+Laying agent variants out across **multiple evaluator dimensions at once** (routing, SQL,
+clarity, runnability, latency …) so trade-offs a single aggregate score would mask become
+visible — e.g. a variant that gains correctness while regressing clarity and latency. It is the
+core decision artifact for a ship call, provided the evaluators are fine-grained enough (binary
+pass/fail hides nuance).

@@ -1,0 +1,21 @@
+---
+id: eaa-4-define-trajectory
+type: free
+chapter: 4
+domain: trajectory-evals
+bloom_level: understand
+objective_id: EAA-4.1
+difficulty: '1'
+tags: [trajectory, evaluation]
+answer: >
+  A trajectory is the ordered sequence of all steps — router decisions, tool calls, LLM
+  completions — from input to final response; it records how the agent got to the answer, not
+  just the answer. Trajectory evaluation matters because two agents can produce the same correct
+  output via very different paths, and the longer path costs more LLM calls, adds latency, and
+  exposes the run to more stochastic-failure opportunities. At scale that difference decides
+  viability, so "correct" is not the same as "efficient." Common wrong answer: "only the final
+  answer matters" — that ignores the cost and reliability the path determines.
+---
+
+Define trajectory evaluation and explain why the path taken matters beyond just the final
+answer.

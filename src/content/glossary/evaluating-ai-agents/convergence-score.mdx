@@ -1,0 +1,13 @@
+---
+term: Convergence Score
+aliases: [convergence]
+domain: trajectory-evals
+see: [trajectory, wasted-work-cost]
+tags: [trajectory, metrics]
+---
+
+A metric in $[0,1]$ for the fraction of *completed* runs that follow the optimal,
+minimum-step path across similar queries (≥ 0.8 stable, 0.5–0.8 investigate, below 0.5
+unreliable). It measures **consistency, not correctness** — 1.0 can mean a consistently *wrong*
+shortcut — and is blind to waste present in *every* run (the waste enters the minimum). Always
+pair it with per-step correctness evaluators.

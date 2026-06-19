@@ -1,0 +1,12 @@
+---
+term: Phoenix Experiment
+aliases: [experiment, Experiments framework]
+domain: trajectory-evals
+see: [evaluation-dataset, task-function, evaluator-composition]
+tags: [experiments, tooling]
+---
+
+A structured, versioned evaluation run: execute a task function against every row of a
+dataset, record outputs, then apply evaluator functions. It is the agent analogue of a
+parametrized `pytest` run — dataset = test cases, task = test function, evaluators =
+assertions — and the unit you name, version, and compare across agent variants.

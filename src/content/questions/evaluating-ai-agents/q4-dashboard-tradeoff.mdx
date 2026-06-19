@@ -1,0 +1,32 @@
+---
+id: eaa-4-dashboard-tradeoff
+type: mcq
+chapter: 4
+domain: trajectory-evals
+bloom_level: analyze
+objective_id: EAA-4.5
+difficulty: '2'
+tags: [experiments, shipping]
+options:
+  - id: a
+    text: That V3 is strictly the best variant and should ship
+  - id: b
+    text: A cross-dimension trade-off — correctness gains bought with clarity, runnability, and latency regressions — so the ship call needs the whole row
+    correct: true
+  - id: c
+    text: That clarity and runnability don't matter for a shipping decision
+  - id: d
+    text: That the evaluators are miscalibrated and should be removed
+---
+import Rationale from '@brandon_m_behring/book-scaffold-astro/components/Rationale.astro';
+
+V3 has the best routing and SQL scores but the worst clarity, runnability, and latency. What
+does the multi-dimension dashboard reveal that a single aggregate score would hide?
+
+<Rationale title="Why">
+The dashboard exposes a trade-off: V3's correctness gains come *with* clarity, runnability, and
+latency regressions — an averaged score could net out positive and hide exactly that. So V3 is
+not strictly best, and the regressed dimensions clearly matter (a latency SLO alone might
+reject it). The evaluators aren't miscalibrated for showing the tension — surfacing it is the
+dashboard's whole purpose.
+</Rationale>
