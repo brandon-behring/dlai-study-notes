@@ -1,0 +1,31 @@
+---
+id: eaa-3-suppress-tracing
+type: mcq
+chapter: 3
+domain: component-evals
+bloom_level: understand
+objective_id: EAA-3.3
+difficulty: '2'
+tags: [evaluation, observability, tooling]
+options:
+  - id: a
+    text: So the judge's own LLM calls aren't recorded as spans and don't intermingle with, and inflate, the agent's traces
+    correct: true
+  - id: b
+    text: To speed up the judge by skipping all network logging
+  - id: c
+    text: To force the judge to return discrete rails instead of numeric scores
+  - id: d
+    text: To stop the judge from seeing the agent's prompts
+---
+import Rationale from '@brandon_m_behring/book-scaffold-astro/components/Rationale.astro';
+
+Why wrap LLM-as-a-judge calls in `suppress_tracing()` during a Phoenix evaluation run?
+
+<Rationale title="Why">
+The judge is itself an LLM call, so without suppression its spans land in the same trace store
+and intermingle with the agent's spans — a large eval run can roughly double the store with
+evaluation artifacts and corrupt trace analysis. It isn't a performance trick, it doesn't
+control the output format (rails do that, set separately), and it doesn't change what the judge
+reads — it only governs whether the judge's calls are *traced*.
+</Rationale>

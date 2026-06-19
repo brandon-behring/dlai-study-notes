@@ -1,0 +1,23 @@
+---
+id: eaa-3-design-router-eval
+type: free
+chapter: 3
+domain: component-evals
+bloom_level: analyze
+objective_id: EAA-3.2
+difficulty: '2'
+tags: [routing, evaluation, design]
+answer: >
+  Build a labelled dataset of representative queries, each tagged with the ground-truth tool and
+  the ground-truth parameter values. Then score two independent dimensions: (1) tool-selection
+  accuracy — exact match of predicted vs expected tool; (2) parameter-extraction accuracy —
+  given the correct tool, whether the extracted argument values match the expected ones. Report
+  them separately (and the product as end-to-end router accuracy), with a per-category breakdown
+  so you can see which query types misroute. This localises the bottleneck: a strong tool score
+  with a weak parameter score tells you where to invest. Common wrong answer: "measure one
+  combined router-correct/incorrect score" — it hides which dimension fails, and the two fail
+  independently, so you can't tell tool errors from parameter errors.
+---
+
+Design an evaluation for an agent's router that tests both function-calling choice and
+parameter extraction. Specify the dataset and the metrics.

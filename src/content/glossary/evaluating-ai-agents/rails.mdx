@@ -1,0 +1,13 @@
+---
+term: Rails
+aliases: [discrete labels, classification rails]
+domain: component-evals
+see: [llm-as-a-judge, llm-classify]
+tags: [evaluation, llm-as-judge]
+---
+
+The **fixed set of discrete labels** that constrain an LLM judge's output — e.g.
+`["correct", "incorrect"]` or 2–4 categories. Rails prevent free-form responses, enable
+automated parsing, and, most importantly, keep the judge doing what it does reliably
+(**classify**) rather than what it does not (calibrate a numeric scale). They are why
+LLM-as-a-judge is usable at all.

@@ -1,0 +1,33 @@
+---
+id: eaa-3-three-techniques
+type: mcq
+chapter: 3
+domain: component-evals
+bloom_level: understand
+objective_id: EAA-3.1
+difficulty: '1'
+tags: [evaluation, techniques]
+options:
+  - id: a
+    text: LLM-as-a-judge is both the most accurate and the cheapest, so it dominates the other two
+  - id: b
+    text: Code-based evaluation handles subjective prose quality better than an LLM judge
+  - id: c
+    text: Code-based is reproducible and free but needs codifiable criteria; LLM-as-a-judge scales to subjective output but is not fully accurate; human annotation is most accurate but slowest
+    correct: true
+  - id: d
+    text: Human annotation scales best because end users supply feedback for free
+---
+import Rationale from '@brandon_m_behring/book-scaffold-astro/components/Rationale.astro';
+
+Which statement correctly characterises the three evaluation techniques on the
+accuracy–scalability trade-off?
+
+<Rationale title="Why">
+The three sit on a trade-off: code-based is deterministic, free, and reproducible but limited
+to codifiable criteria; LLM-as-a-judge scales to subjective outputs yet is never fully
+accurate; human annotation is the most accurate and the least scalable. LLM-as-a-judge is not
+the most accurate (humans are) nor free of error. Code-based evaluation is precisely what
+*can't* judge subjective prose — that's the judge's job. And human annotation is the slowest to
+scale, not the fastest, even with end-user feedback.
+</Rationale>

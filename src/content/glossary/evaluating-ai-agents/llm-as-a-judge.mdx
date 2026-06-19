@@ -1,0 +1,13 @@
+---
+term: LLM-as-a-Judge
+aliases: [LLM judge]
+domain: component-evals
+see: [rails, human-annotation, suppress-tracing]
+tags: [evaluation, llm-as-judge]
+---
+
+A separate LLM prompt that **classifies** the agent's output using discrete labels. It scales
+and handles nuance no `assert` can, but is **never 100% accurate** — and is only trustworthy
+when constrained to [rails](#term-rails) (a fixed label set), not asked for a numeric score.
+The workhorse for qualitative skill outputs; layer human annotation on top for
+safety-critical judgments.

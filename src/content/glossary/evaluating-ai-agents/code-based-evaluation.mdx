@@ -1,0 +1,13 @@
+---
+term: Code-Based Evaluation
+aliases: [code-based eval, programmatic evaluation]
+domain: component-evals
+see: [llm-as-a-judge, runnability, cosine-similarity]
+tags: [evaluation, code-based]
+---
+
+Programmatic checks — regex, JSON validation, exact match, cosine similarity, SQL result-set
+diff — that classify an output as correct or incorrect. It is **100% reproducible, free, and
+fast**, but applies only to *codifiable* criteria. The rule of thumb: if you can write an
+`assert`, use code-based evaluation; reach for an LLM judge only when the output is prose or
+judgment.

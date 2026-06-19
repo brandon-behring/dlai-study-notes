@@ -1,0 +1,32 @@
+---
+id: eaa-3-multiplicative
+type: mcq
+chapter: 3
+domain: component-evals
+bloom_level: analyze
+objective_id: EAA-3.7
+difficulty: '2'
+tags: [routing, reliability]
+options:
+  - id: a
+    text: 85% — the two dimensions average
+  - id: b
+    text: 80% — the lower dimension caps the result
+  - id: c
+    text: 72% — independent dimensions multiply (0.90 × 0.80), so the product is below either factor
+    correct: true
+  - id: d
+    text: 90% — the higher dimension dominates
+---
+import Rationale from '@brandon_m_behring/book-scaffold-astro/components/Rationale.astro';
+
+Tool selection is 90% and parameter extraction is 80%, on independent dimensions. What is the
+end-to-end router accuracy, and why is it below both?
+
+<Rationale title="Why">
+Both independent steps must succeed, so the rates multiply: $0.90 \times 0.80 = 0.72$. The
+product falls below either factor because each step discards some of the other's successes — it
+is neither their average (85%), nor capped at the lower factor (80%), nor dominated by the
+higher one (90%). This is the multiplicative-accuracy effect, and it's why you fix the weaker
+dimension first.
+</Rationale>

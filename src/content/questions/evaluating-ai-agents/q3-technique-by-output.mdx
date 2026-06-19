@@ -1,0 +1,32 @@
+---
+id: eaa-3-technique-by-output
+type: mcq
+chapter: 3
+domain: component-evals
+bloom_level: apply
+objective_id: EAA-3.6
+difficulty: '2'
+tags: [evaluation, technique-selection]
+options:
+  - id: a
+    text: LLM-as-a-judge with rails, because money is sensitive
+  - id: b
+    text: Human annotation, because any financial output is safety-critical
+  - id: c
+    text: Cosine similarity on the text of the response
+  - id: d
+    text: Code-based — compare the numeric output to the expected amount within a small tolerance
+    correct: true
+---
+import Rationale from '@brandon_m_behring/book-scaffold-astro/components/Rationale.astro';
+
+A refund-calculator skill outputs a dollar amount with a known correct value. Which evaluation
+technique fits best?
+
+<Rationale title="Why">
+The output is quantitative with a known answer, so a deterministic numeric comparison (within a
+small tolerance for floating point) is exact, free, and reproducible — the textbook case for
+code-based evaluation. An LLM judge adds cost and error for something an `assert` settles;
+routing every dollar amount to a human doesn't scale and isn't needed when the correct value is
+known; and cosine similarity on text is the wrong tool for a precise number.
+</Rationale>

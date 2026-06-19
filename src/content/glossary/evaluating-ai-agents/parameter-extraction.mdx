@@ -1,0 +1,12 @@
+---
+term: Parameter Extraction
+aliases: [argument extraction]
+domain: component-evals
+see: [tool-selection, router-evaluation]
+tags: [routing, evaluation]
+---
+
+The router dimension measuring whether — having chosen the right tool — the agent supplied the
+**right argument values** (e.g. an `order_id` rather than a `tracking_id`; a date range in the
+correct order). It fails *independently* of tool selection, so a query can have the right tool
+and the wrong parameters. Because it's independent, it must be evaluated as its own dimension.

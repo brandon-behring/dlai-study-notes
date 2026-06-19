@@ -1,0 +1,13 @@
+---
+term: Cosine Similarity
+aliases: [cosine distance]
+domain: component-evals
+see: [code-based-evaluation]
+tags: [evaluation, code-based, metrics]
+---
+
+A code-based similarity metric on two embedding vectors, $\cos\theta = \frac{\mathbf{a}\cdot
+\mathbf{b}}{\lVert\mathbf{a}\rVert\,\lVert\mathbf{b}\rVert}$, ranging from −1 to 1; a threshold
+(≈ 0.85) marks two outputs as "semantically equivalent." It lets a deterministic, free check
+approximate meaning-level matching — useful when exact string match is too strict but an LLM
+judge is more than you need.

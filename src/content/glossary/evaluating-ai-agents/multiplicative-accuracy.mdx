@@ -1,0 +1,13 @@
+---
+term: Multiplicative Accuracy
+aliases: [compounding accuracy]
+domain: component-evals
+see: [router-evaluation, tool-selection]
+tags: [evaluation, reliability]
+---
+
+The rule that **independent component success rates multiply** into end-to-end accuracy:
+$P(\text{end-to-end}) = \prod_i P_i$. Two "looks-fine" components — say tool selection 0.95 and
+parameter extraction 0.85 — yield a markedly lower whole ($0.95 \times 0.85 = 0.81$), and the
+product is bounded by the weakest factor. The practical consequence: report components
+separately and fix the **bottleneck** first.

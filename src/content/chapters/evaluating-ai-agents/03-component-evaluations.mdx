@@ -1,0 +1,299 @@
+---
+book: evaluating-ai-agents
+title: 'Component Evaluations'
+chapter: 3
+part: 1
+description: >
+  The three evaluation techniques (code-based, LLM-as-a-judge, human annotation)
+  and how to pick among them, why LLM judges need discrete rails not numeric
+  scores, router evaluation as two independent dimensions (tool selection ×
+  parameter extraction), per-skill evaluation by output type, and Phoenix
+  evaluation with suppress_tracing.
+learning_outcomes:
+  - id: EAA-3.1
+    verb: Compare
+    text: >
+      code-based evaluations, LLM-as-a-judge, and human annotations along
+      accuracy and scalability dimensions.
+  - id: EAA-3.2
+    verb: Design
+    text: >
+      router evaluations that test both function-calling choice and parameter
+      extraction as independent dimensions.
+  - id: EAA-3.3
+    verb: Apply
+    text: >
+      LLM-as-a-judge with discrete classification labels to evaluate qualitative
+      skill outputs (and suppress_tracing to keep judge calls out of agent traces).
+  - id: EAA-3.4
+    verb: Explain
+    text: >
+      why numeric scoring scales fail for LLM judges and why discrete labels
+      (rails) are required.
+  - id: EAA-3.5
+    verb: Implement
+    text: >
+      code-based evaluations for quantifiable metrics like code runnability and
+      SQL correctness.
+  - id: EAA-3.6
+    verb: Evaluate
+    text: >
+      skill outputs using the appropriate technique based on output type
+      (quantitative vs qualitative).
+  - id: EAA-3.7
+    verb: Calculate
+    text: >
+      multiplicative end-to-end accuracy from independent component dimensions
+      (e.g., tool selection × parameter extraction).
+  - id: EAA-3.8
+    verb: Design
+    text: >
+      test cases that isolate parameter-extraction failures from tool-selection
+      failures so each component can be debugged independently.
+tags:
+  - evaluation
+  - llm-as-judge
+  - routing
+  - rails
+  - component-evals
+last_verified: 2026-06-19
+volatility: architectural-pattern
+sources:
+  - zheng2023judging
+  - patil2023gorilla
+  - arize2024phoenix
+draft: false
+---
+
+<Diagnostic skimTo="Router evaluation">
+Predict before reading — check each against the chapter.
+
+1. You must evaluate whether generated SQL is correct vs whether a summary is *good*. Predict which one a deterministic code check fits, and which needs a different technique.
+2. A teammate proposes "have GPT-4o rate each answer 1–10 and average." Estimate how reliable that average is.
+3. A router picks the right tool 95% of the time and the right parameters 85% of the time. Guess the end-to-end router accuracy — about 90%, about 81%, or about 80%.
+4. Tool-selection accuracy is great but parameter accuracy is poor. Predict what kind of test case isolates the parameter bug without also testing tool choice.
+
+<Fragment slot="answers">
+1. SQL → **code-based** (run it, compare result sets — deterministic). Summary quality → **LLM-as-a-judge** with discrete labels (no single correct string).
+2. **Unreliable** — LLMs can't calibrate a numeric scale (83 vs 79 is noise); averaging uncalibrated scores aggregates noise into false precision. Use discrete rails instead.
+3. **~81%** — $0.95 \times 0.85 = 0.808$. The two dimensions are independent and multiply.
+4. A query whose *correct tool is obvious* but whose parameters are easy to mis-extract (e.g. an ID that could be read as the wrong field, or a date range that could be reversed) — tool choice is unambiguous, so only parameter extraction is under test.
+</Fragment>
+</Diagnostic>
+
+<NarrativeBox title="Where we are">
+Chapter 2 gave full visibility into every span. But seeing the steps doesn't
+answer *"is the agent behaving correctly?"* This chapter introduces the three
+evaluation techniques and applies them to the two components Chapter 1 isolated:
+the **router** and the individual **skills**.
+</NarrativeBox>
+
+## The three evaluation techniques
+
+<Newthought>Every agent evaluation</Newthought> reduces to one of three
+techniques, trading **accuracy against scalability**:
+
+- [**Code-based evaluation**](../glossary#term-code-based-evaluation) — programmatic checks (regex, JSON validation, exact match, [cosine similarity](../glossary#term-cosine-similarity)) that classify output as correct or incorrect. 100% reproducible and free, but only works for *codifiable* criteria.
+- [**LLM-as-a-judge**](../glossary#term-llm-as-a-judge) — a separate LLM prompt classifies the output. Scalable and handles nuance, but **never 100% accurate**.
+- [**Human annotation**](../glossary#term-human-annotation) — human labellers or end-user feedback. Most accurate, but slowest to scale and subject to selection bias.
+
+| Output type | Technique | Why |
+| --- | --- | --- |
+| Quantitative / codifiable | Code-based | Deterministic, free, fast |
+| Qualitative / subjective | LLM-as-a-judge | Scalable, handles nuance |
+| Safety-critical | Human annotation | Accuracy worth the cost |
+
+The shortcut: *if you can write an `assert`, use code-based; if the output is
+prose or judgment, use an LLM judge with discrete labels; if a wrong answer is
+dangerous, pay for humans.*
+
+<KeyConcept title="Discrete labels, never numeric scores" los="EAA-3.4">
+An LLM judge must output discrete classification labels —
+[**rails**](../glossary#term-rails) like `["correct", "incorrect"]` — **not** a
+numeric score. An LLM cannot reliably distinguish 83 from 79, so numeric scores
+manufacture false precision, and teams that average LLM-assigned scores are
+averaging noise. Use 2–4 labels. The limit: even discrete labels are imperfect,
+so safety-critical calls still need human annotation. <EvidenceTag kind="verified" />
+</KeyConcept>
+
+<SelfCheck q="Why must an LLM judge use discrete labels rather than a 1–10 numeric score?" los="EAA-3.4">
+Because an LLM can't calibrate a fine numeric scale — it can't reliably tell 83 from 79 — so the numbers are noise dressed as precision, and averaging them aggregates that noise. Discrete rails (2–4 labels like correct/incorrect) ask the judge only what it can reliably do: classify. Numeric scoring produces confident-looking averages that don't track real quality.
+</SelfCheck>
+
+## Router evaluation: two independent dimensions
+
+The router is evaluated on **two dimensions that fail independently**:
+
+1. [**Tool selection**](../glossary#term-tool-selection) (function-calling choice) — did the agent pick the correct tool? A string comparison: `predicted_tool == expected_tool`. <EvidenceTag kind="verified" />
+2. [**Parameter extraction**](../glossary#term-parameter-extraction) — even with the right tool, did it extract the right argument values? A customer asks about order #12345 and the agent passes it as a `tracking_id` instead of an `order_id` — right tool, wrong parameter.
+
+<KeyConcept title="Router accuracy is the product of two independent tests" los="EAA-3.2">
+Tool selection and parameter extraction are separate checks, so end-to-end router
+correctness is their **product**: $P(\text{router correct}) = P(\text{tool}) \times P(\text{params} \mid \text{tool})$.
+Tracking them *separately* is what tells you where to invest — a strong tool score
+can hide a weak parameter score. The hard part: for ambiguous queries,
+ground-truth labels need careful annotation guidelines.
+</KeyConcept>
+
+<WorkedExample title="Multiplicative router accuracy and the bottleneck" los="EAA-3.7">
+**Problem.** A support agent selects the right tool 95% of the time and extracts
+the right parameters 85% of the time, on independent dimensions. (a) End-to-end
+router accuracy? (b) Could improving *either* dimension alone reach 95%
+end-to-end?
+
+**Reasoning.**
+- (a) Independent dimensions multiply: $0.95 \times 0.85 = 0.8075 \approx \mathbf{80.8\%}$.
+- (b) Fix params perfect, lift tool: $x \times 0.85 = 0.95 \Rightarrow x = 1.118$ — impossible. Fix tool perfect, lift params: $0.95 \times x = 0.95 \Rightarrow x = 1.00$ — i.e. you'd need *perfect* parameter extraction just to reach 95%, and only if tool selection were also perfect.
+
+**Answer.** End-to-end is **80.8%**, below *either* component — because every
+independent step must succeed, the product is bounded by the weaker factor. Neither
+dimension alone gets you to 95%; both must rise (roughly ≥97% each). The lesson:
+report the two dimensions separately and fix the **bottleneck** (here, parameter
+extraction at 85%) first.
+</WorkedExample>
+
+<CompletionProblem id="router-bottleneck" title="Find the bottleneck and the target" level="completion">
+A different router measures **tool selection = 0.90** and **parameter extraction
+= 0.75** (independent). Your product requirement is **≥ 85% end-to-end router
+accuracy**.
+
+**Your turn — fill the blanks:**
+- Current end-to-end = $0.90 \times 0.75 = \_\_\_$
+- The bottleneck dimension is \_\_\_ (the smaller one).
+- If you lift *only* parameter extraction to $p$, you need $0.90 \times p \ge 0.85$, so $p \ge \_\_\_$.
+- Is that achievable, and what does it tell you about whether one fix suffices?
+
+<Fragment slot="solution">
+- Current = **0.675 ≈ 67.5%**.
+- Bottleneck = **parameter extraction** (0.75 < 0.90).
+- $p \ge 0.85 / 0.90 = \mathbf{0.944}$ — you'd need parameter accuracy ≈ **94.4%**, a 19-point jump.
+- Achievable but large; and since $0.90 \times 0.944 \approx 0.85$ *just* clears the bar, you'd likely lift **both** dimensions to leave margin. The product structure means the weaker factor dominates, so the bottleneck is where the first investment goes — but a single fix that *barely* hits the target is fragile.
+</Fragment>
+</CompletionProblem>
+
+<SelfCheck q="A router selects the right tool but passes the order ID where a product ID was expected. Which evaluation dimension catches this, and why isn't tool-selection accuracy enough?" los="EAA-3.2">
+**Parameter extraction** catches it — the tool was correct, but an argument value was wrong. Tool-selection accuracy only checks *which* tool was chosen, so it would score this case as a pass and hide the bug. Because the two dimensions fail independently and multiply, you must measure them separately or a strong tool score masks a weak parameter score.
+</SelfCheck>
+
+## Skill evaluation by output type
+
+The right technique follows the **output type** of each skill:
+
+- **Database lookup (SQL)** → code-based: execute the generated query and compare result sets to ground truth. (Or LLM-judged for query-logic assessment.)
+- **Data analysis (prose)** → LLM-as-a-judge: the output is qualitative, no single correct string; use rails like `["correct", "incorrect"]`.
+- **Data visualisation (chart code)** → code-based: run the generated code in a sandbox; if it executes, mark it [**runnable**](../glossary#term-runnability).
+
+<Aside category="warning">
+[Runnability ≠ correctness](../glossary#term-runnability). Code that runs but plots the *wrong data* passes a runnability check. Layer an LLM judge (or a result comparison) on top for semantic correctness — "it didn't crash" is necessary, not sufficient.
+</Aside>
+
+<SelfCheck q="You must evaluate a chatbot's tone for empathy. Which technique, and why not code-based?" los="EAA-3.6">
+**LLM-as-a-judge** with discrete rails (e.g. empathetic / neutral / dismissive). Empathy is qualitative — there's no string to exact-match or assert on — so code-based evaluation can't capture it, and human annotation, while most accurate, is too slow to run on every change. An LLM judge with a small label set scales while handling the nuance.
+</SelfCheck>
+
+## Implementing evaluations in Phoenix
+
+The Phoenix workflow: export spans via `SpanQuery`, run an LLM judge with
+`llm_classify()` constrained to rails, **wrap judge calls in `suppress_tracing()`**
+so the evaluation's own LLM calls don't appear in your agent traces, then upload
+results with `log_evaluations()`.
+
+```python
+from phoenix.evals import llm_classify, suppress_tracing
+
+with suppress_tracing():                      # keep judge spans out of agent traces
+    results = llm_classify(
+        dataframe=spans_df,
+        template=eval_template,
+        model=judge_model,
+        rails=["correct", "incorrect"],        # discrete labels, not a 1–10 score
+    )
+px_client.log_evaluations(results)
+```
+
+<KeyConcept title="Suppress tracing on judge calls" los="EAA-3.3">
+Wrap LLM-as-a-judge calls in `suppress_tracing()` so the evaluator's LLM calls
+don't intermingle with the agent's spans and corrupt trace analysis — a 500-span
+eval run would otherwise roughly double the trace store with evaluation artifacts.
+The exception: if you're debugging the *judge itself*, temporarily remove
+suppression to see its calls. <EvidenceTag kind="verified" />
+</KeyConcept>
+
+<WorkedExample title="A code-based SQL evaluator" los="EAA-3.5">
+**Problem.** Your `data_lookup` skill generates SQL. You have 200 test cases, each
+with a question, the expected result rows, and expected columns. Sketch a
+code-based evaluator and name the edge cases — especially why row ordering matters.
+
+**Reasoning.** Execute the SQL, then compare *result sets* (not lists) so order
+doesn't cause false failures; capture three distinct failure modes — execution
+error, wrong columns, wrong rows.
+
+```python
+def eval_sql(generated_sql, expected_rows, expected_cols, db_path) -> dict:
+    try:
+        cur = sqlite3.connect(db_path).execute(generated_sql)
+        actual_cols = [d[0] for d in cur.description]
+        actual_rows = cur.fetchall()
+    except Exception as e:
+        return {"score": 0, "reason": f"execution error: {e}"}
+    if set(actual_cols) != set(expected_cols):
+        return {"score": 0, "reason": "wrong columns"}
+    if set(actual_rows) != set(expected_rows):     # compare as sets, not lists
+        return {"score": 0, "reason": "wrong rows"}
+    return {"score": 1, "reason": "correct"}
+```
+
+**Answer.** Compare columns and rows as **sets**; handle (1) **row ordering** — SQL
+order is non-deterministic without `ORDER BY`, so list comparison fails logically
+correct queries; (2) **floating-point** columns — compare within ±ε; (3)
+**timeouts** — wrap execution to catch full-table scans; (4) **destructive queries**
+— run read-only or in a rolled-back transaction so a generated `DROP TABLE` can't
+do damage. Code-based SQL eval is deterministic and free, but the comparison logic
+is where correctness lives.
+</WorkedExample>
+
+## A cautionary tale
+
+<Vignette title="The Router That Cheated">
+Your data-analysis agent has three skills: `data_lookup` (SQL), `data_analysis`
+(markdown), and `data_visualisation` (chart code). After a prompt update "to
+improve routing," the router's **tool-selection score jumped from 82% to 96%** and
+the team celebrates — until a manual audit shows the router now sends **70% of
+queries to `data_analysis`**, including ones that clearly need a SQL lookup. The
+"improvement" happened because `data_analysis` produces plausible-looking output
+for *any* query, and the end-to-end eval scored that as acceptable.
+
+**Why the end-to-end eval missed it.** It measured *output plausibility*, not
+*process correctness*. Because `data_analysis` can emit a believable answer to
+anything, the eval rewarded the router for choosing the skill with the highest
+surface-level pass rate — not the semantically correct one. "Plausible output" is
+not "correct routing."
+
+**The fix.** Evaluate routing directly: a labelled set of 100+ queries with
+ground-truth skill assignments, scored on **tool-selection exact-match** against
+those labels (threshold ≥ 85%). This isolates routing correctness from downstream
+output quality. A cheap **routing-distribution** alert ("any skill > 50% of
+queries") catches dramatic collapse — but its threshold is arbitrary: a legitimate
+workload might genuinely be 60% analysis, and without ground-truth labels the
+metric can't tell correct skew from over-routing.
+</Vignette>
+
+<Aside category="interview">
+"How would you evaluate a summarisation agent?" — lead with **LLM-as-a-judge using discrete labels**, and explain why numeric scores fail (uncalibrated scale → false precision). Then go deeper: decompose into router accuracy (tool selection × parameter extraction, measured independently) and per-skill quality by the right technique (code-based for SQL, judge for prose, human for safety). Red flag: "rate each response 1–10 and average" — aggregates noise from an uncalibrated scale.
+</Aside>
+
+<SelfCheck q="What does suppress_tracing() do in a Phoenix evaluation, and why is it needed?" los="EAA-3.3">
+It stops the evaluator's own LLM-judge calls from being recorded as spans, so judge calls don't intermingle with the agent's traces. Without it, a large eval run pollutes (and roughly doubles) the trace store with evaluation artifacts, corrupting trace analysis of the agent itself. You'd only drop it when deliberately debugging the judge.
+</SelfCheck>
+
+## Summary — what this sets up
+
+You can now score the components: pick the technique by output type (code-based,
+LLM-judge with rails, or human), evaluate the router on tool selection *and*
+parameter extraction independently (their product is the real number), and keep
+judge calls out of the agent's traces. But components passing individually doesn't
+prove the whole *path* was right — the Router That Cheated passed component
+quality while routing wrongly.
+
+- **Chapter 4** — *trajectory & structured evals*: scoring the whole sequence of steps, not just isolated components.
+- **Chapter 5** — *LLM-as-a-judge & monitoring*: making the judge trustworthy and watching it in production.
