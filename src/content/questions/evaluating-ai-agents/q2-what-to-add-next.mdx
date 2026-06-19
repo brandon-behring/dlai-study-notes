@@ -1,0 +1,22 @@
+---
+id: eaa-2-what-to-add-next
+type: free
+chapter: 2
+domain: observability
+bloom_level: analyze
+objective_id: EAA-2.7
+difficulty: '2'
+tags: [observability, instrumentation]
+answer: >
+  Add the Agent span first (wrap run_agent) so every later span has a root and traces group per
+  run. Next the Chain span per router iteration — routing bugs live here, so it is the
+  highest-value debugging boundary. Then Tool spans per skill, so per-skill cost/latency
+  attribution and skill-level failures become visible. Lowest priority: wrapping individual
+  sub-steps and retry logic, added where a specific skill needs a finer breakdown. The order
+  follows debugging value: structure (Agent) → routing (Chain) → skills (Tool) → details. Common
+  wrong answer: "wrap individual sub-steps first" — fine-grained spans are useless without the
+  enclosing Agent/Chain structure to hang them on.
+---
+
+After the demo, your auto-instrumented agent shows a flat list of LLM spans. Prioritise which
+manual spans to add next, and justify the order.

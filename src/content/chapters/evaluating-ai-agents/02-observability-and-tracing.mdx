@@ -1,0 +1,337 @@
+---
+book: evaluating-ai-agents
+title: 'Observability & Tracing'
+chapter: 2
+part: 1
+description: >
+  Traces and spans as the units of agent observability, the span hierarchy that
+  mirrors agent architecture (Agent ⊃ Chain ⊃ Tool ⊃ LLM), automatic vs manual
+  OpenTelemetry instrumentation, collecting traces in Phoenix, and turning traces
+  into the bedrock for evaluation, cost attribution, and regression detection.
+learning_outcomes:
+  - id: EAA-2.1
+    verb: Define
+    text: >
+      traces and spans as the fundamental units of agent observability — traces
+      capture end-to-end runs, spans capture individual steps nested hierarchically.
+  - id: EAA-2.2
+    verb: Compare
+    text: >
+      automatic instrumentation (zero-code library hooks) with manual
+      instrumentation (explicit span creation) and identify when each is appropriate.
+  - id: EAA-2.3
+    verb: Apply
+    text: >
+      OpenTelemetry instrumentation to trace an agent's router loop, skill
+      executions, and LLM calls with proper span nesting.
+  - id: EAA-2.4
+    verb: Explain
+    text: >
+      how span hierarchies map to agent architecture: Agent ⊃ Chain ⊃ Tool ⊃ LLM.
+  - id: EAA-2.5
+    verb: Describe
+    text: >
+      how collected traces enable downstream evaluation, monitoring dashboards,
+      and regression detection at scale.
+  - id: EAA-2.6
+    verb: Analyze
+    text: >
+      trace span data to attribute LLM token cost and latency to individual agent
+      skills, identifying which components dominate the inference budget.
+  - id: EAA-2.7
+    verb: Design
+    text: >
+      a minimal observability rollout (3-line setup) for a demo deadline and
+      identify what remains invisible until manual instrumentation is added.
+  - id: EAA-2.8
+    verb: Debug
+    text: >
+      a flat, uninformative trace by identifying which spans need manual wrapping
+      to expose router and tool boundaries.
+tags:
+  - observability
+  - tracing
+  - opentelemetry
+  - instrumentation
+  - cost
+last_verified: 2026-06-19
+volatility: feature-surface
+sources:
+  - opentelemetry2024spec
+  - arize2024phoenix
+draft: false
+---
+
+<Diagnostic skimTo="Traces and spans">
+Predict before reading — you'll check each against the chapter.
+
+1. Your agent gives a wrong answer (no crash) and took a different tool path than last run. Predict why a stack trace and `print` statements fail you here.
+2. You add two lines and suddenly see every LLM call's prompt and token count — but the *router's* decisions are still invisible. Guess what kind of instrumentation those two lines were, and what's missing.
+3. A trace renders as one flat span for the whole run. Estimate how useful that is for finding *which* step misrouted.
+4. Visualisation is 20% of your agent's queries but you suspect it dominates cost. Predict what single artifact lets you settle this with data instead of guessing.
+
+<Fragment slot="answers">
+1. The failure is *semantic* (wrong, not crashed) and the *path* changes per run — a stack trace needs a crash and a fixed path; `print` logs can't be navigated across thousands of variable runs.
+2. **Automatic instrumentation** (library hooks on the LLM client). Missing: your router logic, tool dispatch, and business code — anything that isn't an LLM API call.
+3. Nearly useless — a flat trace hides the router→tool→LLM structure, so you can't localise the misroute. You need **manual** spans at the boundaries.
+4. A **trace**: per-span token counts let you attribute cost per skill and confirm (or refute) that visualisation dominates.
+</Fragment>
+</Diagnostic>
+
+<NarrativeBox title="Where we are">
+Chapter 1 decomposed the agent into router, skills, and memory — components you
+can evaluate *in principle*. But **you cannot evaluate what you cannot see.**
+This chapter adds observability: structured traces that record every router
+decision, skill invocation, and LLM call. Those traces are the raw material for
+every evaluation workflow in Chapters 3–5.
+</NarrativeBox>
+
+## Why observability matters
+
+<Newthought>Traditional software is deterministic:</Newthought> a stack trace
+points at the exact line that failed. Agents break both halves of that promise —
+the same query can trigger a *different* tool sequence on a different run, and
+failures are often **semantic** (a wrong answer, not a crash). `print` statements
+don't scale to thousands of variable, multi-step runs.
+
+[Observability](../glossary#term-observability) means complete visibility into
+every layer: prompts, model responses, token usage, latency, and the function
+calls orchestrating behaviour.
+
+<ConceptBox>
+**Beyond debugging.** Traces are not only for fixing bugs — they are the raw
+material for evaluation *at scale*. You can run automated checks over thousands
+of traces to detect regressions, measure quality, and attribute cost.
+</ConceptBox>
+
+The stack is three layers: **(1)** instrument with OpenTelemetry, **(2)** collect
+in Phoenix, **(3)** evaluate over the collected traces.
+
+## Traces and spans
+
+A [**trace**](../glossary#term-trace) is the complete end-to-end record of a
+single agent run — one or more spans in a hierarchical tree, linked by a unique
+trace ID. A [**span**](../glossary#term-span) is one step within it: an LLM call,
+a tool invocation, or a routing decision, recording start/end time, attributes,
+and status. Spans nest.
+
+<KeyConcept title="The span hierarchy mirrors the agent architecture" los="EAA-2.4">
+Span nesting directly reflects the agent's structure: an **Agent** span wraps the
+run, **Chain** spans are router iterations, **Tool** spans are skill invocations,
+**LLM** spans are model calls — **Agent ⊃ Chain ⊃ Tool ⊃ LLM**. Reading a trace is
+reading the architecture diagram with real data. When a trace shows the wrong tool
+called, you open that Chain span's LLM call to see what the model received. The
+failure mode: a poorly instrumented agent produces a *flat* trace that is harder
+to navigate than `print` statements. <EvidenceTag kind="verified" />
+</KeyConcept>
+
+<SelfCheck q="Define a trace and a span, and state how they relate." los="EAA-2.1">
+A **trace** is the end-to-end record of one agent run; a **span** is a single step within it (LLM call, tool invocation, routing decision). A trace is a hierarchical tree of spans sharing one trace ID — the trace is the whole run, each span a nested step inside it.
+</SelfCheck>
+
+## OpenTelemetry and Open Inference
+
+[**OpenTelemetry (OTEL)**](../glossary#term-opentelemetry) is the vendor-neutral
+observability framework — a data model and instrumentation API for traces, spans,
+metrics, and logs: instrument once, export to any compatible backend. <EvidenceTag kind="verified" />
+For LLM systems, [**Open Inference**](../glossary#term-openinference) (from Arize)
+adds LLM-specific span *kinds* and attribute names for prompts, completions, and
+token counts. Its four span kinds — **Agent** (full run), **Chain** (router
+iteration), **Tool** (skill invocation), **LLM** (single model call) — are the
+vocabulary the hierarchy above is built from.
+
+<Aside category="pattern">
+Where practitioners disagree — *which tracing standard do you instrument against today?* OpenInference is no longer the only LLM-trace standard: OpenTelemetry's own [`gen_ai.*` GenAI semantic conventions](../glossary#term-gen-ai-conventions) matured into a competing namespace (still experimental as of 2026), so agent traces now fragment across two attribute vocabularies. There's no settled winner — the practical rule is to confirm which namespace your backend expects *before* you standardise dashboards, and avoid hard-coding attribute names that may move. <EvidenceTag kind="verified" />
+</Aside>
+
+## Automatic vs manual instrumentation
+
+The fastest path is [**automatic instrumentation**](../glossary#term-automatic-instrumentation):
+a library hooks your API client and creates a span for every call with no code
+changes. For OpenAI it's effectively three lines:
+
+```python
+from phoenix.otel import register
+from openinference.instrumentation.openai import OpenAIInstrumentor
+
+register(project_name="sales-agent")      # point at the Phoenix collector
+OpenAIInstrumentor().instrument()          # every chat.completions.create() is now traced
+```
+
+That captures LLM-level detail — prompts, completions, tokens, latency — but
+**cannot see your router logic, tool dispatch, or business code.**
+
+[**Manual instrumentation**](../glossary#term-manual-instrumentation) fills the
+gap. The key principle is [**outside-in**](../glossary#term-outside-in-instrumentation):
+start at the outermost layer (the agent run) and work inward; nesting `with`
+blocks produces the correct hierarchy automatically.
+
+```python
+tracer = trace.get_tracer(__name__)
+
+def run_agent(user_message: str) -> str:
+    with tracer.start_as_current_span("Agent Run", openinference_span_kind="agent"):
+        while True:
+            with tracer.start_as_current_span("Router Iteration", openinference_span_kind="chain"):
+                response = client.chat.completions.create(...)   # auto-traced as an LLM span
+                if not msg.tool_calls:
+                    return msg.content
+                for call in msg.tool_calls:
+                    with tracer.start_as_current_span(call.function.name, openinference_span_kind="tool"):
+                        result = dispatch_tool(call)
+```
+
+<Aside category="warning">
+Currency (2026): the Phoenix setup API moved — tracing split into `arize-phoenix-otel` (`from phoenix.otel import register`) and evaluators into `arize-phoenix-evals`. The *pattern* (register → instrument) is unchanged; the import paths are not. Pin versions and check current docs before reusing course notebooks. <EvidenceTag kind="verified" />
+</Aside>
+
+<KeyConcept title="Automatic + manual = full observability" los="EAA-2.2">
+Automatic instrumentation covers every LLM API call with zero code changes;
+manual instrumentation adds the business-logic spans (agent, router, tool
+dispatch). The decision rule: **start automatic** for immediate visibility, then
+**add manual spans where the trace has gaps.** Each has a failure mode —
+automatic can flood batch jobs with noise; manual demands discipline, since a
+missed `with` block leaves a hole in the tree.
+</KeyConcept>
+
+<SelfCheck q="Contrast what automatic and manual instrumentation each make visible, and give the decision rule for combining them." los="EAA-2.2">
+**Automatic** hooks the LLM client → every model call's prompt/completion/tokens/latency, zero code changes, but nothing about routing or tool dispatch. **Manual** wraps your own code in spans → router iterations, tool calls, business logic. Rule: start automatic for instant LLM visibility, then add manual spans exactly where the trace shows gaps (agent/router/tool layers).
+</SelfCheck>
+
+## Phoenix: collecting and visualising traces
+
+[**Phoenix**](../glossary#term-phoenix) is Arize's open-source observability tool:
+it receives OTEL traces, stores them by *project*, and gives trace-tree views,
+timelines, span-detail inspection, and evaluation integration. <EvidenceTag kind="verified" />
+It is where the instrumented spans become something you can read, query, and
+evaluate.
+
+## From traces to evaluation
+
+Traces are the **bedrock for evaluation at scale.** Every collected trace holds
+full inputs, outputs, and intermediate steps, so you can: build evaluation
+datasets from real runs, run automated evaluators over traces, detect regressions
+by comparing scores across versions, and monitor production quality by sampling
+live traces.
+
+<KeyConcept title="Traces are evaluation infrastructure" los="EAA-2.5">
+Every later workflow rides on traces: router evaluations read trace spans,
+trajectory evaluations score step sequences, LLM-as-a-judge grades span outputs.
+Without traces, evaluation needs manual data collection that doesn't scale — so
+the tracing investment pays off multiplicatively. The catch: traces with missing
+spans yield incomplete evaluations, so instrument thoroughly *before* building
+eval workflows. <EvidenceTag kind="inference" />
+</KeyConcept>
+
+<SelfCheck q="Name two evaluation workflows that depend on collected traces, and state what breaks if spans are missing." los="EAA-2.5">
+Two of: building eval datasets from real runs, running automated evaluators over traces, regression detection across versions, production quality monitoring by sampling live traces. If spans are missing, the corresponding evaluations are incomplete — e.g. a router eval can't score a routing decision that was never captured — so coverage of the eval mirrors coverage of the instrumentation.
+</SelfCheck>
+
+## Attributing cost from traces
+
+Because every span carries token counts, traces turn cost questions from
+guesswork into arithmetic. The method: from a sample of traces, get each skill's
+average LLM calls × tokens/call, weight by how often the skill runs, multiply by
+the daily volume and the price per token.
+
+<WorkedExample title="Per-skill cost attribution" los="EAA-2.6">
+**Problem.** A support agent serves 4,000 queries/day. From 200 sampled traces you
+extract per-skill averages. The router uses 1 LLM call of 250 tokens on every
+query. Price is \$0.01 per 1,000 tokens. Find the daily cost per skill and the
+total, then the cost *per query* of the most expensive skill.
+
+| Skill | Avg LLM calls | Tokens/call | Share of queries |
+| --- | --- | --- | --- |
+| Knowledge lookup | 1.0 | 700 | 50% |
+| Answer drafting | 1.0 | 1,400 | 30% |
+| Report builder | 2.0 | 2,000 | 20% |
+
+**Reasoning.** Tokens = queries × share × calls × tokens/call; cost = tokens ÷ 1000 × \$0.01.
+
+- Router: $4000 \times 1 \times 250 = 1{,}000{,}000$ tok → **\$10.00**
+- Lookup: $4000 \times 0.50 \times 1.0 \times 700 = 1{,}400{,}000$ tok → **\$14.00**
+- Drafting: $4000 \times 0.30 \times 1.0 \times 1{,}400 = 1{,}680{,}000$ tok → **\$16.80**
+- Report: $4000 \times 0.20 \times 2.0 \times 2{,}000 = 3{,}200{,}000$ tok → **\$32.00**
+
+**Answer.** Total = **\$72.80/day**. The report builder serves only 20% of queries
+but costs \$32.00 — its per-query cost is $32.00 / 800 = \$0.040$, versus lookup at
+$14.00 / 2000 = \$0.007$, so it is **~5.7× more expensive per query**. The trace data
+localises where to optimise (here, the report builder's 2 LLM calls), which no
+end-to-end cost number could.
+</WorkedExample>
+
+<CompletionProblem id="cost-attribution" title="Finish the cost attribution" level="completion">
+Same agent, but you're now told the **report builder's first of its two LLM calls**
+(chart-config extraction, ~1,000 of its 2,000 tokens) can move to a model that is
+**10× cheaper per token**. Estimate the new daily report-builder cost.
+
+**Set-up (given):** report tokens split evenly — 1,000 tok/call for config, 1,000
+tok/call for code-gen, across 2 calls. Daily report volume = 800 queries.
+
+**Your turn — fill the blanks:**
+- Config tokens/day = $800 \times 1{,}000 = \_\_\_$ at $\tfrac{1}{10}$ price → cost = \_\_\_
+- Code-gen tokens/day = $800 \times 1{,}000 = \_\_\_$ at full price → cost = \_\_\_
+- New report total = \_\_\_, versus the original \$32.00.
+
+<Fragment slot="solution">
+- Config: $800{,}000$ tok → at \$0.001/1k = **\$0.80**.
+- Code-gen: $800{,}000$ tok → at \$0.01/1k = **\$8.00**.
+- New report total = **\$8.80/day**, down from \$32.00 — a **~73% cut** on this skill, because the cheap-model swap removes 90% of the cost of half the tokens. The lesson: trace-level token attribution shows *which sub-step* to redirect, not just *that* a skill is expensive.
+</Fragment>
+</CompletionProblem>
+
+<SelfCheck q="You have per-span token counts for each skill. Outline how you turn them into a daily cost broken down by skill." los="EAA-2.6">
+For each skill: average LLM-calls × tokens-per-call from sampled traces, times the skill's share of queries, times daily query volume = daily tokens; multiply by price per token. Add the router's per-query tokens. Summing gives the total and the per-skill breakdown, and dividing a skill's cost by the queries it serves gives cost-per-query — exposing skills that are cheap overall but expensive per use.
+</SelfCheck>
+
+## Debugging with the trace tree
+
+A trace's shape *is* the debugging workflow: start at the symptom span and walk
+back through its parents.
+
+<WorkedExample title="Read the span tree, find the bug" los="EAA-2.4">
+**Problem.** A support agent routes to `search_kb` (one LLM call + one API call)
+then `draft_response` (two LLM calls: draft, then policy check). The final
+response violated policy. Sketch the span tree and name the span to inspect first.
+
+**Reasoning.** Outside-in, the tree is:
+
+```
+Agent Run                        [Agent]
+  Router Iteration #1            [Chain]
+    LLM: Route Decision          [LLM]
+    search_kb                    [Tool]
+      LLM: Generate Query        [LLM]
+      API: KB Search             [Tool]
+  Router Iteration #2            [Chain]
+    LLM: Route Decision          [LLM]
+    draft_response               [Tool]
+      LLM: Generate Response     [LLM]
+      LLM: Policy Compliance     [LLM]
+```
+
+**Answer.** Inspect **`LLM: Policy Compliance`** first (child of `draft_response`).
+Two cases: if it *approved* a violating response, the compliance prompt is the
+bug; if it *flagged* the violation but the response shipped anyway, the tool's
+post-check gating logic is broken. The span hierarchy tells you exactly where to
+look — symptom span, then up through its parents.
+</WorkedExample>
+
+<Aside category="interview">
+"How do you debug a non-deterministic agent?" — reach for structured observability, not logs. Strong answer: traces vs spans, automatic instrumentation for instant LLM visibility, then the span tree (**Agent ⊃ Chain ⊃ Tool ⊃ LLM**) to localise a routing error to a specific Chain span. Red flag: "I'd add print statements and read the logs" — ignores that each run takes a different path, so unstructured logs are unusable at scale.
+</Aside>
+
+<SelfCheck q="A trace shows a single flat span for the whole agent run. Which spans would you add to expose the router and tools, and why does the flat trace block debugging?" los="EAA-2.8">
+Wrap the whole run in an **Agent** span, each router-loop iteration in a **Chain** span, and each skill in a **Tool** span (the LLM calls auto-trace inside them). A flat trace blocks debugging because it collapses the router→tool→LLM structure into one node, so you can't see which decision misfired — there are no boundaries to localise the failure to.
+</SelfCheck>
+
+## Summary — what this sets up
+
+You can now *see* the agent: traces capture each run, spans nest to mirror the
+architecture, automatic instrumentation gives instant LLM visibility, and manual
+outside-in spans expose the router and tools. Collected in Phoenix, these traces
+are the substrate for everything next:
+
+- **Chapter 3** — *component evaluations*: scoring the router and skills the spans expose.
+- **Chapter 4** — *trajectory & structured evals*: scoring the whole span sequence.
+- **Chapter 5** — *LLM-as-a-judge & monitoring*: automated grading over live traces.

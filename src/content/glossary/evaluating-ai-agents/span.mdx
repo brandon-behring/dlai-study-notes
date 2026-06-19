@@ -1,0 +1,12 @@
+---
+term: Span
+aliases: [trace span]
+domain: observability
+see: [trace, span-kind, span-hierarchy]
+tags: [observability, tracing]
+---
+
+One **step within a trace** — an LLM call, a tool invocation, or a routing decision —
+recording start time, end time, attributes (including token counts), and status. Spans nest
+hierarchically, and that nesting mirrors the agent's architecture, so the set of spans in a
+trace is both the execution log and the structure map.

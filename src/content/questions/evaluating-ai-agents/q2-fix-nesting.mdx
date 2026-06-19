@@ -1,0 +1,22 @@
+---
+id: eaa-2-fix-nesting
+type: free
+chapter: 2
+domain: observability
+bloom_level: apply
+objective_id: EAA-2.3
+difficulty: '3'
+tags: [observability, instrumentation, debugging]
+answer: >
+  They created spans bottom-up and as roots, so nothing establishes parent–child links — each
+  LLM span becomes its own tiny trace instead of a nested step, and Phoenix shows a flat list.
+  Fix: instrument outside-in using current-span context — open an Agent span for the run, a
+  Chain span per router iteration, and a Tool span per skill with start_as_current_span (or the
+  equivalent context manager), so each inner span attaches to the currently-active parent. The
+  LLM-call spans then nest under their Tool/Chain parents automatically. Common wrong answer:
+  "add a parent_id attribute to each span by hand" — brittle and easy to get wrong; let the
+  tracer's current-context nesting build the tree.
+---
+
+An engineer creates a span for every LLM call but starts each as a new root span. The Phoenix
+trace is a flat list of LLM spans. What went wrong, and how do you fix it?

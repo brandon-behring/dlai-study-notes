@@ -1,0 +1,32 @@
+---
+id: eaa-2-auto-vs-manual
+type: mcq
+chapter: 2
+domain: observability
+bloom_level: analyze
+objective_id: EAA-2.2
+difficulty: '2'
+tags: [observability, instrumentation]
+options:
+  - id: a
+    text: Automatic instrumentation hooks the LLM API client only; the router isn't an API call, so it needs a manual span
+    correct: true
+  - id: b
+    text: Automatic instrumentation traces routers but hides LLM calls by default
+  - id: c
+    text: The router runs on a different machine, so its spans are dropped in transit
+  - id: d
+    text: Routers are deterministic and are therefore excluded from tracing
+---
+import Rationale from '@brandon_m_behring/book-scaffold-astro/components/Rationale.astro';
+
+You add automatic instrumentation to your OpenAI client and see every LLM call, but the
+router's decisions stay invisible. Why?
+
+<Rationale title="Why">
+Automatic instrumentation hooks the model API client, so it captures model calls but not your
+router, which is ordinary orchestration code rather than an API call — that gap is exactly what
+manual spans fill. It does not hide LLM calls (it surfaces them), the router isn't dropped for
+running elsewhere, and routers aren't excluded for being deterministic — an LLM-based router
+isn't deterministic in any case.
+</Rationale>

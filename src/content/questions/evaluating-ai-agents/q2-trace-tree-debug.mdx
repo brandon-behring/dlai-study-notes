@@ -1,0 +1,23 @@
+---
+id: eaa-2-trace-tree-debug
+type: free
+chapter: 2
+domain: observability
+bloom_level: analyze
+objective_id: EAA-2.4
+difficulty: '2'
+tags: [observability, debugging]
+answer: >
+  Inspect the search_kb Tool span first — specifically its two children: the "Generate Query"
+  LLM span and the "KB Search" API span. Two causes it localises: (1) the generated search query
+  was poor or empty (visible in the Generate Query span), so retrieval missed the article; or
+  (2) the query was fine but the API span returned no or irrelevant results (a retrieval/index
+  problem). If both look correct, move up to the answer Tool span to see whether good context
+  was retrieved but ignored. Common wrong answer: "inspect the final answer LLM span" — that is
+  the symptom; the cause is upstream in retrieval, which the span tree lets you reach directly.
+---
+
+A trace shows the agent route to a search_kb tool (which makes a query-generation LLM call then
+a knowledge-base API call), then an answer tool. The knowledge base clearly contains the
+answer, yet the agent replied "I don't know." Which span do you inspect first, and what two
+causes does that localise to?

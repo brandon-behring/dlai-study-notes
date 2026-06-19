@@ -1,0 +1,21 @@
+---
+id: eaa-2-cost-calc
+type: free
+chapter: 2
+domain: observability
+bloom_level: apply
+objective_id: EAA-2.6
+difficulty: '2'
+tags: [observability, cost]
+answer: >
+  Router: 2,000 × 1 × 200 = 400,000 tokens/day → 400 × $0.02 = $8.00/day. Skill: 2,000 × 0.40 ×
+  1 × 1,000 = 800,000 tokens/day → 800 × $0.02 = $16.00/day. So the skill, despite running on
+  only 40% of queries, costs twice the router. Method: tokens = queries × share × calls ×
+  tokens-per-call, then tokens ÷ 1,000 × price. Common wrong answer: forgetting the 40% share
+  and charging the skill on all 2,000 queries ($40/day) — the per-skill frequency taken from the
+  traces is exactly what prevents that error.
+---
+
+An agent runs 2,000 queries/day. The router uses 1 call of 200 tokens per query. One skill,
+used on 40% of queries, makes 1 LLM call of 1,000 tokens. At \$0.02 per 1,000 tokens, what does
+the router cost per day, and what does that one skill cost per day?

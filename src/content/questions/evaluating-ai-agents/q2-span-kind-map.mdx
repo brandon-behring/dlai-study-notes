@@ -1,0 +1,32 @@
+---
+id: eaa-2-span-kind-map
+type: mcq
+chapter: 2
+domain: observability
+bloom_level: understand
+objective_id: EAA-2.4
+difficulty: '2'
+tags: [observability, span-kinds]
+options:
+  - id: a
+    text: LLM ⊃ Tool ⊃ Chain ⊃ Agent
+  - id: b
+    text: Chain ⊃ Agent ⊃ Tool ⊃ LLM
+  - id: c
+    text: Agent ⊃ Chain ⊃ Tool ⊃ LLM
+    correct: true
+  - id: d
+    text: Agent ⊃ Tool ⊃ LLM ⊃ Chain
+---
+import Rationale from '@brandon_m_behring/book-scaffold-astro/components/Rationale.astro';
+
+A single model call runs inside a tool that the router selected. From outermost to innermost,
+how do the OpenInference span kinds nest?
+
+<Rationale title="Why">
+The outermost unit is the whole run (Agent), then the router iteration that chose the tool
+(Chain), then the tool invocation (Tool), then the model call inside it (LLM). The orderings
+that place LLM or Chain outermost invert containment — the model call is the innermost unit and
+the agent run is the root. The variant that buries Chain beneath Tool misorders routing and
+execution: the router decides *before* the tool runs.
+</Rationale>

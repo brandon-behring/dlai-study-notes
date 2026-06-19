@@ -1,0 +1,13 @@
+---
+term: Span Hierarchy
+aliases: [span tree, trace tree]
+domain: observability
+see: [span-kind, trace, outside-in-instrumentation]
+tags: [observability, tracing]
+---
+
+The **nesting of spans within a trace**, which mirrors the agent's architecture: **Agent ⊃
+Chain ⊃ Tool ⊃ LLM**. Reading the hierarchy is reading the architecture diagram with live
+data, and it defines the debugging workflow — start at the symptom span and walk back through
+its parents. A poorly instrumented agent collapses to a *flat* hierarchy that hides where a
+failure occurred.

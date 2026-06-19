@@ -1,0 +1,22 @@
+---
+id: eaa-2-minimal-rollout
+type: free
+chapter: 2
+domain: observability
+bloom_level: apply
+objective_id: EAA-2.7
+difficulty: '1'
+tags: [observability, instrumentation]
+answer: >
+  Three lines, zero agent edits: register() to point at the Phoenix collector,
+  OpenAIInstrumentor().instrument() to auto-trace every model call, and launch Phoenix. Visible
+  immediately: every LLM call's prompt, completion, token count, and latency. Invisible until
+  manual spans are added: the router's iterations and decisions, and the tool dispatch (which
+  skill ran, with what inputs/outputs) — plus things like retry logic. They are invisible
+  because automatic instrumentation only hooks the LLM client, not your orchestration code.
+  Common wrong answer: "manually instrument everything first" — too slow for a demo deadline;
+  automatic gets you from zero to useful in minutes.
+---
+
+You need observability for a demo tomorrow on a 200-line OpenAI agent. Give the minimal rollout
+and name two things that stay invisible until you add manual instrumentation.

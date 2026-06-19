@@ -1,0 +1,13 @@
+---
+term: GenAI Semantic Conventions
+aliases: [gen_ai.* conventions, OTEL GenAI conventions]
+domain: observability
+see: [openinference, opentelemetry]
+tags: [observability, standards]
+---
+
+OpenTelemetry's own `gen_ai.*` **semantic conventions for GenAI spans** — a second
+LLM-trace attribute namespace that matured alongside Arize's Open Inference (still experimental
+as of 2026). Their coexistence fragments agent traces across two vocabularies, so a team must
+confirm which namespace its backend and dashboards expect before standardising on attribute
+names that may still move.

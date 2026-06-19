@@ -1,0 +1,32 @@
+---
+id: eaa-2-flat-trace
+type: mcq
+chapter: 2
+domain: observability
+bloom_level: analyze
+objective_id: EAA-2.8
+difficulty: '2'
+tags: [observability, debugging]
+options:
+  - id: a
+    text: A single LLM span around the final answer
+  - id: b
+    text: One Tool span around the entire agent, and nothing else
+  - id: c
+    text: Metric counters for total tokens and latency
+  - id: d
+    text: An Agent span around the run, a Chain span per router iteration, and a Tool span per skill
+    correct: true
+---
+import Rationale from '@brandon_m_behring/book-scaffold-astro/components/Rationale.astro';
+
+Your trace is one flat span for the whole run. To localise a misrouted tool call, which manual
+spans most directly restore the needed structure?
+
+<Rationale title="Why">
+Adding Agent, Chain (per router iteration), and Tool (per skill) spans rebuilds the router and
+tool boundaries, so a misroute localises to a Chain span and a bad tool result to its Tool
+span. A lone LLM span around the answer, or one Tool span wrapping everything, leaves the trace
+effectively flat; metric counters give totals but no structure to navigate, which is exactly
+what debugging a misroute needs.
+</Rationale>
