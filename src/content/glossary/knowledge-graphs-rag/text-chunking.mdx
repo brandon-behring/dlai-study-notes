@@ -1,0 +1,15 @@
+---
+term: Text Chunking
+aliases: [chunking, text splitting]
+domain: kg-construction
+see: [chunk-metadata, embedding]
+tags: [rag, preprocessing]
+---
+
+Splitting a long document into smaller, overlapping segments so each fits an embedding model and
+maps to one retrievable unit. **Chunk size** sets granularity (too large → generic embeddings,
+weak precision; too small → fragments that lose context); **overlap** carries context across
+boundaries so a fact split between two chunks survives in at least one. The number of chunks is
+roughly $\lceil (L-O)/(S-O) \rceil$ for length $L$, size $S$, overlap $O$ — the effective advance
+is `size − overlap`. The *size* is a tuning parameter; the splitting *strategy* (fixed-size vs
+structure-aware/recursive) is a design decision driven by the document's shape.

@@ -1,0 +1,20 @@
+---
+id: kgr-4-merge-volatile
+type: free
+chapter: 4
+domain: kg-construction
+bloom_level: analyze
+objective_id: KGR-4.4
+difficulty: '3'
+tags: [merge, idempotency, pitfall]
+answer: >
+  The bug is MERGE on a volatile property. `MERGE (c:Chunk {chunkId: $id, loadedAt: timestamp()})`
+  includes a timestamp in the match pattern, so every run produces a different pattern, never
+  matches the existing node, and creates a duplicate — silently corrupting the graph at scale.
+  Fix: MERGE on the stable identifier only, then write volatile fields in ON CREATE SET / ON MATCH
+  SET: `MERGE (c:Chunk {chunkId: $id}) ON CREATE SET c.loadedAt = timestamp() ON MATCH SET
+  c.updatedAt = timestamp()`. Key rule: MERGE's match pattern must contain only stable keys.
+---
+
+A teammate's loader uses `MERGE (c:Chunk {chunkId: $id, loadedAt: timestamp()})` and the graph
+keeps growing duplicate chunks on every run. Diagnose the bug and fix it.

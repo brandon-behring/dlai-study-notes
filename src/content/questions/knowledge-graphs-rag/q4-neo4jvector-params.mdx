@@ -1,0 +1,21 @@
+---
+id: kgr-4-neo4jvector-params
+type: free
+chapter: 4
+domain: kg-construction
+bloom_level: apply
+objective_id: KGR-4.7
+difficulty: '2'
+tags: [langchain, neo4jvector]
+answer: >
+  `Neo4jVector.from_existing_graph` connects LangChain to an index you already built, so it needs
+  to know where the vectors live: the index_name (the vector index, e.g. "form10kChunks"), the
+  node_label (which nodes, e.g. "Chunk"), the text_node_properties (which property holds the text,
+  e.g. ["text"]), and the embedding_node_property (where the vector is stored, e.g.
+  "textEmbedding") — plus the connection url/username/password and an embeddings object. Common
+  wrong answer: expecting it to create the index or generate embeddings; from_existing_graph
+  attaches to a pre-built index, it does not build one.
+---
+
+What does `Neo4jVector.from_existing_graph` need in order to connect LangChain to an existing
+Neo4j vector index? Name the key parameters.

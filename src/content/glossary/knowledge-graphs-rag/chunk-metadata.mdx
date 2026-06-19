@@ -1,0 +1,14 @@
+---
+term: Chunk Metadata
+aliases: [chunk record]
+domain: kg-construction
+see: [text-chunking, idempotent-pipeline]
+tags: [rag, schema, provenance]
+---
+
+The structured fields stored alongside a chunk's text that preserve its origin, position, and
+identity: section (`item`), sequence position (`chunkSeqId`), the parent filing (`formId`), a
+unique key (`chunkId`), a `source` link, and entity ids (`cik`, `cusip6`). Metadata is what lets
+you rebuild document structure and link chunks to graph entities later — `chunkSeqId` in
+particular preserves in-section order so Module 5 can wire chunks into a `NEXT` linked list. You
+cannot reconstruct provenance you didn't capture at ingest, so design the schema before loading.

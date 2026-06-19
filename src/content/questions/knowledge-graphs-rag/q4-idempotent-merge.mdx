@@ -1,0 +1,21 @@
+---
+id: kgr-4-idempotent-merge
+type: free
+chapter: 4
+domain: kg-construction
+bloom_level: apply
+objective_id: KGR-4.4
+difficulty: '2'
+tags: [merge, idempotency]
+answer: >
+  Idempotency means re-running the pipeline yields the same graph, which retry-prone ingestion
+  needs. Three pieces deliver it: a uniqueness constraint on the stable key (no duplicates, plus
+  an implicit index), MERGE on that key (match-or-create instead of always insert), and ON CREATE
+  SET to write properties only on first creation. Concretely:
+  `MERGE (c:Chunk {chunkId: $p.chunkId}) ON CREATE SET c.text = $p.text, c.formId = $p.formId`,
+  behind `CREATE CONSTRAINT ... FOR (c:Chunk) REQUIRE c.chunkId IS UNIQUE`. Common wrong answer:
+  using CREATE — it inserts a new node every run, so a retry duplicates every chunk.
+---
+
+How do you load chunk nodes so the pipeline can be re-run safely after a failure without creating
+duplicates? Name the pieces and sketch the Cypher.

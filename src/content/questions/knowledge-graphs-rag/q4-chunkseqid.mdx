@@ -1,0 +1,30 @@
+---
+id: kgr-4-chunkseqid
+type: mcq
+chapter: 4
+domain: kg-construction
+bloom_level: understand
+objective_id: KGR-4.3
+difficulty: '2'
+tags: [chunk-metadata, schema]
+options:
+  - id: a
+    text: It records each chunk's order within its section, enabling NEXT links in later modules
+    correct: true
+  - id: b
+    text: It is the unique key that MERGE uses to prevent duplicate chunk nodes on reload
+  - id: c
+    text: It caches the chunk's cosine similarity score so results can be ranked faster
+  - id: d
+    text: It identifies which company and filing the chunk was originally extracted from
+---
+import Rationale from '@brandon_m_behring/book-scaffold-astro/components/Rationale.astro';
+
+Why is `chunkSeqId` stored in each chunk's metadata?
+
+<Rationale title="Why">
+`chunkSeqId` preserves a chunk's position *within its section*, so Module 5 can wire chunks into
+a `NEXT` linked list for adjacent-context retrieval. The unique key MERGE dedupes on is
+`chunkId`, not `chunkSeqId`; similarity scores are computed at query time, not stored; and the
+filing/company are captured by `formId`/`cik`, not the sequence id.
+</Rationale>

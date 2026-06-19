@@ -1,0 +1,21 @@
+---
+id: kgr-4-pure-vector-limits
+type: free
+chapter: 4
+domain: kg-construction
+bloom_level: understand
+objective_id: KGR-4.8
+difficulty: '2'
+tags: [vector-store, limitations]
+answer: >
+  After this chapter the chunks are embedded but disconnected — Neo4j is functionally just a
+  vector store. So you cannot follow a chunk back to its source filing, cannot retrieve the
+  adjacent chunk for expanded context, and cannot traverse from a chunk to related entities (the
+  company that filed it, other filings, investors). All three need relationships, which Module 5
+  adds as NEXT (chunk order), PART_OF (chunk to form), and SECTION links. Common wrong answer:
+  "similarity search is broken" — vector search works fine; what is missing is *connection*, not
+  retrieval.
+---
+
+After constructing the graph in this chapter, Neo4j holds embedded chunks but no relationships.
+Name three things this pure vector store cannot do, and what fixes them.

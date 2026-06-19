@@ -1,0 +1,30 @@
+---
+id: kgr-4-retrievalqa-stuff
+type: mcq
+chapter: 4
+domain: kg-construction
+bloom_level: apply
+objective_id: KGR-4.5
+difficulty: '2'
+tags: [langchain, rag]
+options:
+  - id: a
+    text: A single re-ranked chunk chosen as the single best match for the query
+  - id: b
+    text: The top-K retrieved chunks, concatenated into the prompt as context
+    correct: true
+  - id: c
+    text: A generated Cypher query for the LLM to execute against the graph
+  - id: d
+    text: The raw embedding vectors for the LLM to decode back into text
+---
+import Rationale from '@brandon_m_behring/book-scaffold-astro/components/Rationale.astro';
+
+In a `"stuff"` retrieval-QA chain, what does the retriever hand to the LLM?
+
+<Rationale title="Why">
+The `"stuff"` chain type "stuffs" the top-K retrieved chunks straight into the prompt as context,
+and the LLM answers from them. It does not reduce to a single chunk (that would be re-ranking),
+it does not pass Cypher (LLM-generated Cypher is Module 7's approach), and it never hands over raw
+vectors — the LLM reads text, not embeddings.
+</Rationale>
