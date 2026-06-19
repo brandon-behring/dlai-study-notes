@@ -13,7 +13,9 @@ answer: >
   matches the existing node, and creates a duplicate — silently corrupting the graph at scale.
   Fix: MERGE on the stable identifier only, then write volatile fields in ON CREATE SET / ON MATCH
   SET: `MERGE (c:Chunk {chunkId: $id}) ON CREATE SET c.loadedAt = timestamp() ON MATCH SET
-  c.updatedAt = timestamp()`. Key rule: MERGE's match pattern must contain only stable keys.
+  c.updatedAt = timestamp()`. Key rule: MERGE's match pattern must contain only stable keys. Common
+  wrong answer: blaming MERGE itself or a missing constraint — MERGE is correct; the bug is putting
+  a volatile value inside its match pattern.
 ---
 
 A teammate's loader uses `MERGE (c:Chunk {chunkId: $id, loadedAt: timestamp()})` and the graph

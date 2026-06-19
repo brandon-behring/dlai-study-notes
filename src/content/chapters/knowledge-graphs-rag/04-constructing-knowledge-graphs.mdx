@@ -75,7 +75,7 @@ Predict before reading — check each against the chapter.
 4. After this chapter Neo4j holds embedded chunks but no relationships between them. Predict one question this *can't* answer that a real graph could.
 
 <Fragment slot="answers">
-1. **Closer to 60** — effective advance is `2000 − 200 = 1800` chars/chunk, so `120{,}000 / 1800 ≈ 67` chunks. Overlap shrinks the advance, not the count by much.
+1. **Closer to 60** — effective advance is `2000 − 200 = 1800` chars/chunk, so `120{,}000 / 1800 ≈ 67` chunks. Overlap shrinks the per-chunk advance to 1800, so the count comes out modestly higher than length÷size alone would give.
 2. A **uniqueness constraint + MERGE on a stable `chunkId`**: MERGE matches the existing node instead of inserting, and `ON CREATE SET` only writes properties on first creation. The pipeline is idempotent.
 3. The retriever returned **NetApp's nearest chunks** (the closest vectors available), and the LLM **filled the gap** with plausible text because nothing told it to refuse out-of-scope questions.
 4. Anything relational — e.g. "retrieve the chunk *before* this one", "which form did this chunk come from", "which company filed it". Disconnected chunks can't be traversed; Module 5 adds the relationships.
@@ -336,8 +336,8 @@ storage and data management" — grounded in the filing.
 Currency (course recorded 2024-03): the LangChain APIs moved. `Neo4jVector`,
 `Neo4jGraph`, and `GraphCypherQAChain` now live in the dedicated
 `langchain-neo4j` package (first release 2024-11), **not** `langchain_community`.
-And `RetrievalQA` has been deprecated since LangChain 0.1.17 — still available in
-1.x, removal targeted for 2.0 — with `create_retrieval_chain` +
+And `RetrievalQA` has been deprecated since LangChain 0.1.17 — still importable in
+the 1.x line (removal repeatedly deferred) — with `create_retrieval_chain` +
 `create_stuff_documents_chain` the current replacement. The connect → retrieve →
 generate *concept* is unchanged; pin versions before reusing the notebooks. <EvidenceTag kind="verified" />
 </Aside>

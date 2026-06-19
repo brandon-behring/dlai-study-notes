@@ -10,6 +10,6 @@ LangChain's question-answering chain that wires a retriever (vector search) to a
 retriever finds relevant chunks, and the `"stuff"` chain type injects them into the prompt as
 context for the LLM to answer from. A custom `PromptTemplate` controls behaviour — crucially, the
 refusal instruction ("say you don't know") that curbs hallucination. Currency: `RetrievalQA` is
-deprecated since LangChain 0.1.17 (still in 1.x; removal targeted for 2.0); the current
+deprecated since LangChain 0.1.17 (removal repeatedly deferred; still importable in the 1.x line); the current
 replacement is `create_retrieval_chain` with `create_stuff_documents_chain`. The connect →
 retrieve → generate concept is unchanged.

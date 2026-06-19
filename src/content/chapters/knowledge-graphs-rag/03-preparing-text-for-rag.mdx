@@ -131,7 +131,7 @@ CALL db.create.setNodeVectorProperty(m, "taglineEmbedding", vector)
 ```
 
 ```cypher
--- verify: tagline text, first values, and the vector size (1536)
+// verify: tagline text, first values, and the vector size (1536)
 MATCH (m:Movie {title: "The Matrix"})
 RETURN m.tagline, m.taglineEmbedding[0..5] AS sample, size(m.taglineEmbedding) AS dims
 ```

@@ -151,7 +151,7 @@ Extend the pattern with relationship syntax to follow connections. The arrow giv
 direction — `ACTED_IN` goes Person → Movie:
 
 ```cypher
--- All movies Tom Hanks acted in
+// All movies Tom Hanks acted in
 MATCH (tom:Person {name: "Tom Hanks"})-[:ACTED_IN]->(movie:Movie)
 RETURN tom.name, movie.title
 ```
@@ -162,7 +162,7 @@ Hanks's co-actors, go *forward* to a shared movie, then *backward* (the reverse
 arrow `<-`) from the co-actor:
 
 ```cypher
--- Co-actors: forward to the movie, backward from the co-actor
+// Co-actors: forward to the movie, backward from the co-actor
 MATCH (tom:Person {name: "Tom Hanks"})-[:ACTED_IN]->(m)<-[:ACTED_IN]-(coActor:Person)
 RETURN coActor.name, m.title
 ```

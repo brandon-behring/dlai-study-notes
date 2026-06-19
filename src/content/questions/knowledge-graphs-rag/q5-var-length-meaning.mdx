@@ -14,7 +14,8 @@ answer: >
   first chunk (no predecessor) or last chunk (no successor), so it returns zero rows. With `*0..1`
   the missing side matches zero hops — the endpoint collapses onto the target — so the query still
   returns the neighbours that do exist. Pair it with `ORDER BY length(window) DESC LIMIT 1` to keep
-  the longest window available at each position.
+  the longest window available at each position. Common wrong answer: reading `*0..1` as "exactly
+  one hop" — the zero is the point, and it is what lets the pattern survive at the list ends.
 ---
 
 What does a variable-length path like `*0..1` match, and why is it needed at the start and end of a

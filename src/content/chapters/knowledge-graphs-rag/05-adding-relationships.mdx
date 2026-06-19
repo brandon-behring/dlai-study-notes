@@ -73,7 +73,7 @@ Predict before reading — check each against the chapter.
 4. You have a chunk and want the first chunk of its section. Predict which two relationship types you traverse.
 
 <Fragment slot="answers">
-1. Cross-section NEXT links: the last chunk of Item 7 (seq 4) gets a NEXT to the first chunk of Item 7A (seq 5 → actually seq 0 of the next section if mis-keyed), so the linked list **bleeds across section boundaries** and windows pull in irrelevant context.
+1. Cross-section NEXT links: with only the `formId` filter, `c2.chunkSeqId = c1.chunkSeqId + 1` also matches chunks in *other* sections that carry the next sequence number — so each chunk links to the next-numbered chunk in every section, and the linked list **forks and bleeds across section boundaries**, after which windows pull in irrelevant context.
 2. **Zero results** — the first chunk has no predecessor, so the fixed `before` hop fails to match and the whole pattern returns nothing. Variable-length `*0..1` fixes this.
 3. Pay for graph augmentation when questions actually **span chunk/document boundaries** and answer quality drives value; for self-contained FAQ lookups, pure vector is enough.
 4. **PART_OF** (chunk → its Form) then **SECTION** (Form → the first chunk of that section) — a two-hop traversal up to the form and back down to the section entry point.
@@ -124,9 +124,10 @@ MERGE (c1)-[:NEXT]->(c2)
 ```
 
 <RedFlag title="The section filter is a correctness requirement, not a nicety">
-Every section restarts `chunkSeqId` at 0, so without the `item` filter the last
-chunk of Item 7 links to the first chunk of Item 7A — a false continuity across
-a section boundary. Then a chunk window at that boundary pulls in unrelated
+Sequence ids are assigned *within* a section (they restart at 0), so the
+`chunkSeqId + 1` join matches by number alone. Without the `item` filter it links
+a chunk to the next-numbered chunk in *every* section of the form — forking the
+list across section boundaries, after which a chunk window pulls in unrelated
 context and *degrades* answers. Always filter by both `formId` and `item` when
 building NEXT. <EvidenceTag kind="verified" />
 </RedFlag>
@@ -135,22 +136,24 @@ building NEXT. <EvidenceTag kind="verified" />
 duplicate NEXT edges.
 
 <WorkedExample title="Build a NEXT linked list and count the edges" los="KGR-5.2">
-**Problem.** A paper has 10 chunks (ids 0–9): chunks 0–4 are "Introduction",
-chunks 5–9 are "Methods". You build NEXT with the section filter. How many NEXT
-edges result, and what would omitting the filter do?
+**Problem.** A paper has two sections — Introduction (chunks seq 0–4) and Methods
+(chunks seq 0–4), sequence ids restarting per section as in the SEC pipeline. You
+build NEXT with the section filter. How many edges result, and what does omitting
+the filter do?
 
-**Reasoning.** NEXT connects consecutive chunks *within* a section. Introduction
-gives 0→1, 1→2, 2→3, 3→4 = 4 edges; Methods gives 5→6, 6→7, 7→8, 8→9 = 4 edges.
-Omitting the section filter would also create 4→5 — linking the last
-Introduction chunk to the first Methods chunk — a false cross-section edge that
-corrupts the linked list.
+**Reasoning.** With the `item` filter, NEXT links consecutive chunks *within* each
+section: Introduction 0→1→2→3→4 (4 edges) and Methods 0→1→2→3→4 (4 edges) = 8.
+Omitting the filter, the `chunkSeqId + 1` join matches by number across the whole
+form, so Introduction's seq-*i* chunk also links to Methods' seq-(*i*+1) chunk (and
+vice versa) — spurious cross-section edges that fork the list.
 
-**Answer.** **8 NEXT edges** (4 per section). The section filter is what stops
-the spurious 4→5 link; it is a correctness requirement, not optional tuning.
+**Answer.** **8 NEXT edges** with the filter. Without it, every chunk also links
+to the next-numbered chunk in the *other* section, corrupting the list — which is
+why the `item` filter is a correctness requirement, not optional tuning.
 </WorkedExample>
 
 <SelfCheck q="Why must NEXT-relationship creation filter by section, and what specifically goes wrong without it?" los="KGR-5.7">
-Each section restarts `chunkSeqId` at 0, and NEXT links chunks whose sequence ids differ by one. Without a section (`item`) filter, the last chunk of one section links to the first chunk of the next — a cross-section NEXT edge. That makes the linked list bleed across boundaries, so a chunk window built on it pulls in irrelevant context from the adjacent section and degrades answer quality.
+Chunk sequence ids are assigned within a section (restarting at 0), and NEXT links chunks whose ids differ by one. Without the `item` filter, the `chunkSeqId + 1` join matches by number across the whole form — so a chunk links to the next-numbered chunk in *other* sections too, forking the linked list across boundaries. A chunk window built on it then pulls in irrelevant context from an adjacent section and degrades answer quality. Filtering by both `formId` and `item` keeps NEXT inside one section.
 </SelfCheck>
 
 ## Connecting chunks to the form (PART_OF, SECTION)
@@ -161,11 +164,11 @@ the *first* chunk of each section with
 [**SECTION**](../glossary#term-section-relationship), tagged by section name:
 
 ```cypher
--- every chunk to its form
+// every chunk to its form
 MATCH (c:Chunk), (f:Form) WHERE c.formId = f.formId
 MERGE (c)-[:PART_OF]->(f)
 
--- form to the first chunk (seq 0) of each section
+// form to the first chunk (seq 0) of each section
 MATCH (c:Chunk), (f:Form) WHERE c.formId = f.formId AND c.chunkSeqId = 0
 MERGE (f)-[s:SECTION {f10kItem: c.item}]->(c)
 ```
@@ -193,7 +196,7 @@ chunks uses $k$ hops in each direction; the default $k=1$ gives a 3-chunk
 window. The naive fixed pattern, though, breaks at the ends of the list:
 
 ```cypher
--- fixed 3-node window: FAILS at boundaries
+// fixed 3-node window: FAILS at boundaries
 MATCH (before:Chunk)-[:NEXT]->(middle:Chunk)-[:NEXT]->(after:Chunk)
 WHERE middle.chunkId = $chunkIdParam
 RETURN before, middle, after
