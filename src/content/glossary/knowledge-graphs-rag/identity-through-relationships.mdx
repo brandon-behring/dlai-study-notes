@@ -1,0 +1,13 @@
+---
+term: Identity Through Relationships
+aliases: [role through relationships]
+domain: kg-fundamentals
+see: [relationship, schema-optional, label]
+tags: [graph-data-model, design]
+---
+
+The design pattern where a node's **role is encoded by the typed relationships it participates
+in**, not by extra labels: a `Person` is an actor *because* it has an `ACTED_IN` relationship,
+a director *because* it has `DIRECTED`. It keeps the schema clean and avoids "label explosion."
+**Where it breaks:** when a role needs role-specific properties (an actor's per-film salary),
+which then have to live on the relationship and can get unwieldy at scale.

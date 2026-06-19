@@ -1,0 +1,12 @@
+---
+term: Cypher
+aliases: [Cypher query language]
+domain: kg-fundamentals
+see: [knowledge-graph, multi-hop-pattern]
+tags: [cypher, querying]
+---
+
+Neo4j's **declarative, pattern-matching query language**. It uses ASCII-art notation that
+mirrors a whiteboard diagram — `()` for nodes, `[]` for relationships, `->` for direction — so
+you *draw* the pattern you want and Cypher returns every matching subgraph. Self-documenting:
+`MATCH (p:Person)-[:ACTED_IN]->(m:Movie)` reads as the graph structure it matches.

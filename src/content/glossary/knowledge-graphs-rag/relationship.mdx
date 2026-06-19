@@ -1,0 +1,12 @@
+---
+term: Relationship
+aliases: [edge]
+domain: kg-fundamentals
+see: [node, identity-through-relationships, property]
+tags: [graph-data-model]
+---
+
+A **directed, typed connection between two nodes** — written `-[:TYPE]->` in Cypher. It is
+itself a rich record: a start and end node, a **type** (`ACTED_IN`, `OWNS_STOCK_IN`), a
+**direction**, and optional [properties](#term-property). Preferred over the graph-theory term
+"edge" because it conveys richness beyond a bare link — type and direction *are* the semantics.

@@ -1,0 +1,23 @@
+---
+id: kgr-1-cypher-domain
+type: free
+chapter: 1
+domain: kg-fundamentals
+bloom_level: apply
+objective_id: KGR-1.6
+difficulty: '2'
+tags: [cypher]
+answer: >
+  Write nodes in parentheses (label after a colon, properties in braces), relationships in
+  square brackets with a typed arrow. For "Dr. Smith teaches Machine Learning 101, which belongs
+  to the CS department": `(smith:Professor {name: "Dr. Smith"})-[:TEACHES]->(ml101:Course {title:
+  "Machine Learning 101"})-[:BELONGS_TO]->(cs:Department {name: "CS"})`. Node labels: `Professor`,
+  `Course`, `Department`; relationship types: `TEACHES`, `BELONGS_TO` (both directed). Properties
+  like `name`/`title` sit inside the node braces; a relationship could carry its own property too
+  (e.g. `[:TEACHES {term: "Fall"}]`). Common wrong answer: putting the relationship type in
+  parentheses or omitting the arrow direction — Cypher needs `-[:TYPE]->` for a directed, typed
+  relationship.
+---
+
+Write the Cypher text notation for: Professor "Dr. Smith" teaches "Machine Learning 101", which
+belongs to the "CS" department. Name the labels and relationship types you used.

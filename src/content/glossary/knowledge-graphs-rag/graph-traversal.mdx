@@ -1,0 +1,13 @@
+---
+term: Graph Traversal
+aliases: [traversal]
+domain: kg-fundamentals
+see: [knowledge-graph, vector-similarity-search, multi-hop-pattern]
+tags: [retrieval, querying]
+---
+
+Retrieval by **following typed relationships** from a starting node to connected nodes — the
+graph analogue of adjacency. It answers "what is *connected* to this?", surfacing
+connection-based context (a company's investors, a document's sections) that similarity search
+misses. Cost is roughly $O(k^d)$ in the local fan-out ($k$ = avg connections, $d$ = hops),
+versus $d$ self-JOINs over a whole table in SQL.

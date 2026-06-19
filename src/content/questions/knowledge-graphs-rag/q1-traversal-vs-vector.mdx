@@ -1,0 +1,23 @@
+---
+id: kgr-1-traversal-vs-vector
+type: free
+chapter: 1
+domain: kg-fundamentals
+bloom_level: understand
+objective_id: KGR-1.2
+difficulty: '2'
+tags: [rag, retrieval]
+answer: >
+  Vector search retrieves text that is *semantically similar* to the query — great for "find me
+  passages about NetApp's business." But the question "who invested in NetApp?" needs to *follow
+  connections*: from the NetApp chunk to its filing, to the companies that filed ownership, to
+  the investment firms. Embeddings can't traverse those typed relationships, so a similar-text
+  match never reaches the investors. A knowledge graph adds traversal-based retrieval: retrieve
+  a chunk by vector search, then walk relationships to expand context with connected entities.
+  The two are complementary — similarity for "what's like this," traversal for "what's connected
+  to this." Common wrong answer: "vector search can find the investors if the embeddings are
+  good enough" — no embedding encodes a multi-hop ownership chain; that requires traversal.
+---
+
+Explain why a knowledge graph enhances RAG beyond vector similarity search, using a "who
+invested in NetApp?"-style question to make the point concrete.

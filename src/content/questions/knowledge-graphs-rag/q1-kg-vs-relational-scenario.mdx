@@ -1,0 +1,25 @@
+---
+id: kgr-1-kg-vs-relational-scenario
+type: free
+chapter: 1
+domain: kg-fundamentals
+bloom_level: analyze
+objective_id: KGR-1.4
+difficulty: '2'
+tags: [graph-data-model, decision]
+answer: >
+  Decide on relationship complexity, not data size. For a fraud-detection system over accounts,
+  transactions, devices, and shared addresses — where the valuable questions are multi-hop
+  ("which accounts are linked through a shared device to a known-fraud account, within 3 hops?")
+  — a knowledge graph wins: each hop is a cheap traversal, where the relational version is a
+  pile of self-JOINs that explode with depth. Schema flexibility helps too (new link types
+  appear as fraud evolves), and native vector+graph lets you combine similarity with traversal.
+  Conversely, if the data were a flat ledger queried by account id with no multi-hop questions, a
+  relational database would be simpler. Justify on: relationship complexity (multi-hop → graph),
+  schema flexibility (evolving link types → graph), query pattern (traversal vs lookup). Common
+  wrong answer: "it has 50M rows, so use a relational DB for scale" — size isn't the axis;
+  relationship complexity is.
+---
+
+Give a scenario where you would choose a knowledge graph over a relational database, and justify
+it on schema flexibility, relationship complexity, and query pattern.

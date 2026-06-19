@@ -1,0 +1,13 @@
+---
+term: Retrieval-Augmented Generation
+aliases: [RAG]
+domain: kg-fundamentals
+see: [vector-similarity-search, graph-traversal]
+tags: [rag]
+---
+
+A system architecture that **retrieves relevant context from an external store and injects it
+into the LLM prompt** before generation, grounding the response in evidence and reducing
+hallucination. Basic RAG retrieves by [vector similarity](#term-vector-similarity-search);
+**graph-RAG** adds [traversal-based retrieval](#term-graph-traversal), so context can follow
+connections, not just semantic closeness.

@@ -55,6 +55,14 @@ export default await defineBookConfig({
     'component-evals',
     'trajectory-evals',
     'llm-judge-monitoring',
+    // knowledge-graphs-rag
+    'kg-fundamentals',
+    'cypher-querying',
+    'text-for-rag',
+    'kg-construction',
+    'kg-relationships',
+    'kg-expansion',
+    'graph-rag-chat',
   ],
   markdown: {
     remarkPlugins: [remarkMath],

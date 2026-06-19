@@ -1,0 +1,31 @@
+---
+id: kgr-1-kg-vs-relational
+type: mcq
+chapter: 1
+domain: kg-fundamentals
+bloom_level: analyze
+objective_id: KGR-1.4
+difficulty: '2'
+tags: [graph-data-model, decision]
+options:
+  - id: a
+    text: 10M rows of tabular sales data queried with simple aggregations
+  - id: b
+    text: A stable schema queried almost entirely by primary key
+  - id: c
+    text: Finding semantically similar documents by embedding distance
+  - id: d
+    text: Multi-hop questions over interconnected entities (who invested in firms that supply company X?)
+    correct: true
+---
+import Rationale from '@brandon_m_behring/book-scaffold-astro/components/Rationale.astro';
+
+Which workload most favours a knowledge graph over a relational database?
+
+<Rationale title="Why">
+The graph wins on **relationship complexity** — multi-hop questions over interconnected
+entities, where each hop would be another SQL self-JOIN but is a cheap traversal in the graph.
+Tabular sales data with aggregations and primary-key lookups fits a relational database
+perfectly, and "semantically similar documents" is a vector-search task — neither needs graph
+traversal. Choose the KG for connection-heavy questions, not merely because relationships exist.
+</Rationale>

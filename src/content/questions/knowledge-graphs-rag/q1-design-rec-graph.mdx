@@ -1,0 +1,25 @@
+---
+id: kgr-1-design-rec-graph
+type: free
+chapter: 1
+domain: kg-fundamentals
+bloom_level: apply
+objective_id: KGR-1.5
+difficulty: '2'
+tags: [applications, graph-data-model]
+answer: >
+  Nodes (labels + properties): `Customer` (name, id), `Product` (title, category, price). One
+  relationship type: `(:Customer)-[:PURCHASED {date}]->(:Product)`. The recommendation "customers
+  who bought X also bought Y" is a multi-hop traversal: from product X, go *back* along
+  `PURCHASED` to the customers who bought it, then *forward* along their other `PURCHASED`
+  relationships to the products Y they also bought, ranked by frequency — i.e.
+  `(x:Product)<-[:PURCHASED]-(c:Customer)-[:PURCHASED]->(y:Product)`. No separate "co-purchase"
+  table is needed; the pattern is the recommendation. You could enrich it with a `VIEWED`
+  relationship or `Category` nodes for content-based fallbacks. Common wrong answer: precomputing
+  a co-purchase table — that's the relational workaround the graph traversal replaces, and it
+  goes stale as purchases arrive.
+---
+
+Model a small knowledge graph for an e-commerce "customers who bought X also bought Y"
+recommender: name the node labels, the relationship type(s), and the traversal that produces a
+recommendation.
