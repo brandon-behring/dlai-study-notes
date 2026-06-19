@@ -172,7 +172,7 @@ A two-hop pattern through a shared node — `(a)-[:R]->(b)<-[:R]-(c)` — is the
 canonical way to discover indirect connections; the middle node `b` is the graph
 equivalent of a SQL JOIN, but written as a visual pattern instead of nested JOINs.
 **When it breaks:** traversals explode combinatorially on high-degree nodes — a
-movie with 50 actors yields $50^2$ co-actor pairs, and three hops can return
+movie with 50 actors yields on the order of $50^2$ co-actor pairs, and three hops can return
 millions of rows. Always bound results with `LIMIT` or a label/property filter. <EvidenceTag kind="verified" />
 </KeyConcept>
 
@@ -310,7 +310,7 @@ module:
 | Conditional | `MATCH (m:Movie) WHERE m.released > 2000 RETURN m` |
 | One hop | `MATCH (p)-[:ACTED_IN]->(m) RETURN p, m` |
 | Two hops | `MATCH (a)-[:R]->(b)<-[:R]-(c) RETURN a, c` |
-| Create node | `MATCH` … `CREATE (n:Label {k: "v"})` |
+| Create node | `CREATE (n:Label {k: "v"}) RETURN n` |
 | Merge relationship | `MATCH (a),(b) MERGE (a)-[:R]->(b)` |
 | Delete relationship | `MATCH ()-[r:R]->() DELETE r` |
 

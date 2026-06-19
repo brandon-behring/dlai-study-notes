@@ -51,7 +51,7 @@ function parseOptions(fm) {
 /** Absolute-language tells that let a reader eliminate an option without
  *  domain knowledge. Hard-flagged (these almost never belong in a precise ML
  *  option); softer words like "only"/"all" are a review rule, not a lint. */
-const ABSOLUTE_RE = /\b(always|never|cannot)\b|\b(all|none)\s+of\s+the\s+above\b/i;
+const ABSOLUTE_RE = /\b(always|never|cannot)\b|\b(can|won)['’]t\b|\b(all|none)\s+of\s+the\s+above\b/i;
 
 const violations = [];
 const byBook = {}; // book -> [{ file, pos }]
@@ -68,6 +68,18 @@ for (const file of walk(QDIR)) {
   // absolute-language tells in option text
   const tells = texts.filter((t) => ABSOLUTE_RE.test(t)).map((t) => `"${t.slice(0, 40)}…"`);
   if (tells.length) violations.push({ kind: 'absolute-tell', file, detail: tells.join('; ') });
+
+  // length tell: the keyed-correct option must not be markedly longer than every
+  // distractor — a reader picks "the long, fully-qualified one" without domain knowledge
+  // (cross-model review's #1 MCQ tell). Cap the correct-vs-longest-distractor gap.
+  if (correctIdx >= 0 && texts.length >= 2) {
+    const correctLen = texts[correctIdx].length;
+    const maxDistractor = Math.max(...texts.filter((_, i) => i !== correctIdx).map((t) => t.length));
+    const GAP = 25;
+    if (correctLen - maxDistractor > GAP) {
+      violations.push({ kind: 'length-tell', file, detail: `correct option ${correctLen} chars vs longest distractor ${maxDistractor} (+${correctLen - maxDistractor}, cap +${GAP})` });
+    }
+  }
 
   // letter-referenced distractors in the rationale/body
   const refs = [...new Set([

@@ -301,10 +301,11 @@ Because precision buys cost at the expense of **quality**: INT8 is usually near-
 
 The cheapest way to deploy frontier reasoning is not to run it. [**Knowledge
 distillation**](../glossary#term-knowledge-distillation) trains a small **student** to mimic a
-large **teacher** — the R1 recipe: the 671B teacher generates chain-of-thought solutions for
-~800K problems; each is **verified** against ground truth and only the correct ~10–15% are
-kept; smaller students (Qwen 1.5–32B, Llama 8–70B) are SFT'd (often with LoRA) on those
-filtered traces.
+large **teacher** — the R1 recipe: the 671B teacher generates chain-of-thought solutions across
+a large problem pool; each is **verified** against ground truth and only the correct traces are
+kept (a minority survive the check); the survivors become the reasoning portion of the ~800K
+SFT mix described above. Smaller students (Qwen 1.5–32B, Llama 8–70B) are then SFT'd (often with
+LoRA) on those filtered traces.
 
 <KeyConcept title="Distillation beats direct RL for small models" los="FRI-5.5">
 DeepSeek's distilled students consistently **outperform** same-size models trained with direct

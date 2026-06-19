@@ -11,7 +11,7 @@ options:
   - id: a
     text: CREATE — it's faster because it skips the existence check
   - id: b
-    text: MERGE — it creates the relationship only if absent, so retries don't duplicate (idempotent)
+    text: MERGE — it creates the relationship only if absent, so retries don't duplicate
     correct: true
   - id: c
     text: CREATE with a LIMIT 1 to avoid making duplicates

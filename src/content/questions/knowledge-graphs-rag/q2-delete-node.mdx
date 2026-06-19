@@ -13,7 +13,7 @@ options:
   - id: b
     text: The node is deleted but its relationships are left orphaned
   - id: c
-    text: The DELETE fails (referential integrity); remove the relationships first or use DETACH DELETE
+    text: The DELETE fails; remove the relationships first, or use DETACH DELETE
     correct: true
   - id: d
     text: Neo4j converts it to a soft-deleted node flagged as inactive

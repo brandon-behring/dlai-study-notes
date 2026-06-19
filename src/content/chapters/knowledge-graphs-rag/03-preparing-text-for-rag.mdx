@@ -137,8 +137,13 @@ RETURN m.tagline, m.taglineEmbedding[0..5] AS sample, size(m.taglineEmbedding) A
 ```
 
 An [**embedding**](../glossary#term-embedding) is a dense vector where
-semantically similar texts sit close together; OpenAI's default model outputs
-**1536** dimensions, which is exactly why the index above declares 1536.
+semantically similar texts sit close together; OpenAI's `text-embedding-3-small`
+outputs **1536** dimensions (its `-3-large` outputs 3072), which is exactly why the
+index above declares 1536.
+
+<Aside category="warning">
+Currency (2026): the course's Neo4j/LangChain APIs have moved. `genai.vector.encode` and `db.index.vector.queryNodes` are the Neo4j-5-era procedures taught here but are deprecated in newer Neo4j; the `from langchain_community.graphs import Neo4jGraph` import is now `from langchain_neo4j import Neo4jGraph`. The *pattern* (encode → store → index → search) is unchanged — pin versions and check current docs before reusing the course notebooks. <EvidenceTag kind="verified" />
+</Aside>
 
 <SelfCheck q="What does genai.vector.encode do, and what three arguments does it take?" los="KGR-3.2">
 It calls an external embedding API (e.g. OpenAI) *from inside Cypher* and returns the embedding as a float array. Its three arguments are the **text** to encode, the **provider** name (`"OpenAI"`), and a **config** map (including the API `token`, passed as a query parameter). Paired with `db.create.setNodeVectorProperty`, it stores the vector directly on the node — co-locating vectors with the graph.

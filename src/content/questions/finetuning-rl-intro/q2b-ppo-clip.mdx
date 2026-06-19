@@ -9,7 +9,7 @@ difficulty: '2'
 tags: [rl, ppo]
 options:
   - id: a
-    text: It removes the incentive to push a sampled action's probability beyond ~1±ε of the old policy — a soft trust region for stable updates
+    text: It caps how far an action's probability moves from the old policy — a soft trust region
     correct: true
   - id: b
     text: It clips the reward to a fixed range to prevent reward hacking

@@ -14,7 +14,7 @@ options:
   - id: b
     text: PPO with the verifier as reward, keeping the learned critic for token-level credit
   - id: c
-    text: GRPO but drop the KL term, since a verifiable reward can't be gamed
+    text: GRPO but drop the KL term, since a verifiable reward is exploit-proof
   - id: d
     text: DPO on verifier-labeled pass/fail pairs, refreshed each round
 ---
