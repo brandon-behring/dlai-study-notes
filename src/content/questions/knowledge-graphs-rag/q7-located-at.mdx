@@ -1,0 +1,23 @@
+---
+id: kgr-7-located-at
+type: free
+chapter: 7
+domain: graph-rag-chat
+bloom_level: apply
+objective_id: KGR-7.8
+difficulty: '2'
+tags: [located-at, traversal]
+answer: >
+  LOCATED_AT connects a Company or Manager to its Address node, so any geographic question first
+  traverses it to reach coordinates. To find managers near a company: full-text or match the company,
+  traverse `(:Company)-[:LOCATED_AT]->(:Address)` for its location, traverse
+  `(:Manager)-[:LOCATED_AT]->(:Address)` for candidate locations, then filter with
+  `point.distance(companyAddr.location, mgrAddr.location) < radius`. Without LOCATED_AT the entities
+  have no location to compare, so distance queries are impossible — it is the Expand step that makes
+  geography first-class. Common wrong answer: putting coordinates directly on the Company node —
+  modelling Address as its own node lets multiple entities share a location and keeps the point in
+  one indexed place.
+---
+
+What role does the LOCATED_AT relationship play, and how is it used in a query that finds managers
+near a company?

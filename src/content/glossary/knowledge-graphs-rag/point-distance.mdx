@@ -1,0 +1,13 @@
+---
+term: point.distance()
+aliases: [point distance, geodesic distance]
+domain: graph-rag-chat
+see: [geospatial-point, address-node]
+tags: [geospatial, cypher]
+---
+
+A Neo4j function that returns the geodesic (great-circle) distance between two geospatial points,
+**in metres**. Used in a `WHERE` clause for radius queries — `WHERE point.distance(a.location,
+b.location) < 10000` finds entities within 10 km — and divided by 1000 for kilometres. The unit is
+the classic trap: 10 km is 10000, not 10; 50 miles is 80467. Pair it with a point index, or the
+query degrades to an O(n) scan of every candidate node.

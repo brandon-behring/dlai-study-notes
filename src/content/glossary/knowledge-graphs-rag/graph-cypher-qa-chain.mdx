@@ -1,0 +1,14 @@
+---
+term: GraphCypherQAChain
+aliases: [GraphCypherQAChain, LLM-generated Cypher]
+domain: graph-rag-chat
+see: [few-shot-prompt, neo4jgraph, retrievalqa]
+tags: [langchain, llm, neo4j]
+---
+
+LangChain's chain that turns a natural-language question into a graph answer end to end: the LLM
+generates Cypher (guided by the injected schema and few-shot examples), Neo4j executes it, and the
+LLM synthesises the rows into a natural-language reply — question → Cypher → execute → answer. It
+needs the schema and a good few-shot prompt for reliable generation, and its main risk is **schema
+hallucination** (invented relationship types), mitigated by schema injection and validating the
+generated query before running it.

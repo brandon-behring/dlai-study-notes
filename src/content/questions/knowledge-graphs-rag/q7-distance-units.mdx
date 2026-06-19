@@ -1,0 +1,29 @@
+---
+id: kgr-7-distance-units
+type: mcq
+chapter: 7
+domain: graph-rag-chat
+bloom_level: apply
+objective_id: KGR-7.2
+difficulty: '1'
+tags: [geospatial, point-distance]
+options:
+  - id: a
+    text: 25, since the function returns kilometres
+  - id: b
+    text: 0.025, converting the radius to a fraction
+  - id: c
+    text: 2500, since the function returns centimetres
+  - id: d
+    text: 25000, since the function returns metres
+    correct: true
+---
+import Rationale from '@brandon_m_behring/book-scaffold-astro/components/Rationale.astro';
+
+To find entities within 25 km, what value do you compare `point.distance()` against?
+
+<Rationale title="Why">
+`point.distance()` returns **metres**, so 25 km is `< 25000`. The off-by-1000 bug — writing 25
+(km) instead of 25000 — is the most common geospatial mistake; the function never returns
+kilometres or centimetres.
+</Rationale>

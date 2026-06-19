@@ -1,0 +1,21 @@
+---
+id: kgr-7-fewshot-diversity
+type: free
+chapter: 7
+domain: graph-rag-chat
+bloom_level: analyze
+objective_id: KGR-7.5
+difficulty: '2'
+tags: [few-shot, diminishing-returns]
+answer: >
+  Prefer a few diverse examples. Two or three that span *different* query shapes — a property
+  filter, an aggregation, a multi-hop traversal — teach the LLM more than ten variations of one
+  shape, because the model generalises patterns and redundant examples add no new pattern. Past two
+  or three diverse examples, returns diminish quickly while prompt length (and cost) grows. So the
+  selection rule is coverage of distinct shapes, not quantity. Common wrong answer: "more examples
+  always help" — beyond covering the distinct shapes, extra similar examples mostly add tokens, not
+  capability.
+---
+
+Is it better to give a Cypher-generation prompt ten similar examples or three diverse ones? Explain
+the trade-off.

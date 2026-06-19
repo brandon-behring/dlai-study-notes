@@ -1,0 +1,30 @@
+---
+id: kgr-7-fewshot-why
+type: mcq
+chapter: 7
+domain: graph-rag-chat
+bloom_level: analyze
+objective_id: KGR-7.3
+difficulty: '2'
+tags: [few-shot, schema]
+options:
+  - id: a
+    text: To stop the LLM inventing relationship types that aren't in the graph
+    correct: true
+  - id: b
+    text: To make the generated Cypher run faster at query time
+  - id: c
+    text: To reduce the number of few-shot examples needed to zero
+  - id: d
+    text: To let the LLM skip executing the query against Neo4j
+---
+import Rationale from '@brandon_m_behring/book-scaffold-astro/components/Rationale.astro';
+
+Why inject the graph schema and a "do not hallucinate" instruction into a Cypher-generation prompt?
+
+<Rationale title="Why">
+The schema plus the instruction constrain the LLM to *real* relationship types and properties,
+preventing schema hallucination — Cypher that looks valid but references things the graph doesn't
+have. It doesn't change execution speed, doesn't remove the need for examples, and doesn't bypass
+running the query.
+</Rationale>

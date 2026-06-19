@@ -1,0 +1,22 @@
+---
+id: kgr-7-schema-hallucination
+type: free
+chapter: 7
+domain: graph-rag-chat
+bloom_level: analyze
+objective_id: KGR-7.6
+difficulty: '3'
+tags: [schema-hallucination, evaluation]
+answer: >
+  Schema hallucination is when an LLM generates Cypher that references relationship types or
+  properties the graph does not have — syntactically valid, plausible-looking, but invalid against
+  the real schema (so it errors or returns nothing). Catch it by reading the generated query against
+  the schema before trusting the answer; with verbose mode on, inspect the Cypher the chain
+  produced. Prevent it by injecting the actual schema, instructing "use only these types; do not
+  hallucinate", giving few-shot examples that use the correct relationships, and validating the
+  query before executing in production. Common wrong answer: "raise the temperature for better
+  queries" — higher temperature increases invention, making hallucination worse.
+---
+
+What is schema hallucination in LLM-generated Cypher, how would you detect it, and how do you
+prevent it?

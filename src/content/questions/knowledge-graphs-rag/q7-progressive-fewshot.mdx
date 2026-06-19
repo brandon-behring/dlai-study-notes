@@ -1,0 +1,21 @@
+---
+id: kgr-7-progressive-fewshot
+type: free
+chapter: 7
+domain: graph-rag-chat
+bloom_level: apply
+objective_id: KGR-7.5
+difficulty: '2'
+tags: [progressive-few-shot, generalization]
+answer: >
+  Because the example demonstrates a reusable query *shape*, not a one-off answer. "What does X do?"
+  shows full-text find the company, then traverse FILED to its Form and SECTION to the Item-1 chunk,
+  and return that text. The LLM generalises this shape to any company name, so the single example
+  unlocks document navigation broadly. That is progressive few-shot: each added example teaches one
+  new capability (city filter, then geospatial distance, then document navigation) the model applies
+  to unseen questions. Common wrong answer: assuming it only answers about that one company — the
+  model learns the pattern, not the instance.
+---
+
+Why does adding one "What does company X do?" example to the few-shot prompt unlock document
+navigation for many companies, not just X?

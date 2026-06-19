@@ -1,0 +1,21 @@
+---
+id: kgr-7-address-node
+type: free
+chapter: 7
+domain: graph-rag-chat
+bloom_level: understand
+objective_id: KGR-7.8
+difficulty: '1'
+tags: [address-node, geospatial]
+answer: >
+  An Address node holds city, state, and a geospatial `location` property — a latitude/longitude
+  point created with `point({latitude: x, longitude: y})`. Neo4j stores geospatial data as this
+  native point type, which `point.distance()` consumes to compute distances in metres. Address
+  nodes connect to Company and Manager nodes via LOCATED_AT, so the graph can answer
+  "what's near X?" questions. They are themselves Extract-Enhance-Expand: extract from CSV, enhance
+  with the point, expand with LOCATED_AT. Common wrong answer: storing latitude and longitude as two
+  plain numbers — they belong in a single point value so point.distance() and a point index can use
+  them.
+---
+
+What properties does an Address node carry, and how does Neo4j store geospatial data?

@@ -1,0 +1,13 @@
+---
+term: Progressive Few-Shot Learning
+aliases: [progressive few-shot, incremental examples]
+domain: graph-rag-chat
+see: [few-shot-prompt, graph-cypher-qa-chain]
+tags: [llm, prompting]
+---
+
+The practice of adding few-shot examples incrementally, where **each example unlocks a new query
+capability** the LLM generalises from — a city-filter example enables filtering for any entity, a
+`point.distance()` example enables geospatial search, a full-text-plus-SECTION example enables
+document navigation. The guiding principle is diversity over quantity: two or three examples
+spanning *different* query shapes (filter, aggregate, traverse) outperform ten variations of one.

@@ -1,0 +1,13 @@
+---
+term: Geospatial Point
+aliases: [point, location point]
+domain: graph-rag-chat
+see: [point-distance, address-node]
+tags: [geospatial, neo4j]
+---
+
+A Neo4j data type representing a location on Earth as latitude/longitude, stored with `point({
+latitude: x, longitude: y })` and held on a node property (e.g. `Address.location`). It is the
+input to `point.distance()` for proximity queries, and a **point index** on the property keeps
+range searches performant. A common bug is reversing latitude and longitude — verify coordinate
+order against the source data.

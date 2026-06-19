@@ -1,0 +1,14 @@
+---
+term: Few-Shot Prompt
+aliases: [few-shot prompting, few-shot examples]
+domain: graph-rag-chat
+see: [graph-cypher-qa-chain, progressive-few-shot]
+tags: [llm, prompting]
+---
+
+A prompt containing a handful of worked example pairs that teach an LLM a pattern by demonstration
+rather than instruction. For Cypher generation, each example pairs a natural-language question with
+its correct query, plus the injected schema and a "use only these types; do not hallucinate"
+instruction — the LLM then generalises to unseen questions. Two to three *diverse* examples (a
+filter, an aggregation, a traversal) cover far more ground than many similar ones; past that,
+returns diminish.

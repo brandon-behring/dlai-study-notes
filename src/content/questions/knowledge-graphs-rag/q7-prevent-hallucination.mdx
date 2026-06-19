@@ -1,0 +1,31 @@
+---
+id: kgr-7-prevent-hallucination
+type: mcq
+chapter: 7
+domain: graph-rag-chat
+bloom_level: evaluate
+objective_id: KGR-7.6
+difficulty: '2'
+tags: [schema-hallucination, llm-cypher]
+options:
+  - id: a
+    text: Raise the LLM's temperature for more creative queries
+  - id: b
+    text: Remove the schema from the prompt to simplify it
+  - id: c
+    text: Inject the real schema and validate the query before running it
+    correct: true
+  - id: d
+    text: Switch the retrieval from full-text search to vector search
+---
+import Rationale from '@brandon_m_behring/book-scaffold-astro/components/Rationale.astro';
+
+An LLM generates Cypher referencing a relationship type that doesn't exist in your graph. Which fix
+most directly addresses this?
+
+<Rationale title="Why">
+Schema hallucination is fixed by grounding the model in the real schema and checking its output:
+inject the actual node/relationship types, instruct "use only these", and validate before
+executing. Raising temperature makes invention *more* likely, removing the schema removes the
+guardrail, and the search paradigm is unrelated to the generation step.
+</Rationale>

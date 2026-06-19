@@ -1,0 +1,29 @@
+---
+id: kgr-7-chain-steps
+type: mcq
+chapter: 7
+domain: graph-rag-chat
+bloom_level: apply
+objective_id: KGR-7.4
+difficulty: '2'
+tags: [graph-cypher-qa-chain, pipeline]
+options:
+  - id: a
+    text: Execute Cypher, generate Cypher, ask the question, answer
+  - id: b
+    text: Question, generate Cypher, execute it, synthesise the answer
+    correct: true
+  - id: c
+    text: Question, vector search, rank chunks, answer
+  - id: d
+    text: Generate embeddings, search, traverse, then generate Cypher
+---
+import Rationale from '@brandon_m_behring/book-scaffold-astro/components/Rationale.astro';
+
+What is the correct order of the GraphCypherQAChain pipeline?
+
+<Rationale title="Why">
+The chain runs question → LLM generates Cypher → Neo4j executes it → LLM synthesises a
+natural-language answer from the rows. Generation must precede execution; the chain uses
+LLM-generated Cypher (not a vector-search pipeline), and it does not produce embeddings.
+</Rationale>
