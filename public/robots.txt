@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://study-notes.brandon-behring.dev/sitemap-index.xml
