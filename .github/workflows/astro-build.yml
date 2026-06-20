@@ -1,0 +1,52 @@
+name: astro-build
+
+# CI-only build check. Deployment is handled by Cloudflare Workers Builds
+# (Git-connected, dashboard-configured) — matching guides / guides-ai-engineering.
+# This workflow does NOT deploy; it proves the site builds green in a node-only
+# environment (no LaTeX), exactly as the Workers Builds container will: build:figures
+# skips gracefully and serves the committed public/figures/ SVGs.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'tooling/**'
+      - 'figures/**'
+      - 'public/**'
+      - 'citations.bib'
+      - 'astro.config.mjs'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/astro-build.yml'
+  pull_request:
+    paths:
+      - 'src/**'
+      - 'tooling/**'
+      - 'astro.config.mjs'
+      - 'package.json'
+      - 'package-lock.json'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0 # git-date-based "last touched" frontmatter
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: 'npm'
+      - name: Install dependencies
+        run: npm ci
+      # No LaTeX install — Workers Builds is node-only, so CI proves the build is
+      # green WITHOUT pdflatex/pdftocairo (build:figures serves committed SVGs).
+      - name: Build site
+        run: npm run build
+      - name: Upload dist artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: dist
+          path: dist/
+          retention-days: 7

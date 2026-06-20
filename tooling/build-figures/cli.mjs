@@ -178,6 +178,20 @@ function run(cmd, args, opts = {}) {
   });
 }
 
+/**
+ * Probe whether a binary is reachable on PATH. Resolves true if the command
+ * spawns at all (any exit code), false if it can't be launched (ENOENT). Used
+ * to detect the LaTeX toolchain so the build can fall back to committed SVGs in
+ * a node-only deploy container (Cloudflare Workers Builds) instead of failing.
+ */
+function commandExists(cmd) {
+  return new Promise((resolve) => {
+    const child = spawn(cmd, ['--version'], { stdio: 'ignore' });
+    child.on('error', () => resolve(false)); // ENOENT — not on PATH
+    child.on('close', () => resolve(true)); // launched → exists
+  });
+}
+
 async function main() {
   const args = parseArgs(process.argv);
 
@@ -196,19 +210,40 @@ async function main() {
     return;
   }
 
-  process.stderr.write(`Building ${figures.length} figure(s)…\n`);
-  let built = 0;
-  let skipped = 0;
+  // Which figures actually need (re)compiling?
+  const work = [];
   for (const fig of figures) {
     const outPath = join(FIGURES_OUT, fig.book, `${fig.name}.svg`);
-    if (await isStale({ ...fig, outPath }, args.force)) {
-      await compileFigure(fig, outPath);
-      built++;
-    } else {
-      skipped++;
+    if (await isStale({ ...fig, outPath }, args.force)) work.push({ ...fig, outPath });
+  }
+
+  // Deploy-safe skip: the Cloudflare Workers Builds container is node-only (no
+  // apt/LaTeX). If anything would need compiling but the toolchain is absent,
+  // warn and fall back to the committed public/figures/ SVGs rather than fail
+  // the whole site build. Local dev (with texlive) still rebuilds normally.
+  if (work.length > 0) {
+    const [hasLatex, hasPdftocairo] = await Promise.all([
+      commandExists('pdflatex'),
+      commandExists('pdftocairo'),
+    ]);
+    if (!hasLatex || !hasPdftocairo) {
+      process.stderr.write(
+        `build-figures: LaTeX toolchain unavailable (pdflatex=${hasLatex}, ` +
+          `pdftocairo=${hasPdftocairo}) — skipping ${work.length} figure(s); ` +
+          `serving committed public/figures/ SVGs. Install texlive + ` +
+          `poppler-utils to regenerate locally.\n`,
+      );
+      return;
     }
   }
-  process.stderr.write(`Done: ${built} built, ${skipped} cached.\n`);
+
+  process.stderr.write(`Building ${work.length} figure(s)…\n`);
+  let built = 0;
+  for (const fig of work) {
+    await compileFigure(fig, fig.outPath);
+    built++;
+  }
+  process.stderr.write(`Done: ${built} built, ${figures.length - built} cached.\n`);
 }
 
 main().catch((err) => {

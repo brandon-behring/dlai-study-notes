@@ -157,6 +157,29 @@ Additive to course-notes — ship as a scaffold minor:
 
 ---
 
+## Theme: v4.26 consumer adoption (responsive nav + chrome + figures)
+
+### showChrome doesn't reach chapter pages (#163 follow-up)
+- **Problem:** v4.26 #163 added a `showChrome` Base prop, but `Chapter.astro`
+  (Props `{ entry, headings }`) doesn't forward it — so only standalone Base pages
+  (index/about/404) can drop the tools chrome via the prop; chapter + apparatus
+  pages can't.
+- **Workaround here:** `showChrome={false}` on the standalone pages; the consumer
+  CSS hide (`.chrome-buttons .tool-filter/.version-selector { display:none }`)
+  stays for chapter + apparatus pages.
+- **Suggested fix:** `Chapter.astro` accepts + forwards `showChrome` (and
+  `showSidebar`) to `Base`, so consumers can fully retire the CSS hide.
+
+### build-figures hard-fails without LaTeX (node-only deploy containers)
+- **Problem:** `book-scaffold build-figures` exits non-zero when
+  `pdflatex`/`pdftocairo` are absent — which breaks the site build in a node-only
+  deploy container (Cloudflare Workers Builds has no apt/texlive).
+- **Workaround here:** the consumer's forked `tooling/build-figures` preflight-
+  probes the toolchain and skips gracefully (serving committed `public/figures/`
+  SVGs) when it's absent; CI/Workers build green without LaTeX.
+- **Suggested fix:** add the same skip-when-absent guard to the scaffold's
+  `build-figures` so any consumer deploying on Workers Builds is safe.
+
 ## Worked fine (no action)
 - `courseNotesChapterSchema.extend({ book })` — clean consumer extension.
 - Pure helpers + islands all exported from the main entry.

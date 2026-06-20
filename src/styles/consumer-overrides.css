@@ -135,9 +135,11 @@
 
 /* ── Hide tools-profile chrome controls for course-notes ──────────────────── */
 /* The scaffold mounts ToolFilter (flag) + VersionSelector ("v") for any
-   non-academic profile (Base.astro: showToolsChrome = profile !== 'academic'),
-   so course-notes shows them with no consumer opt-out. Hide until the scaffold
-   gains a `chrome`/`hideToolsChrome` config flag (DOGFOOD #11). */
+   non-academic profile. v4.26.0 #163 added a `showChrome` Base prop, now used on
+   the standalone pages (index/about/404) so the islands aren't mounted at all.
+   But Chapter.astro does not yet forward showChrome, so chapter + apparatus pages
+   still need this CSS hide. (DOGFOOD: forward showChrome through Chapter.astro to
+   fully retire this rule.) */
 .chrome-buttons .tool-filter,
 .chrome-buttons .version-selector {
   display: none;
