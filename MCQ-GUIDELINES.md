@@ -55,3 +55,8 @@ Position clustering, length/structure tells, and absolute-language give-aways le
 test-savvy reader score well *without knowing the material* — which defeats a
 practice exam. The lint makes the mechanical failures impossible to ship; rules 5–11
 are the review checklist for the judgment calls.
+
+**Length parity (lint).** Beyond the per-item +25-char cap, the lint flags a
+*bank-rate* tell: per book (≥8 MCQs), at most 35% of MCQs may key an option >12
+chars longer than every distractor — so "pick the long one" stops paying off across
+the exam, not just per question.

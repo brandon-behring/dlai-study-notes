@@ -49,7 +49,9 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: 0,
-  workers: process.env.CI ? 2 : undefined,
+  // Cap local parallelism: unbounded workers on a many-core box oversubscribe the
+  // single preview server → flaky `page.evaluate` timeouts on the heaviest pages.
+  workers: process.env.CI ? 2 : 4,
   reporter: [['list'], ['html', { open: 'never' }]],
   outputDir: 'test-results',
   use: {

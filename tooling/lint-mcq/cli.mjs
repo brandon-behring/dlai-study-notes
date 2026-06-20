@@ -10,6 +10,10 @@
  *   4. No absolute-language tells in option text ("always"/"never"/"cannot" /
  *      "all|none of the above") — a test-savvy reader eliminates them without
  *      domain knowledge (cross-model review flagged this as the top missing check).
+ *   5. Length parity — per item, the correct option may not exceed the longest
+ *      distractor by >25 chars; per book (≥8 MCQs) no more than 35% of MCQs may
+ *      key an option >12 chars longer than EVERY distractor — the recurring
+ *      "pick the long, fully-qualified one" tell (a 1-char edge is not a tell).
  * Chained into `npm run validate` → prebuild → fails the build on violation.
  */
 import { readFileSync, readdirSync, statSync } from 'node:fs';
@@ -53,6 +57,15 @@ function parseOptions(fm) {
  *  option); softer words like "only"/"all" are a review rule, not a lint. */
 const ABSOLUTE_RE = /\b(always|never|cannot)\b|\b(can|won)['’]t\b|\b(all|none)\s+of\s+the\s+above\b/i;
 
+// Length-parity (bank rate): keying a NOTABLY longer correct option recurrently
+// is a "pick the long one" tell. Count MCQs where the correct option exceeds the
+// longest distractor by > LONGEST_MARGIN chars (a visible gap, not a 1-char tie);
+// per book with ≥ MIN_MCQS_FOR_RATE MCQs, flag when that rate exceeds
+// LONGEST_RATE_CAP. (The per-item check already hard-caps any single MCQ at +25.)
+const MIN_MCQS_FOR_RATE = 8;
+const LONGEST_MARGIN = 12;
+const LONGEST_RATE_CAP = 0.35;
+
 const violations = [];
 const byBook = {}; // book -> [{ file, pos }]
 
@@ -63,7 +76,14 @@ for (const file of walk(QDIR)) {
   const { ids, texts, correctIdx } = parseOptions(fm);
 
   if (ids.length < 3) violations.push({ kind: 'too-few-options', file, detail: `${ids.length} options (need ≥3)` });
-  if (correctIdx >= 0) (byBook[book] ??= []).push({ file, pos: correctIdx });
+  if (correctIdx >= 0) {
+    const cLen = texts[correctIdx]?.length ?? 0;
+    const maxDistractor = texts.length >= 2
+      ? Math.max(...texts.filter((_, i) => i !== correctIdx).map((t) => t.length))
+      : 0;
+    const notablyLonger = texts.length >= 2 && cLen - maxDistractor > LONGEST_MARGIN;
+    (byBook[book] ??= []).push({ file, pos: correctIdx, longest: notablyLonger });
+  }
 
   // absolute-language tells in option text
   const tells = texts.filter((t) => ABSOLUTE_RE.test(t)).map((t) => `"${t.slice(0, 40)}…"`);
@@ -100,6 +120,15 @@ for (const [book, arr] of Object.entries(byBook)) {
     const dist = Object.entries(counts).sort().map(([p, c]) => `pos${p}=${c}`).join(' ');
     violations.push({ kind: 'position-clustering', file: `book: ${book}`, detail: `${max}/${arr.length} correct on one position (max ${cap}); ${dist}` });
   }
+
+  // length parity (bank rate) — correct-as-strict-longest beyond chance is a tell
+  if (arr.length >= MIN_MCQS_FOR_RATE) {
+    const longestCount = arr.filter((x) => x.longest).length;
+    const rate = longestCount / arr.length;
+    if (rate > LONGEST_RATE_CAP) {
+      violations.push({ kind: 'length-parity', file: `book: ${book}`, detail: `${longestCount}/${arr.length} MCQs key an option >${LONGEST_MARGIN} chars longer than every distractor (${Math.round(rate * 100)}%, cap ${Math.round(LONGEST_RATE_CAP * 100)}%) — lengthen a distractor or trim the key` });
+    }
+  }
 }
 
 if (violations.length) {
@@ -109,4 +138,4 @@ if (violations.length) {
   process.exit(1);
 }
 const total = Object.values(byBook).reduce((n, a) => n + a.length, 0);
-console.log(`lint:mcq: ✓ ${total} MCQ(s) — balanced answer positions, content-referenced rationales.`);
+console.log(`lint:mcq: ✓ ${total} MCQ(s) — balanced positions, content-referenced rationales, length-parity within bounds.`);
