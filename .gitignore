@@ -40,3 +40,12 @@ npm-debug.log*
 
 # Pagefind
 pagefind/
+
+# Playwright (responsive audit harness)
+/test-results/
+/playwright-report/
+/screenshots/
+
+# Playwright MCP browser session artifacts (a11y-tree snapshots + screenshots);
+# regenerated on every MCP-driven browse, local-only scratch.
+.playwright-mcp/

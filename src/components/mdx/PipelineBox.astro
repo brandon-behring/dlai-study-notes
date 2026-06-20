@@ -22,13 +22,10 @@ const { title } = Astro.props;
     margin: 0 0 0.5rem 0;
     font-size: 0.95rem;
     font-weight: 600;
-    color: var(--callout-insight, #d69e2e);
+    /* a11y (#80): the gold title text failed WCAG-AA (2.49 light); the gold hue
+       is carried by the left border. --color-heading is high-contrast AND
+       theme-aware, so it reads in both modes with no dark override. */
+    color: var(--color-heading);
   }
   .callout-body :global(p:last-child) { margin-bottom: 0; }
-
-  /* Dark mode: brighten the gold title for WCAG-AA contrast on the dark tint. */
-  :root[data-theme="dark"] .callout--pipeline .callout-title { color: color-mix(in srgb, var(--warm-gold) 70%, white); }
-  @media (prefers-color-scheme: dark) {
-    :root:not([data-theme="light"]) .callout--pipeline .callout-title { color: color-mix(in srgb, var(--warm-gold) 70%, white); }
-  }
 </style>

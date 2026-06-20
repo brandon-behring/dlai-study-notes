@@ -94,7 +94,9 @@ const anchorId = `completion-${level}-${id}`;
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.05em;
-    color: var(--completion-accent, var(--color-text-muted, #718096));
+    /* a11y (#80): accent as small bold text failed 4.5:1 (gold 2.62); the level
+       hue is on the left border, so the chip text uses the high-contrast heading. */
+    color: var(--color-heading);
     white-space: nowrap;
   }
   .completion-body { margin-top: 0.75rem; }

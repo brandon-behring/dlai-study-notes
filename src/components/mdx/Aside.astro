@@ -60,7 +60,10 @@ const LABELS: Record<Category, string> = {
     text-transform: uppercase;
     letter-spacing: 0.05em;
     margin-right: 0.5rem;
-    color: var(--aside-accent, var(--color-text-muted, #4a5568));
+    /* a11y: the category hue is on the aside's left border; the label TEXT uses
+       the high-contrast heading color (the accent as small bold text — e.g. the
+       warning gold — failed WCAG-AA 4.5:1). */
+    color: var(--color-heading, var(--color-text-muted));
   }
   .aside-body :global(p:last-child) { margin-bottom: 0; }
 
