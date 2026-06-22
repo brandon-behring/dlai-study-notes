@@ -1,0 +1,10 @@
+cff-version: 1.2.0
+message: "If you use these study notes, please cite them as below."
+type: dataset
+title: "DeepLearning.AI Study Notes"
+abstract: "A study-notes corpus derived from DeepLearning.AI courses, built on the book-scaffold-astro toolchain."
+authors:
+  - family-names: Behring
+    given-names: Brandon
+repository-code: "https://github.com/brandon-behring/dlai-study-notes"
+keywords: [study-notes, deep-learning, course-notes]
