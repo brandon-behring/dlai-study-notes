@@ -37,7 +37,7 @@
   "dependencies": {
     "@astrojs/mdx": "^5.0.3",
     "@astrojs/preact": "^5.1.1",
-    "@brandon_m_behring/book-scaffold-astro": "file:../book-scaffold-astro/package/brandon_m_behring-book-scaffold-astro-4.26.0-rc.6.tgz",
+    "@brandon_m_behring/book-scaffold-astro": "^4.26.0",
     "astro": "^6.1.7",
     "katex": "^0.16.11",
     "preact": "^10.29.1",
