@@ -1,0 +1,21 @@
+name: Deploy
+
+# GitHub Actions → the deploy-workflows reusable (deploy standardization,
+# brandon-behring/deploy-workflows#4). Replaces the Workers Builds Git-connection;
+# disconnect that in the dashboard so this is the single deploy path.
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  deployments: write
+  actions: read
+  pull-requests: write   # required by the deploy-workflows reusable @v2.0.2 (preview-comment step)
+
+jobs:
+  deploy:
+    uses: brandon-behring/deploy-workflows/.github/workflows/deploy-astro-worker.yml@v2.0.2
+    secrets: inherit
+    with:
+      validate-command: validate
