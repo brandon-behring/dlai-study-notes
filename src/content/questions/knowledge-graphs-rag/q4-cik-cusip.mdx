@@ -1,0 +1,31 @@
+---
+id: kgr-4-cik-cusip
+type: mcq
+chapter: 4
+domain: kg-construction
+bloom_level: understand
+objective_id: KGR-4.1
+difficulty: '1'
+tags: [sec-filings, identifiers]
+options:
+  - id: a
+    text: Company and security identifiers that join a filing to the same company across datasets
+    correct: true
+  - id: b
+    text: The two main text sections of the filing that get chunked and embedded for retrieval
+  - id: c
+    text: Vector-index settings that fix the embedding dimensionality and similarity function
+  - id: d
+    text: LangChain chain types that wrap retrieval and LLM generation into one call
+---
+import Rationale from '@brandon_m_behring/book-scaffold-astro/components/Rationale.astro';
+
+In an SEC Form 10-K pipeline, what role do CIK and CUSIP play?
+
+<Rationale title="Why">
+CIK (Central Index Key) and CUSIP are *identifiers*: the CIK keys a company across all its SEC
+filings, and the CUSIP (first 6 digits) identifies the issuer across datasets — so they become
+the linking keys when the graph gains relationships. They are not text sections (those are Item
+1/1A/7/7A), not vector-index parameters (dimensions and similarity function), and not LangChain
+chain types.
+</Rationale>

@@ -1,0 +1,13 @@
+---
+term: Evaluation Flywheel
+aliases: [production feedback flywheel, feedback flywheel]
+domain: trajectory-evals
+see: [evaluation-dataset, regression-detection]
+tags: [production, workflow]
+---
+
+The self-reinforcing loop: **production traces → new test cases → updated evaluators → agent
+improvements → better production data**, repeating. It is only as fast as its slowest stage, so
+trace-to-dataset promotion must be **automated** — teams that automate iterate ~10× faster. The
+failure mode: unfiltered noisy or adversarial traffic entering the dataset degrades it, so the
+automation needs a quality gate.

@@ -1,0 +1,14 @@
+---
+term: Collapse Detection
+aliases: [diversity filtering, mode-collapse detection]
+domain: data-and-grading
+see: [synthetic-data, rejection-sampling, catastrophic-forgetting]
+tags: [data, filtering]
+---
+
+Flagging and removing near-identical synthetic outputs that signal the generator has
+fallen into a repetitive mode (measured by embedding similarity or deduplicated response
+prefixes). It is **essential, not optional**: without it a "diverse" dataset can hide
+thousands of memorizable near-duplicates that inflate apparent volume while teaching
+almost nothing. Distinct from *catastrophic forgetting*, which is about losing prior
+capability, not duplicate generation.

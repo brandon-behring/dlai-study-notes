@@ -1,0 +1,12 @@
+---
+term: Task Function
+aliases: [task]
+domain: trajectory-evals
+see: [phoenix-experiment, evaluation-dataset]
+tags: [experiments, tooling]
+---
+
+In Phoenix Experiments, the function that takes **one dataset row, runs the agent on it, and
+returns the output plus metadata** — the agent analogue of a `pytest` test function. It is the
+bridge between the dataset (its input) and the evaluators (which score its output), and is run
+once per row when the experiment executes.

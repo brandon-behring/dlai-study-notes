@@ -1,0 +1,12 @@
+---
+term: Regression Detection
+aliases: [regression monitoring]
+domain: observability
+see: [trace, observability]
+tags: [observability, evaluation]
+---
+
+Catching a quality drop by **re-running evaluators over traces and comparing scores across
+versions** of the agent. It depends on collected traces as a stable, replayable record:
+without them you'd re-gather data by hand, and a missing-span gap blinds the comparison
+exactly where coverage is thin. It is the production payoff of the tracing investment.

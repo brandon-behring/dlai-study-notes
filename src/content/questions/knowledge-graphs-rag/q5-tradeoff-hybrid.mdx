@@ -1,0 +1,24 @@
+---
+id: kgr-5-tradeoff-hybrid
+type: free
+chapter: 5
+domain: kg-relationships
+bloom_level: evaluate
+objective_id: KGR-5.6
+difficulty: '3'
+tags: [architecture, cost-benefit]
+answer: >
+  Graph augmentation bought a real quality gain in the support-RAG comparison — roughly 78 to 89
+  percent accuracy and 62 to 84 percent completeness — but at higher latency and about double the
+  monthly cost. The deciding factor is whether questions actually span chunk or document
+  boundaries and whether answer quality drives value; for self-contained FAQ lookups the pure
+  vector path is enough. The hybrid captures most of the gain cheaply: run vector search first,
+  then trigger the graph window only on a cheap signal — a low top similarity score or a
+  multi-entity question — so the expensive traversal fires on the ~30 to 40 percent of queries
+  that need it, keeping average cost near the vector baseline. Common wrong answer: "always add
+  the graph because accuracy is higher" — you pay for traversal you don't always use.
+---
+
+Graph-augmented retrieval beat pure vector retrieval on quality but cost more per query. Give the
+deciding factor for choosing each, and design a hybrid that captures most of the gain at lower
+cost.

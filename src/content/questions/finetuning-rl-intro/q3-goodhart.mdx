@@ -1,0 +1,33 @@
+---
+id: fri-3-goodhart
+type: mcq
+chapter: 3
+domain: evaluation
+bloom_level: understand
+objective_id: FRI-3.3
+difficulty: '2'
+tags: [evaluation, rl]
+options:
+  - id: a
+    text: Human preference labels are inherently noisy, so the reward is unreliable
+  - id: b
+    text: The reward is a proxy; pushed too hard, the policy exploits the proxy-vs-true-objective gap
+    correct: true
+  - id: c
+    text: Reward models are too small to represent quality, so they underfit
+  - id: d
+    text: The KL penalty makes the reward signal non-stationary during training
+---
+import Rationale from '@brandon_m_behring/book-scaffold-astro/components/Rationale.astro';
+
+Goodhart's Law — "when a measure becomes a target, it ceases to be a good measure" —
+applies to RLHF because…
+
+<Rationale title="Why">
+**The reward model is a proxy.** RL maximizes the reward model's score, but that score
+only *approximates* human preference; pushed hard, the policy finds and exploits the gaps
+between proxy and true objective (the alignment tax). Label noise is a real but separate
+problem (it degrades the reward, not the Goodhart mechanism). Model capacity isn't the
+issue — even a perfect-capacity proxy has a gap to the true objective. KL
+non-stationarity is unrelated to why optimizing a proxy backfires.
+</Rationale>

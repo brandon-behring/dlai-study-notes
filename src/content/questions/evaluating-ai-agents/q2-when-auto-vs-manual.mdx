@@ -1,0 +1,23 @@
+---
+id: eaa-2-when-auto-vs-manual
+type: free
+chapter: 2
+domain: observability
+bloom_level: apply
+objective_id: EAA-2.2
+difficulty: '2'
+tags: [observability, instrumentation]
+answer: >
+  Use automatic instrumentation when you want immediate LLM-level visibility with no code
+  changes — prototypes, demos, or any case where you mainly care about prompts, completions,
+  tokens, and latency. Use manual instrumentation when you need to see your own logic: router
+  iterations, tool dispatch, retries, multi-step skills — anything that is not an LLM API call.
+  In practice you combine them: auto first for instant coverage, then manual spans wherever the
+  trace shows gaps. Lean manual-heavy when the failures you debug are routing/orchestration
+  bugs; auto-only is fine when the only thing that varies is the model call. Common wrong
+  answer: "manual is always better because it is more complete" — it is also more work and
+  error-prone (a missed span is a hole); start auto and add manual only where needed.
+---
+
+When is automatic instrumentation the right choice, and when do you need manual instrumentation?
+Give the rule you would actually follow.

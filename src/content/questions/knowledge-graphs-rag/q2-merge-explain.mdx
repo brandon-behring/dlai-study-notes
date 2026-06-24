@@ -1,0 +1,24 @@
+---
+id: kgr-2-merge-explain
+type: free
+chapter: 2
+domain: cypher-querying
+bloom_level: analyze
+objective_id: KGR-2.3
+difficulty: '2'
+tags: [cypher, write, pipeline]
+answer: >
+  CREATE inserts unconditionally; MERGE checks whether the element already exists and creates it
+  only if absent (MATCH-then-create in one atomic step). In a pipeline that may re-process a
+  batch — API retries, replays, duplicate messages — CREATE produces duplicate nodes/
+  relationships on each run (or errors against a uniqueness constraint), whereas MERGE leaves the
+  graph unchanged on re-runs, giving idempotent, exactly-once semantics. The full pattern: a
+  uniqueness constraint on the key + MERGE on that stable identifier + `ON CREATE SET` (initial
+  properties) and `ON MATCH SET` (volatile updates like a timestamp). Crucially, MERGE on a
+  *volatile* property creates a new element each run, so always MERGE on the stable id. Common
+  wrong answer: "use CREATE and dedupe later" — that lets duplicates into the graph and pushes
+  the cost downstream; MERGE prevents them at write time.
+---
+
+Compare CREATE and MERGE for a graph-construction pipeline that may retry batches. Explain why
+MERGE gives idempotency and the one thing that can still make MERGE duplicate.

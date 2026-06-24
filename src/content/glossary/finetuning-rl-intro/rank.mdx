@@ -1,0 +1,12 @@
+---
+term: Rank (r)
+aliases: [LoRA rank]
+domain: sft-vs-rl
+see: [lora, alpha]
+tags: [sft, lora]
+---
+
+The inner dimension of the LoRA decomposition — the capacity of the update.
+Default $r{=}4$; typical range 4–64. Higher rank means more expressive adaptation
+but more trainable parameters. Tasks needing large knowledge shifts may underfit
+at low rank — raise rank before abandoning LoRA for full fine-tuning.

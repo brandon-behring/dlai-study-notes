@@ -1,0 +1,21 @@
+---
+id: kgr-7-geospatial-query
+type: free
+chapter: 7
+domain: graph-rag-chat
+bloom_level: apply
+objective_id: KGR-7.2
+difficulty: '2'
+tags: [geospatial, cypher]
+answer: >
+  Match the reference location, match candidate companies through LOCATED_AT, filter by distance,
+  and sort. For example: `MATCH (sj:Address {city: "San Jose"}) MATCH (com:Company)-[:LOCATED_AT]->
+  (a:Address) WHERE point.distance(sj.location, a.location) < 20000 RETURN com.companyName,
+  point.distance(sj.location, a.location)/1000 AS km ORDER BY km ASC`. The threshold is 20000 because
+  `point.distance()` returns metres (20 km, not 20). For performance, a point index on the location
+  property turns the scan into an index range query. Common wrong answer: writing `< 20`, which asks
+  for entities within 20 metres and returns almost nothing.
+---
+
+Write a Cypher query that finds companies within 20 km of San Jose, sorted nearest-first. What unit
+trap must you avoid, and what index keeps it fast?

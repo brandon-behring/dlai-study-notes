@@ -1,0 +1,24 @@
+---
+id: eaa-1-edd-applied
+type: free
+chapter: 1
+domain: eval-foundations
+bloom_level: apply
+objective_id: EAA-1.5
+difficulty: '2'
+tags: [eval-driven-development, workflow]
+answer: >
+  Move evaluation from a once-per-release gate to a per-change feedback loop. Concretely:
+  maintain a versioned evaluation dataset and a one-command eval run; on every prompt or code
+  change, trace the agent, run the component and end-to-end evals, and read the scores before
+  merging — not the night before release; then iterate immediately on the worst-scoring
+  component. Wire the eval run into CI so it cannot be skipped. The change is timing and
+  granularity: regressions surface at the commit that caused them (cheap to localise) instead
+  of accumulating until a pre-release batch run (expensive to trace back days later). Common
+  wrong answer: "run the full eval suite twice before release instead of once" — that is still
+  a gate; it does nothing to tell you *which change* introduced a regression.
+---
+
+A team runs evaluations only the night before each release and keeps shipping regressions
+they trace days later. Rework their workflow using evaluation-driven development, and say
+concretely what changes.

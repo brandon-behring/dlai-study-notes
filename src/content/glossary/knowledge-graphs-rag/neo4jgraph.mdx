@@ -1,0 +1,13 @@
+---
+term: Neo4j Graph (LangChain)
+aliases: [Neo4jGraph, kg.query]
+domain: cypher-querying
+see: [cypher, match-clause]
+tags: [neo4j, tooling]
+---
+
+LangChain's **wrapper class for Neo4j connections**. Constructed with a `url`, `username`, and
+`password` (loaded from environment variables, not hard-coded), it exposes a `query()` method
+that sends a Cypher string to the database and returns results as a list of Python
+dictionaries, handling connection pooling and authentication. It is the bridge between
+application code and the graph used throughout the course.

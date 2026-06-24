@@ -1,0 +1,24 @@
+---
+id: eaa-4-experiments-apply
+type: free
+chapter: 4
+domain: trajectory-evals
+bloom_level: apply
+objective_id: EAA-4.3
+difficulty: '2'
+tags: [experiments, framework]
+answer: >
+  Map it onto the four stages. Dataset: assemble test cases with input keys (the user query,
+  expected parameters) and output keys (expected SQL tables, expected answer features). Task: a
+  function that takes one row, runs the agent on the query, and returns its output plus metadata
+  (the trajectory, tool calls). Run experiment: execute the task over every row, with managed
+  parallelism and error handling, recording results as a named, versioned run. Evaluators:
+  attach scoring functions — code-based where you have output keys (SQL table match), an LLM
+  judge for prose — to score each result. Then compare runs across agent variants on the
+  dashboard. Common wrong answer: "write one evaluator and run it once" — the framework's value
+  is repeatability and versioned comparison across variants, not a single check.
+---
+
+You want to evaluate your agent's data-lookup skill repeatably as you change prompts. Describe
+how you would use the Phoenix Experiments framework, naming what goes in each of its four
+stages.

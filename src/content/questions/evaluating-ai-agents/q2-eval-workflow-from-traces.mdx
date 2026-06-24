@@ -1,0 +1,23 @@
+---
+id: eaa-2-eval-workflow-from-traces
+type: free
+chapter: 2
+domain: observability
+bloom_level: apply
+objective_id: EAA-2.5
+difficulty: '2'
+tags: [observability, evaluation, regression]
+answer: >
+  Build a labelled evaluation dataset from the traces: sample real queries and their correct
+  skill (the router target), read from the Chain/Tool spans. On each candidate release, re-run
+  the agent over that fixed dataset, extract the router's chosen skill from the new traces, and
+  compute per-category routing accuracy. Compare against the previous release's score and gate
+  the release if accuracy drops on any category. Optionally layer an LLM-as-judge over skill
+  outputs for quality. The point: traces supply both the dataset and the per-version comparison,
+  so a regression appears as a score delta rather than a user complaint. Common wrong answer:
+  "eyeball a few recent traces before release" — unrepresentative and not comparable across
+  versions; you need a fixed dataset and a numeric comparison.
+---
+
+You have a week of production traces in Phoenix. Design a workflow that uses them to catch a
+routing regression before your next release.

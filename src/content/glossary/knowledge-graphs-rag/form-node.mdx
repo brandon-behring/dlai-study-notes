@@ -1,0 +1,13 @@
+---
+term: Form Node
+aliases: [Form node]
+domain: kg-relationships
+see: [part-of-relationship, section-relationship, chunk-metadata]
+tags: [schema, neo4j]
+---
+
+A graph node representing an SEC filing document, carrying the metadata its chunks share —
+`formId`, `source` (URL back to the filing), `cik`, and `cusip6`. It is the parent that chunks
+connect up to via `PART_OF`, and the entry point that links down to the first chunk of each
+section via `SECTION`. Its `cusip6` property is the bridge to Module 6, where Company nodes join
+forms through the same CUSIP identifier.

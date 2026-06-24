@@ -1,0 +1,12 @@
+---
+term: Expected Calibration Error (ECE)
+aliases: [ECE, calibration error]
+domain: evaluation
+see: [refusal-threshold, pass-at-k]
+tags: [evaluation, metrics]
+---
+
+How well a model's expressed confidence matches its actual accuracy. Bin predictions by
+confidence; ECE is the weighted average of $|\text{accuracy} - \text{confidence}|$ per
+bin (lower is better). Critical wherever users (or downstream systems) trust the model's
+confidence signal — a confidently-wrong model is worse than an uncertain one.

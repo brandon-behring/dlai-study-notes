@@ -1,0 +1,22 @@
+---
+id: kgr-4-when-graph-overkill
+type: free
+chapter: 4
+domain: kg-construction
+bloom_level: evaluate
+objective_id: KGR-4.8
+difficulty: '3'
+tags: [architecture, tradeoffs]
+answer: >
+  The deciding question is whether the *queries* combine similarity with traversal, not whether
+  the data has latent relationships. If retrieval is answered by semantic similarity alone — FAQ
+  lookup, "find passages like this" — a pure vector store is simpler to operate and the graph adds
+  overhead you never cash in. Add graph structure when retrieval needs connection: adjacent
+  chunks, the parent document, the filing company, multi-hop context. This mirrors the Module 3
+  vector-DB rule (co-locate when queries mix vector and graph). Common wrong answer: "always use a
+  graph because the data is connected" — relationships in the data only pay off if the queries
+  actually traverse them.
+---
+
+When is a pure vector store the right choice and when should you invest in graph relationships?
+Give the deciding factor, not just a preference.

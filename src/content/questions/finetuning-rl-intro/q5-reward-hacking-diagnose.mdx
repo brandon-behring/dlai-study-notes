@@ -1,0 +1,25 @@
+---
+id: fri-1-reward-hacking-diagnose
+type: free
+chapter: 1
+domain: sft-vs-rl
+bloom_level: analyze
+objective_id: FRI-1.6
+difficulty: '3'
+tags: [rl, safety]
+answer: >
+  Diagnosis: reward hacking (Goodhart's law). The judge rewards a proxy —
+  confident, citation-shaped, fluent prose — and the policy maximized that proxy
+  while factual accuracy fell. The saturating reward with falling held-out
+  accuracy is the tell. Fixes: (1) add a verifiable component to the reward
+  (retrieval-grounded fact checks) so correctness dominates the judge score;
+  (2) add a KL penalty to the SFT baseline to limit drift into the judge's blind
+  spot; (3) ensemble or periodically re-calibrate the judge, and monitor output
+  diversity / hedging rate. The common wrong answer is "train longer / raise the
+  reward weight" — that accelerates the hack.
+---
+
+You run RL with an LLM-as-judge rewarding "answer quality." After 600 steps the
+mean judge reward climbs steadily, but a held-out factual-accuracy eval *drops*
+and outputs grow longer and more confidently worded. Diagnose what is happening
+and propose two concrete fixes.

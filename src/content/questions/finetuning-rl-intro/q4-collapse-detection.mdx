@@ -1,0 +1,24 @@
+---
+id: fri-4-collapse-detection
+type: free
+chapter: 4
+domain: data-and-grading
+bloom_level: understand
+objective_id: FRI-4.6
+difficulty: '2'
+tags: [filtering, synthetic-data]
+answer: >
+  Collapse detection flags and removes near-identical synthetic outputs — measured by
+  embedding similarity or deduplicated response prefixes — that appear when the generator
+  falls into a repetitive mode. Without it, a dataset can look large because it has many
+  rows, but those rows are near-duplicates the model simply memorizes, so effective diversity
+  (and the learning it would provide) is far lower than the row count suggests. The failure
+  is silent: headline volume rises while real coverage stalls. It is distinct from
+  catastrophic forgetting, which is about losing prior capability rather than generating
+  duplicates. Common wrong answer: "collapse detection removes low-accuracy examples" — that
+  is rejection sampling on a quality axis; collapse detection targets redundancy, not
+  correctness.
+---
+
+What is collapse detection in a synthetic data pipeline, and why can a dataset that "looks
+large and diverse" still fail without it?

@@ -1,0 +1,32 @@
+---
+id: fri-3-eval-strategy
+type: mcq
+chapter: 3
+domain: evaluation
+bloom_level: apply
+objective_id: FRI-3.1
+difficulty: '2'
+tags: [evaluation]
+options:
+  - id: a
+    text: Exact-match against a single reference answer
+  - id: b
+    text: The held-out training-loss curve
+  - id: c
+    text: Pass@k with a deterministic verifier
+  - id: d
+    text: LLM-as-judge with a calibrated, human-checked rubric
+    correct: true
+---
+import Rationale from '@brandon_m_behring/book-scaffold-astro/components/Rationale.astro';
+
+You need to evaluate the **helpfulness** of open-ended chat responses, for which there
+is no ground-truth label. Which eval approach fits best?
+
+<Rationale title="Why">
+**LLM-as-judge with a calibrated rubric, cross-checked against humans.** Helpfulness is
+subjective with no single correct answer, so the verifier-style options can't apply:
+exact-match and pass@k both need ground truth, and a loss curve measures token prediction,
+not helpfulness. A calibrated judge — validated against a human-rated subset to catch its
+biases — is the standard move for subjective, open-ended quality.
+</Rationale>

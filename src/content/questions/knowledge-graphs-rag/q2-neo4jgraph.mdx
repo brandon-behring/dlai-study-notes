@@ -1,0 +1,31 @@
+---
+id: kgr-2-neo4jgraph
+type: mcq
+chapter: 2
+domain: cypher-querying
+bloom_level: understand
+objective_id: KGR-2.6
+difficulty: '1'
+tags: [neo4j, tooling]
+options:
+  - id: a
+    text: It wraps a connection (url/user/password), exposing query() for Cypher
+    correct: true
+  - id: b
+    text: It transpiles Cypher into SQL for a relational backend
+  - id: c
+    text: It embeds the graph in memory so no database is needed
+  - id: d
+    text: It generates the Cypher from natural language for you
+---
+import Rationale from '@brandon_m_behring/book-scaffold-astro/components/Rationale.astro';
+
+How does LangChain's `Neo4jGraph` class let a Python application run Cypher?
+
+<Rationale title="Why">
+`Neo4jGraph` wraps a Neo4j connection built from a url, username, and password (loaded from the
+environment) and exposes a `query()` method that sends a Cypher string and returns the result
+as Python dictionaries. It does not transpile Cypher to SQL (it talks to Neo4j directly), does
+not embed an in-memory graph (it connects to a real database), and does not author Cypher from
+natural language — that's Module 7's LLM-generated-Cypher topic, a separate capability.
+</Rationale>

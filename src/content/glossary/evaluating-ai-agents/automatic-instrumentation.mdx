@@ -1,0 +1,12 @@
+---
+term: Automatic Instrumentation
+aliases: [auto-instrumentation, zero-code instrumentation]
+domain: observability
+see: [manual-instrumentation, opentelemetry]
+tags: [observability, instrumentation]
+---
+
+**Zero-code tracing**: a library hooks the LLM API client and emits a span for every call
+without touching your code. It delivers instant LLM-level detail — prompts, completions,
+tokens, latency — but **cannot see** your router logic, tool dispatch, or business code, since
+those aren't API calls. The fast first step; pair it with manual spans to fill the gaps.

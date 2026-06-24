@@ -1,0 +1,26 @@
+---
+id: eaa-4-dataset-design
+type: free
+chapter: 4
+domain: trajectory-evals
+bloom_level: apply
+objective_id: EAA-4.4
+difficulty: '3'
+tags: [experiments, datasets, design]
+answer: >
+  Schema — input keys: query (the natural-language request, forwarded to the agent),
+  date_range (expected extracted range, for parameter-extraction eval), category (for grouping
+  error analysis). Output keys: expected_sql_tables (which tables the SQL should hit → enables a
+  free code-based eval), expected_trend_direction (growth/decline/flat → an LLM-judge
+  correctness eval), and a ground-truth data snapshot (to verify the right data was queried).
+  Distribution (comprehensive, not exhaustive): ~1–2 cases per input type — a couple of normal
+  categories, one sparse-data category, one invalid/future range, one ambiguous request — ~8
+  total, not 100 per category. Three evaluators: SQL-table check (code-based), trend-direction
+  (LLM judge), confidence-interval-present (code-based regex). Common wrong answer: "100 cases
+  per category to be safe" — that violates comprehensive-not-exhaustive and slows iteration
+  without adding signal.
+---
+
+A sales agent is adding a forecast_revenue skill (takes a date range and category, generates
+SQL, produces a markdown forecast). Design its evaluation dataset: name the input and output
+keys (and why each), the case distribution, and three evaluators.

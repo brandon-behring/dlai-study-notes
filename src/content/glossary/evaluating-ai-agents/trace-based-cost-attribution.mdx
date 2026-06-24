@@ -1,0 +1,13 @@
+---
+term: Trace-Based Cost Attribution
+aliases: [per-skill cost attribution]
+domain: observability
+see: [trace, span]
+tags: [observability, cost]
+---
+
+Computing per-skill (or per-component) LLM cost from the **token counts recorded on each
+span**: average calls × tokens-per-call, weighted by the skill's query share × daily volume ×
+price per token. It turns cost optimisation from guesswork into arithmetic, and routinely
+reveals a skill that is a small share of traffic yet a large share of spend — and even *which
+sub-step* within it to redirect to a cheaper model.

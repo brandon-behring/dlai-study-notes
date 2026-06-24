@@ -1,0 +1,12 @@
+---
+term: Loss Mask
+aliases: [completion-only loss]
+domain: sft-vs-rl
+see: [cross-entropy, teacher-forcing]
+tags: [sft]
+---
+
+A binary mask that zeroes loss on prompt tokens so the model is trained only to
+predict the **completion**. Without it, capacity is wasted reproducing the prompt
+(which the model already receives as input) — for instruction data that can be
+~80% of the sequence. In TRL: `completion_only_loss=True`.

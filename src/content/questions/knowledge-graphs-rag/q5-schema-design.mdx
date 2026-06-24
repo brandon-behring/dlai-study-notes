@@ -1,0 +1,24 @@
+---
+id: kgr-5-schema-design
+type: free
+chapter: 5
+domain: kg-relationships
+bloom_level: evaluate
+objective_id: KGR-5.1
+difficulty: '3'
+tags: [schema-design, generalization]
+answer: >
+  Reuse the SEC pattern. Node types: Book, Chapter, Section, Chunk (with text + embedding).
+  Membership runs upward with PART_OF (Chunk to Section, Section to Chapter, Chapter to Book), and
+  order runs along NEXT (Chunk to Chunk within a section). For direct jumps, add entry-point
+  relationships — Book to Chapter and Chapter to Section — so a reader can jump by name without
+  walking the whole hierarchy. Each navigation pattern maps to one mechanism: sequential reading
+  follows NEXT, section/chapter jumps follow the entry-point edges, upward context follows
+  PART_OF, and similarity uses the vector index on Chunk embeddings then PART_OF for context. Key
+  design call: which entry-point edges to materialise — they trade a little storage for direct
+  navigation.
+---
+
+Design a graph schema for technical documentation (books contain chapters contain sections, each
+section has embedded chunks). Give the node and relationship types, and say which relationship
+serves each of: sequential reading, section jump, chapter jump, and similarity search.

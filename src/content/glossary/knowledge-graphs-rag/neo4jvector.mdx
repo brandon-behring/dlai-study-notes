@@ -1,0 +1,14 @@
+---
+term: Neo4jVector
+aliases: [Neo4jVector.from_existing_graph]
+domain: kg-construction
+see: [vector-index, retrievalqa, neo4jgraph]
+tags: [langchain, vector-search, neo4j]
+---
+
+LangChain's vector-store interface for Neo4j — it makes the graph look like a standard vector
+store, running Cypher similarity search internally. `from_existing_graph` connects to an
+**already-built** index by naming the `index_name`, the `node_label` (e.g. `Chunk`), the text
+property (`text_node_properties`), and the embedding property (`embedding_node_property`); calling
+`.as_retriever()` yields a retriever for a RAG chain. Currency: it now lives in the dedicated
+`langchain-neo4j` package (2024-11), not `langchain_community`.

@@ -1,0 +1,106 @@
+---
+/**
+ * Per-book practice question bank — /<book>/practice-exam.
+ *
+ * The scaffold ships a single global /practice-exam; this corpus is multi-book,
+ * so we own a per-book route that filters the questions collection by book
+ * (path prefix) and validates each question's domain against the BOOK's
+ * examDomains (book frontmatter), not a single global defineBookConfig value.
+ * Reuses the scaffold's pure helpers + QuestionCard + ExamRunner island.
+ */
+import Base from '@brandon_m_behring/book-scaffold-astro/layouts/Base.astro';
+import { getCollection, render } from 'astro:content';
+import QuestionCard from '@brandon_m_behring/book-scaffold-astro/components/QuestionCard.astro';
+import ExamRunner from '@brandon_m_behring/book-scaffold-astro/components/ExamRunner';
+import '@brandon_m_behring/book-scaffold-astro/styles/exam-runner.css';
+import '../../styles/consumer-overrides.css';
+import {
+  groupByDomain,
+  assertKnownDomain,
+  buildExamManifest,
+} from '@brandon_m_behring/book-scaffold-astro';
+import { domainLabel } from '../../lib/domain-label';
+
+export async function getStaticPaths() {
+  const books = (await getCollection('books')).filter((b) => !b.data.draft);
+  return books.map((book) => ({ params: { book: book.data.book }, props: { book } }));
+}
+
+const { book } = Astro.props;
+const slug = book.data.book;
+
+const entries = (await getCollection('questions', (e) => !e.data.draft))
+  .filter((e) => e.id.startsWith(`${slug}/`))
+  .sort((a, b) => {
+    const ac = Number(a.data.chapter) || 0;
+    const bc = Number(b.data.chapter) || 0;
+    return ac - bc || a.data.id.localeCompare(b.data.id);
+  });
+
+// Fail-loud: every question's domain must be in this book's examDomains.
+const examDomains = book.data.examDomains ?? [];
+for (const e of entries) assertKnownDomain(examDomains, e.data.domain, { id: e.data.id });
+
+const rendered = await Promise.all(
+  entries.map(async (e) => ({
+    data: e.data,
+    reserved: e.data.type === 'cloze',
+    Content: e.data.type === 'cloze' ? null : (await render(e)).Content,
+  })),
+);
+
+const byDomain = groupByDomain(rendered);
+const domainOrder = examDomains.filter((d) => byDomain.has(d));
+const total = rendered.length;
+const manifest = buildExamManifest(entries);
+---
+<Base
+  title={`Practice questions — ${book.data.title}`}
+  description={`Practice question bank for ${book.data.title}, grouped by domain, with a scored practice mode and answers behind a reveal.`}
+>
+  <article class="prose practice-exam" data-exam-root>
+    <p class="breadcrumb">
+      <a href="/">DLAI Study Notes</a> / <a href={`/${slug}/`}>{book.data.title}</a> / <strong>Practice questions</strong>
+    </p>
+    <h1>Practice questions</h1>
+
+    {total === 0 && <p class="practice-empty">No questions defined yet.</p>}
+
+    {total > 0 && (
+      <p class="practice-summary">
+        {total} question{total === 1 ? '' : 's'} across {domainOrder.length} domain{domainOrder.length === 1 ? '' : 's'}.
+        Try each before revealing the answer.
+      </p>
+    )}
+
+    {total > 0 && (
+      <Fragment>
+        <noscript><style is:inline>.exam-runner { display: none; }</style></noscript>
+        <ExamRunner client:idle mode="practice" manifest={manifest} />
+      </Fragment>
+    )}
+
+    {domainOrder.map((domain) => (
+      <section class="practice-domain" id={`domain-${domain}`}>
+        <h2 class="practice-domain-title">{domainLabel(domain, book.data.examDomainLabels)}</h2>
+        {byDomain.get(domain)!.map((q) => (
+          <QuestionCard data={q.data} Content={q.Content} reserved={q.reserved} />
+        ))}
+      </section>
+    ))}
+  </article>
+
+  <style>
+    .breadcrumb { color: var(--color-text-muted); font-size: 0.92em; margin-bottom: 1rem; }
+    .practice-exam { max-width: 48rem; }
+    .practice-summary { color: var(--color-text-muted, #6b7280); font-size: 0.95rem; }
+    .practice-empty { color: var(--color-text-muted, #6b7280); }
+    .practice-domain { margin-block-start: 2rem; }
+    .practice-domain-title {
+      /* Labels come pre-formatted from domainLabel(); no text-transform (it would
+         mangle acronyms — 'SFT vs RL' → 'Sft Vs Rl'). */
+      border-block-end: 2px solid var(--color-border, #e5e7eb);
+      padding-block-end: 0.25rem;
+    }
+  </style>
+</Base>

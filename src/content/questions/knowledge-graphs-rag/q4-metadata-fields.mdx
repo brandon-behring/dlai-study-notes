@@ -1,0 +1,21 @@
+---
+id: kgr-4-metadata-fields
+type: free
+chapter: 4
+domain: kg-construction
+bloom_level: understand
+objective_id: KGR-4.3
+difficulty: '1'
+tags: [chunk-metadata, schema, provenance]
+answer: >
+  Each chunk record stores its text plus metadata that preserves origin, position, and identity:
+  item (which section), chunkSeqId (position within the section), formId (the filing it belongs
+  to), chunkId (its unique key), source (a link back to the SEC filing), and the entity ids cik
+  and cusip6. The point is provenance — you can rebuild document structure and link chunks to
+  entities later only if you captured these at ingest. Common wrong answer: storing just the text
+  and embedding; that loses order and origin, so you can never reconstruct NEXT order or trace a
+  chunk to its company.
+---
+
+What metadata is stored with each chunk, and why store it rather than just the text and its
+embedding?

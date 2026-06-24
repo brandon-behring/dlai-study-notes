@@ -1,0 +1,22 @@
+---
+id: kgr-6-investment-rels
+type: free
+chapter: 6
+domain: kg-expansion
+bloom_level: apply
+objective_id: KGR-6.2
+difficulty: '2'
+tags: [relationships, cypher]
+answer: >
+  Two relationship types bridge the datasets. FILED connects Company to Form, created by matching
+  on the shared cusip6 — `MATCH (com:Company), (f:Form) WHERE com.cusip6 = f.cusip6 MERGE
+  (com)-[:FILED]->(f)`. OWNS_STOCK_IN connects Manager to Company, created per CSV row by matching
+  both endpoints on their keys and MERGE-ing the edge with shares, value, and quarter — and because
+  it is MERGE'd on `reportCalendarOrQuarter`, the same manager-company pair can hold one edge per
+  reporting period. FILED is the document bridge (10-K data); OWNS_STOCK_IN is the investment
+  bridge (Form 13 data). Common wrong answer: a single edge per manager-company pair, which would
+  overwrite quarter-by-quarter history.
+---
+
+Which two relationships bridge the Form 10-K document data and the Form 13 investment data, and
+how is each created?

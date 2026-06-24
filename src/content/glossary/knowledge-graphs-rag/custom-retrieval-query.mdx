@@ -1,0 +1,13 @@
+---
+term: Custom Retrieval Query
+aliases: [retrieval_query]
+domain: kg-relationships
+see: [chunk-window, neo4jvector, vector-similarity-search]
+tags: [langchain, rag, neo4j]
+---
+
+A Cypher query passed to `Neo4jVector` via the `retrieval_query` argument that extends the default
+vector search. It runs *after* the index match, receiving the matched `node` and its `score`, and
+can perform extra graph traversal before returning context to the LLM — for example following NEXT
+to build a chunk window. This is the hook that fuses vector search (find the entry point) with
+graph traversal (expand context) into a single retrieval step.

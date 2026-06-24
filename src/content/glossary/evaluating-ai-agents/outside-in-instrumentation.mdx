@@ -1,0 +1,12 @@
+---
+term: Outside-In Instrumentation
+aliases: [outside-in span nesting]
+domain: observability
+see: [manual-instrumentation, span-hierarchy]
+tags: [observability, instrumentation]
+---
+
+The principle for placing manual spans: **start at the outermost layer** (the agent run) and
+work inward — chain, then tool — letting nested `with` blocks build the correct span
+hierarchy automatically. Following it yields a trace whose nesting matches the architecture;
+ignoring it produces flat or mis-parented spans that are hard to navigate.

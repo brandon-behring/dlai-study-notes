@@ -1,0 +1,13 @@
+---
+term: Company Node
+aliases: [Company node]
+domain: kg-expansion
+see: [cusip, filed-relationship, owns-stock-in]
+tags: [schema, neo4j]
+---
+
+A graph node representing a public company, keyed by its `cusip6` and created idempotently with
+`MERGE`. It is the hub that joins the two datasets: a `FILED` edge links it to the Form 10-K it
+filed (matched on shared CUSIP), and incoming `OWNS_STOCK_IN` edges link it to every Manager that
+holds its stock. Building Company nodes on the CUSIP key is what lets the independently created
+Form 13 and Form 10-K data connect with no manual matching.

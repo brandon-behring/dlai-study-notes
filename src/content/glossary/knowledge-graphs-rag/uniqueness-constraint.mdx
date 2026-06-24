@@ -1,0 +1,12 @@
+---
+term: Uniqueness Constraint
+aliases: [unique constraint]
+domain: cypher-querying
+see: [merge, idempotent-pipeline]
+tags: [neo4j, schema]
+---
+
+A Neo4j constraint — `CREATE CONSTRAINT ... FOR (p:Post) REQUIRE p.postId IS UNIQUE` — that
+guarantees **at most one node per key value** and creates an implicit index in the process. It
+underpins idempotent, `MERGE`-based ingestion: correctness (no duplicates) *and* performance
+(the index speeds the MERGE existence check). Part of the production idempotent-ingest pattern.

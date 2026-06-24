@@ -1,0 +1,32 @@
+---
+id: eaa-4-wasted-fraction
+type: mcq
+chapter: 4
+domain: trajectory-evals
+bloom_level: analyze
+objective_id: EAA-4.8
+difficulty: '2'
+tags: [trajectory, cost]
+options:
+  - id: a
+    text: 0% — every run completed successfully, so nothing was wasted
+  - id: b
+    text: 8% — only the single longest run counts as wasted
+  - id: c
+    text: 33% — a third of the runs were non-optimal
+  - id: d
+    text: About 17% — 10 of 58 steps were wasted (optimal is 12 × 4 = 48)
+    correct: true
+---
+import Rationale from '@brandon_m_behring/book-scaffold-astro/components/Rationale.astro';
+
+Across 12 runs an agent took 58 steps in total; the optimal path is 4 steps. What fraction of
+step cost was wasted?
+
+<Rationale title="Why">
+Optimal total is $12 \times 4 = 48$ steps; the agent used 58, so $58 - 48 = 10$ steps were
+wasted, i.e. $10/58 \approx 17\%$. Completion has nothing to do with waste — a run can finish
+*and* be inefficient. The 33% figure counts non-optimal *runs* rather than wasted *steps*, the
+quantity that actually drives cost; the wasted-step fraction is what converts to a dollar
+figure.
+</Rationale>

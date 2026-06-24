@@ -1,0 +1,321 @@
+---
+book: knowledge-graphs-rag
+title: 'Chatting with the Knowledge Graph'
+chapter: 7
+part: 1
+description: >
+  The capstone: the Extract-Enhance-Expand pattern for growing graphs, Address
+  nodes with geospatial points and point.distance() search, teaching an LLM to
+  generate Cypher with few-shot prompts, the GraphCypherQAChain for end-to-end
+  natural-language querying, schema-hallucination guards, and the four retrieval
+  paradigms (vector, full-text, traversal, geospatial) the finished graph unites.
+learning_outcomes:
+  - id: KGR-7.1
+    verb: Explain
+    text: >
+      the Extract-Enhance-Expand pattern as a repeatable framework for
+      incrementally building and growing knowledge graphs.
+  - id: KGR-7.2
+    verb: Apply
+    text: >
+      geospatial queries using Neo4j's point.distance() to find entities within
+      a specified radius.
+  - id: KGR-7.3
+    verb: Design
+    text: >
+      few-shot prompts that teach an LLM to generate valid Cypher from
+      natural-language questions.
+  - id: KGR-7.4
+    verb: Design
+    text: >
+      a GraphCypherQAChain that combines LLM Cypher generation with Neo4j
+      execution for end-to-end natural-language graph querying.
+  - id: KGR-7.5
+    verb: Apply
+    text: >
+      progressive few-shot examples that each unlock a new query capability
+      (city filtering, geospatial search, document navigation).
+  - id: KGR-7.6
+    verb: Evaluate
+    text: >
+      LLM-generated Cypher for correctness, identifying hallucinated
+      relationship types and schema violations.
+  - id: KGR-7.7
+    verb: Compare
+    text: >
+      the four retrieval paradigms in the final graph — vector, full-text, graph
+      traversal, and geospatial search.
+  - id: KGR-7.8
+    verb: Explain
+    text: >
+      how Address nodes with geospatial points extend the schema to enable
+      distance-based entity discovery.
+tags:
+  - knowledge-graph
+  - llm-cypher
+  - geospatial
+  - few-shot
+  - rag
+  - neo4j
+last_verified: 2026-06-19
+volatility: feature-surface
+sources:
+  - pan2024unifying
+  - brown2020language
+  - edge2024local
+---
+
+<Diagnostic skimTo="Teaching an LLM to write Cypher">
+Predict before reading — check each against the chapter.
+
+1. `point.distance()` returns a number for "within 10 km". Predict the value you compare against — 10, 10000, or 0.1 — and the unit.
+2. You ask an LLM to generate Cypher but give it no schema. Predict the most likely failure in its output.
+3. Few-shot prompting: you add a third example, "What does company X do?". Predict the *new* capability that one example unlocks.
+4. "Which investors are within 50 miles of NetApp?" Predict how many of the four retrieval paradigms this single question needs.
+
+<Fragment slot="answers">
+1. **10000**, in **metres** — `point.distance()` returns metres, so 10 km is `< 10000`. Using 10 (km) is the classic off-by-1000 bug.
+2. **Schema hallucination** — it invents plausible but non-existent relationship types or properties. Inject the real schema and instruct "do not hallucinate".
+3. **Document navigation** — full-text find the company, then traverse `FILED → SECTION → Chunk` to its filing text. One example teaches a whole new query shape.
+4. **Three** — full-text (find NetApp), geospatial (`point.distance` within 80,467 m), and graph traversal (`OWNS_STOCK_IN` to confirm they're investors). Complex questions compose paradigms.
+</Fragment>
+</Diagnostic>
+
+<NarrativeBox title="Where we are">
+The graph is complete — chunks, forms, companies, managers, and their
+investments are all connected. This capstone adds the two capabilities that make
+it *conversational*: geospatial queries over location data, and **LLM-generated
+Cypher** that lets a user ask in plain English while the system writes and runs
+the graph query. It closes with the pattern behind every module — Extract,
+Enhance, Expand.
+</NarrativeBox>
+
+## The pattern behind the whole course: Extract-Enhance-Expand
+
+<KeyConcept title="Extract-Enhance-Expand" los="KGR-7.1">
+Every module repeated one three-phase move:
+
+1. **Extract** — pull source data into nodes (text → Chunks; CSV → Company / Manager / Address nodes).
+2. **Enhance** — add indexes or computed properties (vector embeddings, full-text indexes, geospatial points).
+3. **Expand** — connect the new nodes to the existing graph (NEXT, PART_OF, FILED, OWNS_STOCK_IN, LOCATED_AT).
+
+It's a repeatable framework for growing *any* graph incrementally. **When it
+breaks:** Expand assumes the new data links to existing nodes by a shared
+identifier — when identifiers are absent or ambiguous (name-only matching),
+Expand needs an entity-resolution step the pattern doesn't itself provide. <EvidenceTag kind="verified" />
+</KeyConcept>
+
+| Module | Extract | Enhance | Expand |
+| --- | --- | --- | --- |
+| M4 Documents | Chunk nodes | vector embeddings | — |
+| M5 Structure | Form nodes | section index | NEXT, PART_OF, SECTION |
+| M6 Investments | Company, Manager | full-text index | FILED, OWNS_STOCK_IN |
+| M7 Geography | Address nodes | geospatial points | LOCATED_AT |
+
+<SelfCheck q="Name the three phases of Extract-Enhance-Expand and give one example of each from the course." los="KGR-7.1">
+**Extract** — create nodes from source data (e.g. split filing text into Chunk nodes, or build Manager nodes from the Form 13 CSV). **Enhance** — add indexes or computed properties (vector embeddings on chunks, a full-text index on manager names, geospatial points on addresses). **Expand** — connect the new nodes into the existing graph with relationships (NEXT/PART_OF for chunks, FILED/OWNS_STOCK_IN for the investment data, LOCATED_AT for addresses).
+</SelfCheck>
+
+## A fourth paradigm: geospatial search
+
+The graph is pre-expanded with [**Address**](../glossary#term-address-node) nodes
+(via [**LOCATED_AT**](../glossary#term-located-at)), each holding a
+[**geospatial point**](../glossary#term-geospatial-point) — latitude/longitude.
+That unlocks distance queries with
+[`point.distance()`](../glossary#term-point-distance):
+
+```cypher
+MATCH (sc:Address {city: "Santa Clara"})
+MATCH (com:Company)-[:LOCATED_AT]->(comAddr:Address)
+WHERE point.distance(sc.location, comAddr.location) < 10000
+RETURN com.companyName
+```
+
+<RedFlag title="point.distance() returns metres, not kilometres">
+The single most common geospatial bug: writing `< 10` for "within 10 km" instead
+of `< 10000`. The function returns **metres** — 10 km is 10000, 50 miles is
+80467. Always comment the unit, and create a **point index** on the location
+property, or distance queries degrade to an O(n) scan of every node. <EvidenceTag kind="verified" />
+</RedFlag>
+
+<WorkedExample title="Geospatial proximity query" los="KGR-7.2">
+**Problem.** A real-estate graph has `Property` and `School` nodes with geospatial
+locations. Find schools within 2 km of a property at (37.3861, -122.0839),
+closest first. What index makes it fast?
+
+**Reasoning.** Build the property's point, match schools, filter by
+`point.distance(...) < 2000` (2 km = 2000 m — *not* 2), and sort ascending by
+distance:
+
+```cypher
+WITH point({latitude: 37.3861, longitude: -122.0839}) AS prop
+MATCH (s:School)
+WHERE point.distance(prop, s.location) < 2000
+RETURN s.name, point.distance(prop, s.location)/1000 AS distanceKm
+ORDER BY distanceKm ASC
+```
+
+Performance needs a **point index**: `CREATE POINT INDEX ... FOR (s:School) ON
+(s.location)` — without it Neo4j scans every school and computes distance for
+each.
+
+**Answer.** Threshold 2000 m (the metres bug is using 2), `ORDER BY distance
+ASC` for nearest-first, and a point index to avoid the O(n) scan.
+</WorkedExample>
+
+<SelfCheck q="Write a query to find companies within 20 km of San Jose, and say what unit point.distance returns." los="KGR-7.2">
+`MATCH (sj:Address {city: "San Jose"}) MATCH (com:Company)-[:LOCATED_AT]->(a:Address) WHERE point.distance(sj.location, a.location) < 20000 RETURN com.companyName`. `point.distance()` returns **metres**, so 20 km is `< 20000` (not 20). A point index on the `location` property keeps the range query fast.
+</SelfCheck>
+
+## Teaching an LLM to write Cypher
+
+The capstone capability: instead of hand-writing Cypher, give the LLM the schema
+plus a few examples and let it translate plain English into queries — a
+[**few-shot prompt**](../glossary#term-few-shot-prompt) turns the model into a
+"Cypher compiler".
+
+```text
+Task: Generate Cypher to query a graph database.
+- Use ONLY the provided relationship types and properties.
+- Do not hallucinate relationship types or properties.
+Schema: {schema}
+
+# What investment firms are in San Francisco?
+MATCH (mgr:Manager)-[:LOCATED_AT]->(a:Address)
+WHERE a.city = "San Francisco" RETURN mgr.managerName
+
+Question: {question}
+```
+
+That prompt drives a
+[**GraphCypherQAChain**](../glossary#term-graph-cypher-qa-chain), which runs the
+full loop end to end:
+
+<PipelineBox title="Natural language → graph → answer">
+1. **Question** — the user asks in plain English.
+2. **Generate** — the LLM writes Cypher from the schema + few-shot examples.
+3. **Execute** — Neo4j runs the generated query.
+4. **Answer** — the LLM turns the rows into a natural-language reply.
+</PipelineBox>
+
+<CompletionProblem id="few-shot-cypher" title="Complete the few-shot example" level="completion">
+Add a third few-shot example that teaches the LLM to answer "What does company X
+do?" by full-text-finding the company and reading its business section.
+
+**Your turn — fill the blanks:**
+- Find the company: `CALL db.index.fulltext.queryNodes('fullTextCompanyNames', $name) YIELD node AS com`
+- Traverse to its filing text: `MATCH (com)-[:FILED]->(f:Form)-[s:SECTION]->(c:Chunk) WHERE s.f10kItem = "___" RETURN c.text`
+
+<Fragment slot="solution">
+```text
+# What does Palo Alto Networks do?
+CALL db.index.fulltext.queryNodes('fullTextCompanyNames', 'Palo Alto Networks')
+  YIELD node AS com
+MATCH (com)-[:FILED]->(f:Form)-[s:SECTION]->(c:Chunk)
+WHERE s.f10kItem = "item1"
+RETURN c.text
+```
+- `item1` is the business-description section, so this answers "what does X do?".
+- This one example unlocks a whole capability — **document navigation**: full-text find → FILED → SECTION → Chunk. The LLM generalises it to other companies.
+</Fragment>
+</CompletionProblem>
+
+<KeyConcept title="Progressive few-shot: diversity beats quantity" los="KGR-7.5">
+Each [**progressively added example**](../glossary#term-progressive-few-shot)
+unlocks a *new* query shape — city filter, then `point.distance` geospatial, then
+full-text + SECTION document navigation — and the LLM generalises each to unseen
+questions. Two or three *diverse* examples (filter, aggregate, traverse) cover
+far more than ten similar ones; past that, returns diminish fast. Choose for
+pattern coverage, not count. <EvidenceTag kind="verified" />
+</KeyConcept>
+
+<SelfCheck q="Why does adding one 'What does company X do?' example unlock document navigation for many other companies?" los="KGR-7.5">
+The example demonstrates a *query shape* — full-text find the company, then traverse `FILED → SECTION → Chunk` to its business section — not a single hard-coded answer. The LLM generalises the pattern, so it can apply the same full-text-then-traverse structure to any company name. That's progressive few-shot: each diverse example teaches one new capability the model reuses.
+</SelfCheck>
+
+<RedFlag title="Schema hallucination">
+Without the real schema injected and a "do not hallucinate relationship types"
+instruction, an LLM invents plausible-but-non-existent relationships or
+properties — Cypher that looks right and fails (or worse, runs wrong). Always
+inject the actual schema, instruct against invention, and **validate generated
+Cypher before executing** it in production. Few-shot examples using the *correct*
+relationships also pull the model toward the real schema. <EvidenceTag kind="verified" />
+</RedFlag>
+
+<SelfCheck q="What is schema hallucination in LLM-generated Cypher, and how do you prevent it?" los="KGR-7.6">
+Schema hallucination is when the LLM generates Cypher referencing relationship types or properties that **don't exist** in the graph — plausible-looking but invalid. Prevent it by **injecting the real schema** into the prompt, instructing the model to use only those types and "do not hallucinate", supplying few-shot examples that use the correct relationships, and **validating** the generated query before running it in production.
+</SelfCheck>
+
+## Four retrieval paradigms, one engine
+
+<KeyConcept title="The finished graph unites four paradigms" los="KGR-7.7">
+No single retrieval method answers every question — the graph's power is holding
+all four in one query engine:
+
+1. **Vector** — semantic similarity for conceptual questions ("about cloud storage").
+2. **Full-text** — keyword/string lookup for entities ("find Royal Bank of Canada").
+3. **Graph traversal** — relationship following for structure ("who invests in NetApp?").
+4. **Geospatial** — distance for location ("companies within 10 km of San Jose").
+
+(These are retrieval *methods*; Module 6's "three search paradigms" counted
+*index types* — vector, full-text, property — with exact-lookup folding in here
+alongside the new traversal and geospatial methods.) Complex questions *compose*
+them — "investors within 50 miles of NetApp" needs full-text + geospatial +
+traversal at once. <EvidenceTag kind="verified" />
+</KeyConcept>
+
+| Paradigm | Method | Example question |
+| --- | --- | --- |
+| Vector | `db.index.vector.queryNodes` | "Tell me about cloud storage" |
+| Full-text | `db.index.fulltext.queryNodes` | "Find Palo Alto Networks" |
+| Traversal | `MATCH` path patterns | "Who invests in NetApp?" |
+| Geospatial | `point.distance()` | "Companies within 10 km of San Jose" |
+
+<WorkedExample title="Decompose a question into paradigms" los="KGR-7.7">
+**Problem.** Which paradigm(s) answer each: (a) "risk factors for cloud-computing
+companies?" (b) "find Goldman Sachs" (c) "investors within 50 miles of NetApp?"
+
+**Reasoning.** (a) **Vector + traversal** — semantic search for "risk factors",
+then PART_OF → Form → Company to confirm they're cloud companies. (b)
+**Full-text** — an entity lookup; vector would wrongly surface *similar* names
+like Morgan Stanley. (c) **Full-text + geospatial + traversal** — full-text find
+NetApp, LOCATED_AT to its address, `point.distance < 80467` (50 mi) to nearby
+managers, OWNS_STOCK_IN to confirm they invest.
+
+**Answer.** (a) vector + traversal, (b) full-text, (c) full-text + geospatial +
+traversal. The skill is decomposing a question into a sequence of paradigm-matched
+steps.
+</WorkedExample>
+
+<Aside category="pattern">
+Where practitioners disagree — *should every graph carry all four paradigms?*
+The maximalist view: a unified engine answers any question and future-proofs the
+schema. The lean view (the chapter's own caution): each paradigm is an index to
+build, populate, and operate — if 90% of traffic is simple semantic lookup, the
+full-text, geospatial, and graph machinery is cost without payoff. Match
+infrastructure complexity to the **actual** query distribution: start with the
+one or two paradigms your questions need, and add the others when real questions
+demand them — the same targeted-expansion discipline from Module 6.
+</Aside>
+
+<SelfCheck q="Name the four retrieval paradigms and give one question type suited to each." los="KGR-7.7">
+**Vector** — conceptual/semantic questions ("what is NetApp's business?"). **Full-text** — entity lookup by name ("find Royal Bank of Canada"). **Graph traversal** — relationship/structural questions ("who are NetApp's investors?"). **Geospatial** — location/distance questions ("companies within 10 km of San Jose"). Most real questions combine two or more.
+</SelfCheck>
+
+## Summary — and the course in one arc
+
+This module added geospatial search (`point.distance()`, in metres, over Address
+nodes) and **LLM-generated Cypher**: a few-shot prompt plus the
+GraphCypherQAChain turn a plain-English question into a generated query, an
+execution, and a natural-language answer — guarded against schema hallucination
+by injecting the real schema. The finished graph unites four retrieval paradigms
+— vector, full-text, traversal, geospatial — a toolkit far richer than similarity
+search alone, all grown by the same Extract-Enhance-Expand move.
+
+Across seven chapters the guide built one system: **graph fundamentals** (M1) →
+**Cypher** (M2) → **vector search in the graph** (M3) → **constructing a graph
+from documents** (M4) → **relationships and chunk windows** (M5) → **expanding
+with a second dataset** (M6) → **conversational, multi-paradigm querying** (M7).
+The throughline: retrieval by *connection*, not just similarity.
+
+- This is the **retrieval** guide of three — see also [Fine-tuning & RL](/finetuning-rl-intro/) (training a model) and [Evaluating AI Agents](/evaluating-ai-agents/) (proving a system works).

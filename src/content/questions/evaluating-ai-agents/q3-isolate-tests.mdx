@@ -1,0 +1,23 @@
+---
+id: eaa-3-isolate-tests
+type: free
+chapter: 3
+domain: component-evals
+bloom_level: analyze
+objective_id: EAA-3.8
+difficulty: '2'
+tags: [routing, evaluation, test-design]
+answer: >
+  To isolate parameter extraction, pick queries whose correct tool is unambiguous so tool
+  selection can't be what fails, but whose parameters are easy to mis-extract. Example 1: "Check
+  the shipping status for order 12345" — only the shipping tool plausibly applies, but the agent
+  may pass 12345 as a tracking_id instead of an order_id. Example 2: "Show sales from January to
+  March" — clearly the sales-report tool, but the agent may reverse the start and end dates. In
+  both, a failure can only be parameter extraction, not tool choice. (To isolate tool selection
+  instead, you'd use queries with trivial/no parameters but an ambiguous tool.) Common wrong
+  answer: a query that is ambiguous about both the tool and the parameters — a failure there
+  can't be attributed to one dimension.
+---
+
+Design two test cases that isolate parameter-extraction failures from tool-selection failures,
+so each can be debugged independently. Explain why each isolates the intended dimension.

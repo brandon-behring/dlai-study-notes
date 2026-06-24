@@ -1,0 +1,29 @@
+---
+id: kgr-6-company-id
+type: mcq
+chapter: 6
+domain: kg-expansion
+bloom_level: understand
+objective_id: KGR-6.1
+difficulty: '1'
+tags: [schema, identifiers]
+options:
+  - id: a
+    text: managerCik, the investment firm's Central Index Key
+  - id: b
+    text: cusip6, the six-digit company identifier
+    correct: true
+  - id: c
+    text: companyName, the company's display name
+  - id: d
+    text: formId, the filing's unique identifier
+---
+import Rationale from '@brandon_m_behring/book-scaffold-astro/components/Rationale.astro';
+
+Which property is the unique identifier when creating Company nodes?
+
+<Rationale title="Why">
+Company nodes are MERGE'd on `cusip6` — the issuer identifier that *both* datasets carry, which
+is exactly why it can bridge Company to Form. `managerCik` keys Manager nodes, `companyName` is an
+unstable display string (poor key), and `formId` identifies a filing, not a company.
+</Rationale>

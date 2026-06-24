@@ -1,0 +1,13 @@
+---
+term: PART_OF Relationship
+aliases: [PART_OF]
+domain: kg-relationships
+see: [form-node, section-relationship, relationship]
+tags: [schema, traversal]
+---
+
+A directed relationship from a Chunk to its parent Form (`Chunk -[:PART_OF]-> Form`), establishing
+document membership. It lets you traverse *up* from any chunk back to its source filing — and from
+there onward to connected entities (companies, investors) in later modules. The general pattern
+(member `-[:PART_OF]->` container) generalises to any document hierarchy: chunk → section →
+chapter → book.

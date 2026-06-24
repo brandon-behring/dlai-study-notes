@@ -1,0 +1,25 @@
+---
+id: eaa-5-golden-rot
+type: free
+chapter: 5
+domain: llm-judge-monitoring
+bloom_level: analyze
+objective_id: EAA-5.8
+difficulty: '3'
+tags: [golden-dataset, shipping, debugging]
+answer: >
+  The golden dataset tested only pre-existing features; the new features shipped that quarter had
+  zero coverage, so a 100% pass rate on stale rows was false confidence — the gate tested what
+  used to break, not what might break now. Fixes: (1) require every feature-adding PR to include
+  ≥2 golden rows covering the new feature, enforced in code review; (2) run a monthly coverage
+  review comparing golden rows against the current feature list and flag uncovered features; (3)
+  add a regression row within 48 hours of every production incident. Add the 3 incident cases now
+  as regression rows. Inclusion criteria: incidents, new features/workflows, testing-discovered
+  edge cases; removal criteria: rows untriggered for 6+ months on a stable feature, but never
+  remove safety-critical rows. Common wrong answer: "the gate works, the incidents were
+  bad luck" — the gate silently stopped covering the system, which is the actual defect.
+---
+
+A payment agent's 45-row golden dataset passed 100% on every PR for a quarter, yet three
+production incidents occurred — all on features added after the set was frozen. Diagnose why,
+and design a process that prevents this staleness.

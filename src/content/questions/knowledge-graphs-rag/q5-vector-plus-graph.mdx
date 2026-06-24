@@ -1,0 +1,30 @@
+---
+id: kgr-5-vector-plus-graph
+type: mcq
+chapter: 5
+domain: kg-relationships
+bloom_level: analyze
+objective_id: KGR-5.6
+difficulty: '2'
+tags: [chunk-window, rag]
+options:
+  - id: a
+    text: A higher cosine similarity score for the top-matching chunk
+  - id: b
+    text: A second embedding model that improved overall recall
+  - id: c
+    text: The Keystone product detail held in an adjacent chunk
+    correct: true
+  - id: d
+    text: A faster response by skipping the graph traversal step
+---
+import Rationale from '@brandon_m_behring/book-scaffold-astro/components/Rationale.astro';
+
+In the NetApp example, what did adding a chunk window reveal that single-chunk retrieval missed?
+
+<Rationale title="Why">
+The single best-matching chunk gave the high-level answer ("enterprise storage and data
+management"); the window followed NEXT into the adjacent chunk and surfaced the specific Keystone
+product detail. Vector search found the entry point, graph traversal added the surrounding
+context — the window does not change the score, add a model, or speed anything up.
+</Rationale>

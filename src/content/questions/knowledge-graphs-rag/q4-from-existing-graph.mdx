@@ -1,0 +1,21 @@
+---
+id: kgr-4-from-existing-graph
+type: free
+chapter: 4
+domain: kg-construction
+bloom_level: apply
+objective_id: KGR-4.7
+difficulty: '2'
+tags: [langchain, currency]
+answer: >
+  Use `from_existing_graph` when the chunks are already embedded and indexed in Neo4j (as in this
+  pipeline) — it attaches to that index instead of re-embedding. Currency caveat: the import moved
+  to the dedicated langchain-neo4j package (2024-11), so the current import is
+  `from langchain_neo4j import Neo4jVector`, not `from langchain_community.vectorstores import
+  Neo4jVector`. The connect/retrieve/generate behaviour is unchanged; only the package path
+  differs. Common wrong answer: re-running an embedding constructor (from_documents), which would
+  redundantly re-embed text you already indexed.
+---
+
+You have already embedded and indexed your chunks in Neo4j. Which `Neo4jVector` constructor
+connects to them, and what currency caveat applies to its import?

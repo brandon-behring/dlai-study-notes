@@ -1,0 +1,13 @@
+---
+term: Few-Shot Examples
+aliases: [few-shot judging]
+domain: llm-judge-monitoring
+see: [judge-improvement, feedback-poisoning]
+tags: [evaluation, llm-as-judge]
+---
+
+3–5 labelled example judgments added to a judge prompt to **fix calibration**, especially on
+boundary cases (case-insensitive match, floating-point tolerance, polite-but-wrong responses).
+One of the four judge-improvement levers. In a self-improving pipeline these are drawn from
+collected production data — which is exactly why feedback poisoning can corrupt the judge
+through them.

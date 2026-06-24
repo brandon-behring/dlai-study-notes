@@ -1,0 +1,31 @@
+---
+id: eaa-4-convergence-meaning
+type: mcq
+chapter: 4
+domain: trajectory-evals
+bloom_level: analyze
+objective_id: EAA-4.2
+difficulty: '2'
+tags: [trajectory, convergence]
+options:
+  - id: a
+    text: The agent reaches the correct answer on every query
+  - id: b
+    text: The agent's answer quality is maximal
+  - id: c
+    text: The agent uses the fewest steps that are theoretically possible
+  - id: d
+    text: The agent takes the same minimum-step path every run — consistency, not correctness
+    correct: true
+---
+import Rationale from '@brandon_m_behring/book-scaffold-astro/components/Rationale.astro';
+
+A convergence score of 1.0 tells you that…
+
+<Rationale title="Why">
+Convergence measures *consistency* — the fraction of runs on the minimum-step path — so 1.0
+means the agent always takes the same shortest path it found, which could be a consistently
+wrong one. It says nothing about correctness or answer quality, so neither the "correct on
+every query" nor the "maximal quality" reading holds. And the minimum is relative to the runs
+observed, not a theoretical optimum — universal waste sits inside that minimum undetected.
+</Rationale>

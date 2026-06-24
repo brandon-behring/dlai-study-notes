@@ -1,0 +1,13 @@
+---
+term: Cross-Entropy Loss
+aliases: [CE loss, next-token loss]
+domain: sft-vs-rl
+see: [gradient, loss-mask, sft]
+tags: [sft, cross-entropy]
+---
+
+The standard next-token objective, $\mathcal{L} = -\log p(\text{correct token})$
+summed over target positions. A probability of 1.0 gives zero loss; lower
+probabilities are penalized **exponentially** ($-\log 0.1 = 2.30$). Diminishing
+returns near $p=1$ mean most training effort lands on the hard "long tail" of
+uncertain tokens.

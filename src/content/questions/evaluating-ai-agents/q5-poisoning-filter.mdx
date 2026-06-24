@@ -1,0 +1,24 @@
+---
+id: eaa-5-poisoning-filter
+type: free
+chapter: 5
+domain: llm-judge-monitoring
+bloom_level: apply
+objective_id: EAA-5.6
+difficulty: '2'
+tags: [feedback-poisoning, pipeline]
+answer: >
+  Design filters that screen feedback before it enters the dataset: (1) engagement-time
+  threshold — discard "helpful" clicks submitted within ~2 seconds of the response (too fast to
+  have read it); (2) cross-signal validation — a positive click followed by an immediate re-query
+  of the same topic is treated as noise, not approval; (3) confidence weighting — weight feedback
+  from users with a history (e.g. >10 interactions) above first-touch clicks; (4) a weekly human
+  audit of a ~10% random sample. And keep the golden dataset as an independent anchor: even if
+  some noise slips through, human-curated must-pass rows catch the resulting drift. Common wrong
+  answer: "collect more feedback to drown out the noise" — more unfiltered feedback adds more
+  poison; you need filters plus the golden-dataset firewall, not volume.
+---
+
+A self-improving pipeline is being poisoned by users who click "helpful" without reading.
+Design a feedback quality filter that keeps the noise out, and name the independent anchor that
+catches drift the filter misses.

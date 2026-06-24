@@ -1,0 +1,13 @@
+---
+term: Distributed Routing
+aliases: [decentralised routing]
+domain: eval-foundations
+see: [centralised-routing, router]
+tags: [agents, routing]
+---
+
+A routing architecture (LangGraph, OpenAI Swarm-style graphs) where **routing logic is
+spread across multiple components**. More flexible than [centralised
+routing](#term-centralised-routing), but harder to evaluate: routing decisions occur at many
+points, each a separate place a wrong turn can originate, so evaluation coverage must reach
+every decision node rather than a single one.

@@ -1,0 +1,23 @@
+---
+id: fri-2a-oom-batch
+type: free
+chapter: 2
+domain: sft-vs-rl
+bloom_level: apply
+objective_id: FRI-2.3
+difficulty: '2'
+tags: [sft, hyperparameters]
+answer: >
+  Halve the per-device batch size to 16 and set gradient_accumulation_steps=2. The
+  effective batch size stays 32 (16 × 2), so the optimizer sees the same averaged
+  gradient and training dynamics are unchanged — only peak activation memory drops,
+  because you process 16 examples at a time and accumulate. Keep batch sizes powers
+  of two for memory alignment. Common wrong answers: "just lower the batch to 16"
+  (changes the effective batch and thus the learning dynamics / effective LR), or
+  "lower the learning rate" (doesn't address the memory limit at all).
+---
+
+Your run OOMs at `per_device_train_batch_size=32`. You want to keep the *same
+effective batch size* (so you don't have to re-tune the learning rate). What two
+settings do you change, and why does this preserve the training dynamics while
+fitting in memory?

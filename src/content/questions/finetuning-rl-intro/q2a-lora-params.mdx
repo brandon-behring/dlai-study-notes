@@ -1,0 +1,23 @@
+---
+id: fri-2a-lora-params
+type: free
+chapter: 2
+domain: sft-vs-rl
+bloom_level: apply
+objective_id: FRI-2.4
+difficulty: '3'
+tags: [sft, lora]
+answer: >
+  Full update of that matrix: d² = 4096² ≈ 16.78M parameters. LoRA trains A (d×r)
+  and B (r×d), so 2·d·r = 2·4096·16 = 131,072 parameters ≈ 0.78% of the full
+  matrix (131,072 / 16,777,216). So LoRA at r=16 trains under 1% of one
+  projection's parameters. Two checks people miss: A and B together are 2dr (not
+  dr — both matrices are trained), and the saving scales with how small r is
+  relative to d. Common wrong answer: computing d·r (one matrix) and reporting
+  ~0.39%.
+---
+
+For one attention projection with hidden size $d = 4096$, adapted with LoRA at
+rank $r = 16$: compute (a) the parameter count of a full update of that matrix,
+(b) the number of trainable LoRA parameters, and (c) the LoRA fraction. Show the
+arithmetic.

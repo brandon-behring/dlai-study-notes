@@ -1,0 +1,23 @@
+---
+id: kgr-7-fewshot-design
+type: free
+chapter: 7
+domain: graph-rag-chat
+bloom_level: analyze
+objective_id: KGR-7.3
+difficulty: '3'
+tags: [few-shot, prompt-design]
+answer: >
+  Inject the schema, instruct "use only these types; do not hallucinate", then give three examples
+  that each teach a *different* query shape. For a university graph: (1) single-hop with a filter —
+  "Who teaches Machine Learning?" maps to matching a Professor TEACHES a Course with that title; (2)
+  multi-hop — "What courses do Dr. Smith's students take?" maps to Professor ADVISES Student
+  ENROLLED_IN Course; (3) aggregation — "Which departments have the most courses?" maps to Course
+  BELONGS_TO Department with count and ORDER BY. The design rule: one example per capability
+  (filter, traverse, aggregate), because the LLM generalises the *shape*, not the specific
+  question. Common wrong answer: three near-identical filter examples — they teach one pattern and
+  waste the few-shot budget.
+---
+
+Design a 3-example few-shot prompt that teaches an LLM to answer single-hop, multi-hop, and
+aggregation questions over a graph. What principle governs the choice of examples?

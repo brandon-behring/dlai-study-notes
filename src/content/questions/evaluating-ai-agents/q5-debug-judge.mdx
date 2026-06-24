@@ -1,0 +1,22 @@
+---
+id: eaa-5-debug-judge
+type: free
+chapter: 5
+domain: llm-judge-monitoring
+bloom_level: apply
+objective_id: EAA-5.2
+difficulty: '2'
+tags: [llm-as-judge, judge-improvement]
+answer: >
+  Start with the prompt — about 80% of judge failures are prompt failures. Make the criteria
+  explicit (define what "correct" requires), tighten the output format to the rails, and add
+  chain-of-thought if needed; re-run meta-evaluation. If agreement is still low, add 3–5 few-shot
+  examples covering the boundary cases it gets wrong (calibration). If specific capability gaps
+  remain, try a stronger judge model. For paraphrase false-negatives on non-binary outputs, swap
+  exact match for semantic (embedding) similarity. Change one lever at a time so the agreement
+  delta is attributable. Common wrong answer: "immediately switch to a bigger model" — it's the
+  expensive lever for the least common cause; the prompt is cheaper and usually the culprit.
+---
+
+Your LLM judge scores only 78% agreement in meta-evaluation. Walk through how you would improve
+it, in priority order, and how you confirm each change helped.

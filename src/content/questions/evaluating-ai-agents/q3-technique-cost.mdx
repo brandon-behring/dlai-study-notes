@@ -1,0 +1,23 @@
+---
+id: eaa-3-technique-cost
+type: free
+chapter: 3
+domain: component-evals
+bloom_level: apply
+objective_id: EAA-3.6
+difficulty: '2'
+tags: [evaluation, technique-selection, cost]
+answer: >
+  Order-lookup (SQL) → code-based: execute and compare result sets, $0. Complaint-summary (free
+  text) → LLM-as-a-judge with rails: qualitative, no ground-truth string, 1,000 × $0.01 =
+  $10/day. Refund-calculator (dollar amount, known value) → code-based: numeric compare within
+  tolerance, $0. Daily total = $10, because two of the three skills are code-evaluable — routing
+  all three to an LLM judge would cost $30/day for no accuracy gain on the deterministic ones.
+  Common wrong answer: "use an LLM judge for all three to be safe" — it triples cost and adds
+  error to outputs a deterministic check settles exactly.
+---
+
+A support agent has three skills — an order-lookup that emits SQL, a complaint-summary that
+emits free text, and a refund-calculator that emits a dollar amount. Recommend an evaluation
+technique for each, then compute the daily cost at 1,000 evals per skill if an LLM judge costs
+\$0.01/eval and a human costs \$0.50/eval.

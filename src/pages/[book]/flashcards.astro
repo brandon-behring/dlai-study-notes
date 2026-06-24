@@ -1,0 +1,74 @@
+---
+/**
+ * Per-book flashcards — /<book>/flashcards.
+ *
+ * Spaced-recall deck built from this book's glossary (front = term, back =
+ * definition). Reuses the scaffold's buildFlashcardDeck + Flashcards island.
+ * (Question-derived cards are upstream issue #145 — glossary-only for now.)
+ */
+import Base from '@brandon_m_behring/book-scaffold-astro/layouts/Base.astro';
+import { getCollection, render } from 'astro:content';
+import Flashcards from '@brandon_m_behring/book-scaffold-astro/components/Flashcards';
+import { buildFlashcardDeck } from '@brandon_m_behring/book-scaffold-astro';
+import '@brandon_m_behring/book-scaffold-astro/styles/flashcards.css';
+import '../../styles/consumer-overrides.css';
+
+export async function getStaticPaths() {
+  const books = (await getCollection('books')).filter((b) => !b.data.draft);
+  return books.map((book) => ({ params: { book: book.data.book }, props: { book } }));
+}
+
+const { book } = Astro.props;
+const slug = book.data.book;
+
+const entries = (await getCollection('glossary', (e) => !e.data.draft))
+  .filter((e) => e.id.startsWith(`${slug}/`));
+const deck = buildFlashcardDeck(entries);
+const byId = new Map(entries.map((e) => [e.id, e]));
+const rendered = await Promise.all(
+  deck.map(async (card) => ({ ...card, Content: (await render(byId.get(card.id)!)).Content })),
+);
+const total = rendered.length;
+---
+<Base title={`Flashcards — ${book.data.title}`} description={`Glossary flashcards for ${book.data.title}.`}>
+  <article class="prose flashcards-page" data-flashcards-root>
+    <p class="breadcrumb">
+      <a href="/">DLAI Study Notes</a> / <a href={`/${slug}/`}>{book.data.title}</a> / <strong>Flashcards</strong>
+    </p>
+    <h1>Flashcards</h1>
+
+    {total === 0 && <p class="flashcards-empty">No glossary terms yet.</p>}
+
+    {total > 0 && (
+      <Fragment>
+        <noscript><style is:inline>.flashcards-runner { display: none; }</style></noscript>
+        <Flashcards client:idle deck={deck.map(({ id, front }) => ({ id, front }))} />
+        <section class="flashcards-list">
+          {rendered.map((card) => {
+            const Content = card.Content;
+            return (
+              <div class="flashcard" data-card-id={card.id} id={`card-${card.id}`}>
+                <p class="flashcard-front">{card.front}</p>
+                <div class="flashcard-back"><Content /></div>
+              </div>
+            );
+          })}
+        </section>
+      </Fragment>
+    )}
+  </article>
+
+  <style>
+    .breadcrumb { color: var(--color-text-muted); font-size: 0.92em; margin-bottom: 1rem; }
+    .flashcards-page { max-width: 48rem; }
+    .flashcards-empty { color: var(--color-text-muted, #6b7280); }
+    .flashcard {
+      margin-block: 1rem; padding: 1rem 1.1rem;
+      border: 1px solid var(--color-border, #e5e7eb); border-radius: 0.5rem;
+      background: var(--color-surface, transparent);
+    }
+    .flashcard-front { font-weight: 600; font-size: 1.05rem; margin-block: 0 0.5rem; }
+    [data-flashcards-mode='deck'] .flashcard { min-height: 8rem; border-color: var(--color-accent, #4f46e5); }
+    [data-flashcards-mode='deck'] .flashcard:not(.flashcard-flipped) .flashcard-back { display: none; }
+  </style>
+</Base>

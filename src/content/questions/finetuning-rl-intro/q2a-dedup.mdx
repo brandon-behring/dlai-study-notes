@@ -1,0 +1,21 @@
+---
+id: fri-2a-dedup
+type: free
+chapter: 2
+domain: sft-vs-rl
+bloom_level: understand
+objective_id: FRI-2.1
+difficulty: '1'
+tags: [sft, data]
+answer: >
+  Deduplication removes not just identical examples but *similar* ones, which
+  otherwise leak across splits and let the model memorize rather than generalize.
+  The standard pipeline is exact-hash → MinHash LSH (approximate near-duplicate
+  detection) → manual review; frontier labs discard ~99% of candidate data here.
+  Common wrong answer: "dedup only removes exact duplicates" — the value is in
+  catching near-duplicates at scale.
+---
+
+Why is deduplication more than just dropping exact-duplicate rows, what tool
+handles it at scale, and roughly how much candidate data do frontier labs discard
+at this stage?

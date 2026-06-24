@@ -1,0 +1,12 @@
+---
+term: RETURN Clause
+aliases: [RETURN, projection]
+domain: cypher-querying
+see: [cypher-execution-model, match-clause]
+tags: [cypher]
+---
+
+The Cypher clause that **projects** results: only the properties and aggregations it names are
+extracted and returned (`RETURN p.name, count(m)`). It is the final stage of execution, and
+returning whole nodes (`RETURN p`) versus specific properties (`RETURN p.name`) is a
+bandwidth/clarity choice — project just what the caller needs.

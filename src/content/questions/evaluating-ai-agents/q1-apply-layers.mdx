@@ -1,0 +1,24 @@
+---
+id: eaa-1-apply-layers
+type: free
+chapter: 1
+domain: eval-foundations
+bloom_level: apply
+objective_id: EAA-1.7
+difficulty: '2'
+tags: [evaluation, layers, rag]
+answer: >
+  Model layer: measure the base LLM's factual accuracy on a curated QA set (metric: exact-match
+  or accuracy) — e.g. does it state the correct refund window for a policy question.
+  Application layer: evaluate the RAG retrieval pipeline (metric: NDCG@k or recall@k over
+  query–document pairs) — do the correct knowledge-base articles come back for a query? Agent
+  layer: measure end-to-end multi-turn task completion (metric: resolution rate within N turns)
+  — does the agent gather information, retrieve, draft, and escalate correctly across a
+  conversation? The point is that each layer catches a different failure: a perfect model can
+  still fail at the agent layer if routing or escalation is broken. Common wrong answer: giving
+  three variants of end-to-end accuracy — that only exercises the agent layer and cannot
+  localise a retrieval or model fault.
+---
+
+For a RAG-based customer-support agent, give one concrete evaluation activity at each of the
+three layers (model, application, agent), naming a metric for each.

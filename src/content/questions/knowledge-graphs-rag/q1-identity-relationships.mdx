@@ -1,0 +1,32 @@
+---
+id: kgr-1-identity-relationships
+type: mcq
+chapter: 1
+domain: kg-fundamentals
+bloom_level: analyze
+objective_id: KGR-1.3
+difficulty: '2'
+tags: [graph-data-model, design]
+options:
+  - id: a
+    text: Add `Actor` and `Director` labels to the Person node
+  - id: b
+    text: Create two separate Person nodes, one for each role
+  - id: c
+    text: Keep one Person node; its `ACTED_IN` and `DIRECTED` relationships define both roles
+    correct: true
+  - id: d
+    text: Store a `roles` list property on the node and drop the relationships
+---
+import Rationale from '@brandon_m_behring/book-scaffold-astro/components/Rationale.astro';
+
+A `Person` is both an actor and a director. Following "identity through relationships," how do
+you model this?
+
+<Rationale title="Why">
+The role comes from the *relationships*: one `Person` node that has both an `ACTED_IN` and a
+`DIRECTED` relationship is, by that fact, both an actor and a director — no role labels needed.
+Adding `Actor`/`Director` labels invites "label explosion"; splitting into two nodes
+duplicates the same person; and a `roles` property throws away the connections (you'd lose
+*which* movie they acted in or directed) that the relationships encode.
+</Rationale>

@@ -1,0 +1,20 @@
+---
+id: eaa-2-define-trace-span
+type: free
+chapter: 2
+domain: observability
+bloom_level: understand
+objective_id: EAA-2.1
+difficulty: '1'
+tags: [observability, tracing]
+answer: >
+  A trace is the end-to-end record of one agent run; a span is one step inside it. Example span
+  kinds: an Agent span for the whole run, a Chain span for a router iteration, a Tool span for a
+  skill invocation, an LLM span for a single model call. They relate as a tree — the trace is
+  the root, spans nest beneath it sharing one trace ID, and the nesting mirrors the agent's
+  structure (Agent contains Chains, which contain Tools, which contain LLM calls). Common wrong
+  answer: "a trace is just a list of log lines" — it is a hierarchical tree, and that hierarchy
+  is what makes it navigable and evaluable.
+---
+
+Define a trace and a span, give an example span kind for each level, and state how they relate.

@@ -1,0 +1,26 @@
+---
+id: fri-3-verifier-vs-rm
+type: free
+chapter: 3
+domain: evaluation
+bloom_level: analyze
+objective_id: FRI-3.6
+difficulty: '3'
+tags: [evaluation, rl]
+answer: >
+  A verifier is a deterministic ground-truth check (test-suite pass, exact match): highly
+  reliable, reproducible, cheap to run, and essentially ungameable (low Goodhart risk) —
+  but it only exists where there's a checkable answer (math, code, format). A learned
+  reward model scores subjective, open-ended quality (helpfulness, tone) that no verifier
+  can reach — but it drifts, is expensive to train and host, and is a gameable proxy (high
+  Goodhart risk). So: use verifiers wherever ground truth exists (the DeepSeek R1 stance);
+  fall back to a learned reward model or a calibrated LLM-as-judge for subjective quality,
+  cross-checked against humans, and always watch the alignment tax. The honest framing
+  isn't "verifiers win" — it's "verifiers where you can, judges where you must, monitor
+  either." Common wrong answer: claiming verifiers are strictly better — they can't grade
+  most of what users actually care about.
+---
+
+Compare **verifier-based grading** and **learned-reward-model grading** along
+reliability, cost, coverage, and Goodhart susceptibility — and say when you'd reach for
+each.

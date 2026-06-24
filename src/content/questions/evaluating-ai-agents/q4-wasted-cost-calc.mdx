@@ -1,0 +1,22 @@
+---
+id: eaa-4-wasted-cost-calc
+type: free
+chapter: 4
+domain: trajectory-evals
+bloom_level: apply
+objective_id: EAA-4.8
+difficulty: '2'
+tags: [trajectory, cost]
+answer: >
+  Wasted steps per run = avg − optimal = 7 − 4 = 3. Daily wasted steps = 15,000 × 3 = 45,000.
+  Daily wasted cost = 45,000 × $0.025 = $1,125/day (~$410K/year). A variant that cuts the
+  average to 5 steps wastes 1 step/run → 15,000 × 1 × $0.025 = $375/day, a $750/day saving.
+  Method: (avg − optimal) × volume × price-per-step, as a daily dollar figure, so two variants
+  can be compared on efficiency. Common wrong answer: comparing average step counts alone
+  (7 vs 5) without converting to cost — the dollar figure is what makes the efficiency gain
+  comparable to accuracy and latency on the ship dashboard.
+---
+
+An agent runs 15,000 queries/day with an average of 7 steps; the optimal path is 4 steps and
+each step costs \$0.025. Compute the daily wasted-work cost, then the saving if a new variant
+cuts the average to 5 steps.

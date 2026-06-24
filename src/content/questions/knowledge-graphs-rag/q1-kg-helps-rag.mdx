@@ -1,0 +1,31 @@
+---
+id: kgr-1-kg-helps-rag
+type: mcq
+chapter: 1
+domain: kg-fundamentals
+bloom_level: understand
+objective_id: KGR-1.2
+difficulty: '2'
+tags: [rag, retrieval]
+options:
+  - id: a
+    text: It stores embeddings more compactly than a dedicated vector database
+  - id: b
+    text: It lets retrieval traverse typed relationships to reach connected entities
+    correct: true
+  - id: c
+    text: It replaces the embedding model with exact keyword matching
+  - id: d
+    text: It removes the need for an LLM at generation time
+---
+import Rationale from '@brandon_m_behring/book-scaffold-astro/components/Rationale.astro';
+
+Why does a knowledge graph enhance RAG *beyond* vector similarity search?
+
+<Rationale title="Why">
+The graph adds a *retrieval mode* embeddings lack: traversal of typed relationships, which
+reaches entities *connected* to a result (a company's investors, a chunk's neighbouring
+sections) rather than merely *similar* text. It isn't about compressing embeddings, it doesn't
+swap semantic search for keyword matching, and it doesn't remove the LLM — generation still
+happens; the graph just supplies richer, connection-aware context.
+</Rationale>

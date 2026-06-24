@@ -1,0 +1,31 @@
+---
+id: kgr-4-constraint-why
+type: mcq
+chapter: 4
+domain: kg-construction
+bloom_level: apply
+objective_id: KGR-4.4
+difficulty: '2'
+tags: [merge, idempotency, performance]
+options:
+  - id: a
+    text: It encrypts the chunkId to hide its value from query logs and caches
+  - id: b
+    text: It converts cosine scores into a 0 to 1 range for the vector index
+  - id: c
+    text: It blocks duplicate chunks and adds an index, so each MERGE is a lookup not a scan
+    correct: true
+  - id: d
+    text: It lets MERGE rewrite properties on every run rather than only the first
+---
+import Rationale from '@brandon_m_behring/book-scaffold-astro/components/Rationale.astro';
+
+Why create a uniqueness constraint on `Chunk.chunkId` *before* bulk-loading with MERGE?
+
+<Rationale title="Why">
+The constraint does two jobs: it guarantees no duplicate `chunkId`, and it creates an implicit
+index so each MERGE existence check is an index lookup rather than a full scan of every `Chunk`
+node — turning quadratic loading into roughly linear. It has nothing to do with encryption or
+score normalisation, and `ON CREATE SET` (not the constraint) is what limits property writes to
+first creation.
+</Rationale>

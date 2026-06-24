@@ -1,0 +1,30 @@
+---
+id: kgr-6-owns-properties
+type: mcq
+chapter: 6
+domain: kg-expansion
+bloom_level: understand
+objective_id: KGR-6.2
+difficulty: '1'
+tags: [relationships, schema]
+options:
+  - id: a
+    text: The company name and the manager's mailing address
+  - id: b
+    text: The CUSIP and CIK linking identifiers for both ends
+  - id: c
+    text: Share count, monetary value, and the reporting quarter
+    correct: true
+  - id: d
+    text: The vector embedding of the holding's description
+---
+import Rationale from '@brandon_m_behring/book-scaffold-astro/components/Rationale.astro';
+
+What does the `OWNS_STOCK_IN` relationship carry as properties?
+
+<Rationale title="Why">
+The holding's facts live on the edge: `shares`, `value`, and `reportCalendarOrQuarter` (the
+quarter is part of its identity, since a manager can hold the same stock across periods). Names
+and addresses belong on the Manager *node*; the linking ids key the nodes, not the edge; and
+embeddings sit on Chunk nodes, not investment edges.
+</Rationale>

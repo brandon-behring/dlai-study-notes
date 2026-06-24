@@ -1,0 +1,34 @@
+---
+id: eaa-1-wrong-layer
+type: mcq
+chapter: 1
+domain: eval-foundations
+bloom_level: analyze
+objective_id: EAA-1.8
+difficulty: '3'
+tags: [evaluation, layers]
+options:
+  - id: a
+    text: MMLU is too easy for modern models, so it would not surface the bug
+  - id: b
+    text: The bug should instead be caught with a unit test on each prompt
+  - id: c
+    text: MMLU should be swapped for a harder knowledge benchmark to surface the bug
+  - id: d
+    text: Misrouting is an agent-layer failure; MMLU measures model-layer knowledge, not routing
+    correct: true
+---
+import Rationale from '@brandon_m_behring/book-scaffold-astro/components/Rationale.astro';
+
+To catch a tool-misrouting bug seen in production, a colleague proposes benchmarking the base
+model on MMLU. Why does this target the wrong layer?
+
+<Rationale title="Why">
+Misrouting is a routing failure, which lives at the agent layer; MMLU measures the isolated
+model's knowledge at the model layer, so it never runs the routing step where the bug
+occurs. The benchmark's difficulty is irrelevant — no knowledge benchmark observes routing,
+so making it harder or swapping it changes nothing. A per-prompt unit test also misses it:
+routing depends on run-time, non-deterministic decisions across the whole input
+distribution, not a single deterministic prompt. The failure mode and the measurement must
+live at the same layer.
+</Rationale>

@@ -1,0 +1,13 @@
+---
+term: Promotion Rules
+aliases: [promotion gates, release gates]
+domain: production-pipelines
+see: [frozen-test-environment, behavioral-slice, shadow-deployment]
+tags: [production, evaluation]
+---
+
+The quantitative **gates** a model must clear to move dev → staging → production, codifying
+risk tolerance as thresholds so go/no-go decisions are reproducible and auditable instead of
+vibes-based. Typical dev→staging gates: a meaningful aggregate improvement, no behavioral slice
+regressing past its threshold, hard safety ceilings, statistical significance (not noise), and
+an inference-cost budget.

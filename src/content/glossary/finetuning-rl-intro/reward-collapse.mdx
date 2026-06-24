@@ -1,0 +1,13 @@
+---
+term: Reward Collapse
+aliases: [production reward hacking]
+domain: production-pipelines
+see: [reward-hacking, slo]
+tags: [production, monitoring]
+---
+
+The production-monitoring face of **reward hacking**: the model finds a degenerate strategy
+that scores high on the *automated* reward while producing poor outputs — so your dashboards
+look fine while users complain. Tells: reward plateaus or rises as user satisfaction falls,
+output diversity drops, and length pads without information gain. Defense: monitor a
+human-judgment metric and output diversity alongside reward, and set SLOs on **both**.

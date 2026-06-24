@@ -1,0 +1,21 @@
+---
+id: kgr-5-next-cypher
+type: free
+chapter: 5
+domain: kg-relationships
+bloom_level: apply
+objective_id: KGR-5.2
+difficulty: '2'
+tags: [next, cypher]
+answer: >
+  Match two chunks in the same section whose sequence ids differ by one, then MERGE a NEXT edge.
+  The pattern is: match `(c1:Chunk), (c2:Chunk)` where `c1.formId = c2.formId`, `c1.item = c2.item`,
+  and `c2.chunkSeqId = c1.chunkSeqId + 1`, then `MERGE (c1)-[:NEXT]->(c2)`. The two equality
+  filters on formId and item are what keep the list inside one section; MERGE (not CREATE) makes
+  it idempotent so re-running adds no duplicates. Common wrong answer: ordering only by
+  chunkSeqId without the item filter — that links the last chunk of one section to the first of
+  the next.
+---
+
+Write the Cypher that creates NEXT relationships between sequential chunks within a single form
+section. Which clauses keep the linked list from crossing section boundaries?

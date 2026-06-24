@@ -1,0 +1,12 @@
+---
+term: Manual Instrumentation
+aliases: [explicit instrumentation]
+domain: observability
+see: [automatic-instrumentation, outside-in-instrumentation, span-hierarchy]
+tags: [observability, instrumentation]
+---
+
+**Explicit span creation in your own code**, wrapping the agent run, router iterations, and
+tool calls that automatic instrumentation can't observe. It gives full control over what gets
+traced and produces the structure-bearing spans; the cost is discipline — a missed `with`
+block leaves a hole in the trace tree. Follows the outside-in principle.

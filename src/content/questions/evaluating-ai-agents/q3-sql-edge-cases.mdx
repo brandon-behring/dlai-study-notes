@@ -1,0 +1,24 @@
+---
+id: eaa-3-sql-edge-cases
+type: free
+chapter: 3
+domain: component-evals
+bloom_level: analyze
+objective_id: EAA-3.5
+difficulty: '3'
+tags: [evaluation, code-based, sql]
+answer: >
+  Row ordering: SQL result order is non-deterministic without ORDER BY, so comparing result
+  sets as ordered lists fails logically-correct queries — compare as sets (or sorted tuples).
+  Floating-point columns: exact equality breaks on rounding, so compare numerics within ±ε.
+  Timeouts: a bad query can full-scan or loop, so wrap execution in a timeout and treat it as a
+  failure mode. Destructive queries: a generated DROP/DELETE could mutate the test DB, so run on
+  a read-only connection or in a rolled-back transaction. Also distinguish failure modes
+  (execution error vs wrong columns vs wrong rows) so the score carries a reason. Common wrong
+  answer: "diff the two result lists directly" — that flags correct queries whose rows came back
+  in a different order, the most common false negative.
+---
+
+A teammate's code-based SQL evaluator simply compares the generated query's output list to the
+expected list. What edge cases will make it wrong, and how do you handle each — especially row
+ordering?

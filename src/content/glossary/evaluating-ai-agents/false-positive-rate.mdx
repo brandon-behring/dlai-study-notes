@@ -1,0 +1,13 @@
+---
+term: False-Positive Rate
+aliases: [FPR, judge leniency]
+domain: llm-judge-monitoring
+see: [agreement-rate, meta-evaluation]
+tags: [evaluation, metrics]
+---
+
+For a quality-gating judge, the fraction of **truly-wrong answers it labels "correct"** — its
+**leniency**, and the dangerous error for a gate, because a lenient judge passes bad answers. A
+high agreement rate can still hide a high FPR, so cap it explicitly (e.g. FPR ≤ 0.10) alongside
+agreement. Its mirror is the false-negative rate (strictness) — splitting the two reveals
+asymmetric judge bias.

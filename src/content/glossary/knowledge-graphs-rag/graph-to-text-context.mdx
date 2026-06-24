@@ -1,0 +1,14 @@
+---
+term: Graph-to-Text Context Generation
+aliases: [graph-to-text, triple-to-sentence]
+domain: kg-expansion
+see: [multi-hop-traversal, custom-retrieval-query]
+tags: [rag, llm]
+---
+
+Converting structured graph-traversal results into natural-language sentences an LLM can read as
+context — turning a relationship triple (subject–predicate–object) into a human-readable statement
+like "Royal Bank of Canada owns 1.2M shares of NetApp". It is how graph data enters a RAG prompt:
+the traversal supplies precise, connected facts, and the sentence form makes them digestible to
+the model. Module 7 inverts the direction — the LLM *generates* the query instead of consuming the
+result.

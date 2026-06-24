@@ -1,0 +1,20 @@
+---
+id: kgr-2-match-where
+type: free
+chapter: 2
+domain: cypher-querying
+bloom_level: apply
+objective_id: KGR-2.1
+difficulty: '1'
+tags: [cypher]
+answer: >
+  `MATCH (p:Person) WHERE p.born < 1960 RETURN p.name, p.born`. The `MATCH` binds every `Person`
+  node, the `WHERE` filters to those born before 1960, and `RETURN` projects just the name and
+  birth year (dot notation) rather than the whole node. A range like `< 1960` requires `WHERE`;
+  inline `{born: 1960}` would only match the exact value 1960. Common wrong answer: putting the
+  comparison inside the node braces, e.g. `(p:Person {born < 1960})` — inline property matching
+  does equality only, not ranges.
+---
+
+Write a Cypher query that returns the name and birth year of every Person born before 1960.
+Name which clause does the filtering and why it can't go inside the node's braces.

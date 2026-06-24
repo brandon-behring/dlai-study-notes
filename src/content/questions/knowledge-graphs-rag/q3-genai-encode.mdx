@@ -1,0 +1,31 @@
+---
+id: kgr-3-genai-encode
+type: mcq
+chapter: 3
+domain: text-for-rag
+bloom_level: understand
+objective_id: KGR-3.2
+difficulty: '1'
+tags: [embeddings, neo4j]
+options:
+  - id: a
+    text: It calls an external embedding API from inside Cypher, returning the embedding
+    correct: true
+  - id: b
+    text: It creates the vector index on a node property
+  - id: c
+    text: It performs the nearest-neighbour search and returns scored nodes
+  - id: d
+    text: It trains a custom embedding model on your graph data
+---
+import Rationale from '@brandon_m_behring/book-scaffold-astro/components/Rationale.astro';
+
+What does Neo4j's `genai.vector.encode` function do?
+
+<Rationale title="Why">
+`genai.vector.encode` calls an external provider (e.g. OpenAI) *from within Cypher*, taking the
+text, provider name, and a config map (with the API token), and returns the embedding as a
+float array — which you then store with `db.create.setNodeVectorProperty`. Creating the index is
+`CREATE VECTOR INDEX`; the search is `db.index.vector.queryNodes`; and it calls a hosted model,
+it doesn't train one. It is the *generate-an-embedding* step, not the index or the search.
+</Rationale>

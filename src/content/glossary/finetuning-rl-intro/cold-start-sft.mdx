@@ -1,0 +1,12 @@
+---
+term: Cold-Start SFT
+aliases: [cold start]
+domain: production-pipelines
+see: [r1-zero, rejection-sampling, sft]
+tags: [sft, production]
+---
+
+An initial supervised fine-tune on a small, high-quality set of reasoning traces, run
+**before** RL to give the model stable formatting and consistent language. It avoids the
+language-mixing and formatting instability of pure-RL R1 Zero — the first *consolidation* step
+in the explore↔consolidate rhythm of a production pipeline.

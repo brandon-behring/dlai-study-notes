@@ -1,0 +1,25 @@
+---
+id: eaa-1-routing-tradeoff
+type: free
+chapter: 1
+domain: eval-foundations
+bloom_level: analyze
+objective_id: EAA-1.6
+difficulty: '2'
+tags: [routing, architecture]
+answer: >
+  Centralised routing puts every decision in a single router: easy to trace and evaluate (one
+  decision point, one routing dataset to build), but a bottleneck for complex branching flows.
+  Distributed routing (LangGraph, Swarm-style graphs) spreads routing across the graph: more
+  flexible and scalable for complex or parallel multi-agent flows, but harder to evaluate
+  because routing decisions occur at many nodes, each a separate place a wrong turn can
+  originate — so evaluation coverage must reach every node, not just one. The distributed
+  option is the right choice when the workflow is genuinely too complex or parallel for a
+  single router and you accept the cost of instrumenting and evaluating each decision point.
+  Common wrong answer: "distributed is better because it is more flexible" — flexibility trades
+  directly against evaluation coverage; for many agents a centralised router is far easier to
+  make reliable.
+---
+
+Compare centralised and distributed routing, focusing on the trade-off for *evaluation
+coverage*. When would the harder-to-evaluate option still be the right choice?

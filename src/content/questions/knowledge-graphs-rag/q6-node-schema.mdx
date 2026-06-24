@@ -1,0 +1,21 @@
+---
+id: kgr-6-node-schema
+type: free
+chapter: 6
+domain: kg-expansion
+bloom_level: analyze
+objective_id: KGR-6.1
+difficulty: '2'
+tags: [schema-design, identifiers]
+answer: >
+  Two node types, each keyed by a stable identifier. Company: keyed by `cusip6` (with companyName,
+  cusip), because CUSIP is the universal id that also appears on the Form nodes — making it the
+  cross-dataset link. Manager: keyed by `managerCik` (with managerName, managerAddress), because
+  the CIK uniquely identifies a filing firm. Both are created with MERGE on those keys for
+  idempotency. The design point: choose the key that is both stable *and* shared with the data you
+  intend to link to — that is why Company uses CUSIP (shared with forms) rather than companyName.
+  Common wrong answer: keying Company on companyName, which is an unstable, non-unique string.
+---
+
+Design the Company and Manager node schemas for the Form 13 data: which identifier keys each node,
+and why those choices?

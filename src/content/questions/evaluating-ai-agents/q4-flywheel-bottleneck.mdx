@@ -1,0 +1,31 @@
+---
+id: eaa-4-flywheel-bottleneck
+type: mcq
+chapter: 4
+domain: trajectory-evals
+bloom_level: understand
+objective_id: EAA-4.6
+difficulty: '2'
+tags: [flywheel, production]
+options:
+  - id: a
+    text: The dollar cost of running the agent in production
+  - id: b
+    text: The number of evaluators composed per experiment
+  - id: c
+    text: The speed of promoting production traces into the dataset
+    correct: true
+  - id: d
+    text: The parameter size of the model used as a judge
+---
+import Rationale from '@brandon_m_behring/book-scaffold-astro/components/Rationale.astro';
+
+What is the most common bottleneck in the production feedback flywheel?
+
+<Rationale title="Why">
+The flywheel is only as fast as its slowest stage, and that stage is usually turning a
+production trace into a dataset case: if it takes a week of manual review, the loop stalls and
+improvements lag reality. Production run cost and judge model size affect spend or latency, not
+the loop's *iteration speed*, and more evaluators add scoring work but aren't the structural
+chokepoint — promotion speed is, which is why teams automate it (with a quality gate).
+</Rationale>

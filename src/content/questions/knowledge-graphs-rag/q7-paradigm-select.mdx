@@ -1,0 +1,23 @@
+---
+id: kgr-7-paradigm-select
+type: free
+chapter: 7
+domain: graph-rag-chat
+bloom_level: analyze
+objective_id: KGR-7.7
+difficulty: '3'
+tags: [retrieval-paradigms, decomposition]
+answer: >
+  Decompose each into paradigm-matched steps. (a) "Risk factors for cloud-computing companies" —
+  vector search for chunks about risk factors, then graph traversal (PART_OF to Form to Company) to
+  confirm they belong to cloud companies. (b) "Find Goldman Sachs" — full-text search; it is an
+  entity lookup by name, and vector would wrongly surface similar names like Morgan Stanley. (c)
+  "Investors within 50 miles of NetApp" — full-text to find NetApp, LOCATED_AT to its address,
+  geospatial point.distance under 80467 m for nearby managers, then OWNS_STOCK_IN to confirm they
+  invest. The skill is reading a question as a sequence of retrieval steps. Common wrong answer:
+  forcing one paradigm — most real questions combine two or more.
+---
+
+For each question, name the retrieval paradigm(s) and why: (a) "What are the risk factors for
+cloud-computing companies?" (b) "Find Goldman Sachs." (c) "Which investors are within 50 miles of
+NetApp?"

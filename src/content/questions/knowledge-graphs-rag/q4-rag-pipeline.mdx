@@ -1,0 +1,20 @@
+---
+id: kgr-4-rag-pipeline
+type: free
+chapter: 4
+domain: kg-construction
+bloom_level: understand
+objective_id: KGR-4.5
+difficulty: '1'
+tags: [rag, langchain]
+answer: >
+  Three stages: connect, retrieve, generate. Connect — Neo4jVector wraps the graph as a standard
+  vector store, running Cypher similarity search under the hood. Retrieve — the question is
+  encoded with the same embedding model and matched against the chunk embeddings; the top-K
+  nearest chunks come back. Generate — those chunks are stuffed into the LLM prompt as context,
+  and the LLM answers grounded in them. Common wrong answer: putting generation before retrieval,
+  or skipping retrieval — without the retrieved context the LLM is just answering from its
+  parameters, which is the non-RAG baseline.
+---
+
+Describe the three stages of the LangChain retrieval-QA chain over Neo4j, in order.

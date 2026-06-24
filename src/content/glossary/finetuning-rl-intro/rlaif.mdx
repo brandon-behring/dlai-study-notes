@@ -1,0 +1,15 @@
+---
+term: RLAIF
+aliases: [RL from AI Feedback]
+domain: reasoning-and-safety
+see: [constitutional-ai, reward-model, llm-as-judge]
+tags: [safety, rl, alignment]
+---
+
+Reinforcement Learning from **AI** Feedback — train the reward model on AI-generated
+preference labels instead of human ones. Constitutional AI pioneered it; the paradigm has
+since grown to **self-play** preference generation (a model labels its own outputs —
+Meta's Self-Rewarding LMs), **principle-conditioned** generation (condition on specific
+principles per query), and binary-feedback simplifiers that cut $O(n^2)$ pairwise
+comparisons to $O(n)$ labels. Cheaper and more consistent than human feedback, but needs
+calibration against human preference to avoid compounding self-bias.

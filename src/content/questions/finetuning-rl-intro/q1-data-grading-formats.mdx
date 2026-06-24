@@ -1,0 +1,25 @@
+---
+id: fri-1-data-grading-formats
+type: free
+chapter: 1
+domain: post-training-foundations
+bloom_level: analyze
+objective_id: FRI-1.3
+difficulty: '2'
+tags: [post-training, sft, rl]
+answer: >
+  Project A (house email style) is an SFT problem: collect demonstration pairs — prompts
+  with gold house-style emails — and "grade" implicitly by imitation (the loss matches the
+  demonstration). There is no objective right answer to score, so you teach by example.
+  Project B (competition math with known answers) is an RL problem with a verifier: collect
+  prompts with ground-truth answers, sample rollouts, and grade each by a deterministic check
+  (does the extracted answer match?). They differ because math has checkable ground truth that
+  can reward exploring new solution paths, whereas style has no ground truth — only examples to
+  imitate. Common wrong answer: "collect human preference pairs for both" — style is
+  demonstration-SFT (no preferences needed) and math already has a verifier, so preference
+  labeling wastes effort and introduces a gameable proxy where a clean check exists.
+---
+
+Two projects land on your desk: (A) make the model write in your company's house email
+style; (B) raise its accuracy on competition math with known numeric answers. For each, name
+the data format you would collect and the grading mechanism, and say why they differ.

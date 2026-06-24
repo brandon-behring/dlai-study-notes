@@ -1,0 +1,21 @@
+---
+id: kgr-7-eee-phases
+type: free
+chapter: 7
+domain: graph-rag-chat
+bloom_level: understand
+objective_id: KGR-7.1
+difficulty: '1'
+tags: [extract-enhance-expand, pattern]
+answer: >
+  Three phases, repeated for every data source. Extract — pull source data into nodes (split text
+  into Chunks; build Company, Manager, Address nodes from CSV). Enhance — add indexes or computed
+  properties (vector embeddings on chunks, a full-text index on manager names, geospatial points on
+  addresses). Expand — connect the new nodes into the existing graph with relationships (NEXT and
+  PART_OF for chunks, FILED and OWNS_STOCK_IN for the investment data, LOCATED_AT for addresses).
+  It is the repeatable framework the whole course used to grow the graph incrementally. Common wrong
+  answer: collapsing Enhance into Extract — adding the index is a distinct phase, and it is what
+  makes the nodes searchable.
+---
+
+Describe the three phases of the Extract-Enhance-Expand pattern, with one course example of each.

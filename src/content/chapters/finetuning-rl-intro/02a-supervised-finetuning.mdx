@@ -1,0 +1,336 @@
+---
+book: finetuning-rl-intro
+title: 'Core Techniques I: Supervised Fine-Tuning & LoRA'
+chapter: 2
+part: 1
+description: >
+  The mechanics of supervised fine-tuning: data preparation and splitting,
+  tokenization, the cross-entropy objective and its gradient, loss masking and
+  teacher forcing, the hyperparameters that decide success, and parameter-efficient
+  fine-tuning with LoRA and QLoRA.
+learning_outcomes:
+  - id: FRI-2.1
+    verb: Prepare
+    text: >
+      training data for fine-tuning — splitting (time-based, OOD), deduplication
+      (MinHash), and tokenization — and explain why data quality dominates.
+  - id: FRI-2.2
+    verb: Calculate
+    text: >
+      the cross-entropy loss and its gradient, and explain loss masking and
+      teacher forcing in supervised fine-tuning.
+  - id: FRI-2.3
+    verb: Select
+    text: >
+      learning rate, scheduler, batch size, and epochs, and diagnose a training
+      run from its loss curve.
+  - id: FRI-2.4
+    verb: Apply
+    text: >
+      parameter-efficient fine-tuning with LoRA and QLoRA — choosing rank, alpha,
+      and target modules — and justify it against full fine-tuning.
+tags:
+  - sft
+  - lora
+  - qlora
+  - cross-entropy
+  - hyperparameters
+last_verified: 2026-06-18
+volatility: architectural-pattern
+sources:
+  - ouyang2022training
+  - hu2021lora
+  - dettmers2023qlora
+provenance:
+  ai_tools:
+    - Claude Code
+draft: false
+---
+
+<Diagnostic skimTo="Parameter-efficient fine-tuning: LoRA">
+1. Predict: if you trained SFT *without* masking the prompt (loss on every token), what behavior would degrade?
+2. Predict: as the model's probability on the correct token climbs $0.5 \to 0.99$, does the gradient *magnitude* grow or shrink?
+3. Your training loss suddenly jumps to `NaN`. What's the first thing you change?
+4. LoRA freezes $W$ and trains $A$ and $B$. Roughly what fraction of parameters does that make trainable on a 7B model, and why does it still work?
+
+<Fragment slot="answers">
+1. It would spend a large share of updates learning to *reproduce prompts* (≈80% of an instruction example is prompt tokens), diluting the signal for generating responses — instruction-following degrades. Masking focuses every update on the completion.
+2. Shrink. The gradient on the correct logit is $p - 1$, so $|p-1|$ falls toward 0 as $p \to 1$ — the model updates least where it is already confident and correct.
+3. Cut the learning rate ~10×. `NaN` loss is almost always an LR that's too high.
+4. ~0.1% trainable. Fine-tuning updates are empirically *low-rank*, so a thin $BA$ decomposition captures most of the useful adaptation.
+</Fragment>
+</Diagnostic>
+
+<NarrativeBox title="Where we are">
+Chapter 1 mapped the landscape — *what* post-training is and *when* to use SFT vs RL.
+This chapter is the SFT half of the **mechanics**: how a supervised fine-tune actually
+works, from data to [gradient](../glossary#term-gradient) to the parameter-efficient tricks that put it on a single
+GPU. Chapter 2b picks up the RL algorithms (RLHF, PPO, GRPO).
+</NarrativeBox>
+
+## Data preparation: quality over quantity
+
+<Newthought>The single biggest lever</Newthought> in post-training is data quality, not
+quantity. Frontier labs routinely discard ~99% of candidate data, keeping only the
+cleanest subset that measurably improves the model. [SFT data](../glossary#term-sft) is
+**(input, target-output) pairs** — for reasoning tasks the target includes a
+[chain-of-thought](../glossary#term-chain-of-thought) followed by the final answer.
+
+<Aside category="interview">
+"Walk me through data prep for fine-tuning" is a standard phone-screen opener. The
+signal interviewers want: you mention **dedup, splitting, and quality filtering** *before*
+you reach for a trainer.
+</Aside>
+
+**Splitting** decides whether your eval means anything:
+
+- **Avoid random splits** — near-duplicate examples leak across train/test and inflate scores.
+- Prefer **time-based splits** (train on 2024, test on 2025) to measure real generalization.
+- Always hold out an **out-of-distribution** set of long-tail inputs.
+
+<Aside category="warning">
+The most-missed split rule: an **RL test set must use a *different* reward model** than
+training used — otherwise you're measuring how well the policy games a *familiar* scorer,
+not whether it improved.
+</Aside>
+
+**Deduplication** catches leakage from *similar*, not just identical, examples. The standard
+pipeline is exact-hash → **MinHash** LSH (approximate near-duplicate detection) → manual
+review. This is where most of that 99% gets discarded.
+
+## Tokenization: what the model actually sees
+
+Models never see text — they see [tokens](../glossary#term-tokenization), subword units
+produced by a tokenizer, then mapped to vectors. [Byte-Pair Encoding](../glossary#term-tokenization)
+iteratively merges the most frequent byte pairs; a typical vocabulary is ~50k tokens.
+
+<Aside category="formula">
+BPE compression is uneven: "ChatGPT" is one token, "indistinguishable" is four. Rare words
+cost more tokens → longer sequences → slower, costlier inference.
+</Aside>
+
+Two operational gotchas: sequences in a batch are **padded** to uniform length for GPU
+efficiency, and tokenizers are **not interchangeable** across model families — a tokenizer
+mismatch is a silent killer (the model trains on garbage indices with no error).
+
+## The SFT objective: cross-entropy and its gradient
+
+<ConceptBox title="Cross-entropy loss">
+[Cross-entropy](../glossary#term-cross-entropy) measures how far the model's predicted distribution over the vocabulary is
+from the target token at each position. Minimizing it pushes probability mass onto the
+correct next token. It is the universal SFT objective.
+</ConceptBox>
+
+For a target token $y_t$ at position $t$ with model probability $p(y_t \mid y_{<t}, x)$:
+
+$$
+\mathcal{L}_{\text{CE}} = -\sum_{t=1}^{T} \log\, p(y_t \mid y_{<t}, x)
+$$
+
+<WorkedExample id="ce-loss-gradient" title="Worked example: cross-entropy values and the gradient">
+**Loss.** The per-token loss is just $-\log p$ of the correct token:
+
+$$
+-\log(0.9) = 0.11, \quad -\log(0.5) = 0.69, \quad -\log(0.1) = 2.30, \quad -\log(0.01) = 4.61
+$$
+
+Low-confidence correct predictions are penalized *exponentially* harder. Note the
+diminishing returns: going $0.1 \!\to\! 0.5$ saves 1.61 nats (natural-log units), but $0.5 \!\to\! 0.9$ saves
+only 0.59 — so most training effort lands on the hard "long tail" of tokens, which is
+exactly where improvement matters.
+
+**Gradient.** With respect to the output logits $z_i$, cross-entropy has an elegant form:
+
+$$
+\frac{\partial \mathcal{L}}{\partial z_i} = p_i - \mathbb{1}[i = y]
+$$
+
+It is literally `predicted − target`. If the model already assigns $p=0.95$ to the correct
+token, the gradient magnitude is just $0.05$ — a gentle nudge. If it assigns $0.1$, the
+gradient is $0.9$ — a hard correction. The update size *self-scales* with how wrong the
+model is.
+</WorkedExample>
+
+**Completion problem.** The model places probability $p = 0.8$ on the correct token. Fill the
+two blanks: the cross-entropy loss is $-\ln(0.8) =$ ___ nats, and the gradient on the correct
+logit is $p - 1 =$ ___.
+
+<CompletionProblem id="ce-grad" level="completion" title="Check your completion">
+$-\ln(0.8) \approx 0.22$ nats, and the gradient is $0.8 - 1 = -0.2$. Both are small: the model is
+*already* nearly right on this token, so it contributes little loss and only a gentle update.
+</CompletionProblem>
+
+**Now you.** A different token gets only $p = 0.5$. Without computing logs, is its gradient
+*magnitude* larger or smaller than the $p = 0.8$ case — and what does that imply about which
+tokens dominate the update?
+
+<CompletionProblem id="ce-grad" level="solo" title="Reveal the reasoning">
+Larger: $|p - 1| = 0.5$ versus $0.2$. The gradient magnitude grows as $p$ falls, so the **tokens
+the model is most wrong about dominate each update** — cross-entropy automatically steers
+learning toward what the model has not yet mastered.
+</CompletionProblem>
+
+<KeyConcept title="Loss masking: train only on completions" los="FRI-2.2">
+SFT feeds the model the full sequence (prompt + completion) but computes loss **only on the
+completion tokens** — the prompt is masked. In TRL this is `completion_only_loss=True`.
+
+**Why it matters:** for instruction data the prompt is often ~80% of the sequence. Unmasked,
+80% of gradient updates go to *reproducing the prompt* the model already received — a
+catastrophic misallocation. Masking spends all capacity on the response. <EvidenceTag kind="verified" />
+
+**When it breaks:** a few-shot in-context task may *want* the model to learn prompt patterns —
+there, a partial mask (mask the system prompt, keep the few-shot examples) is the middle ground.
+</KeyConcept>
+
+<Aside category="crossref">
+[Teacher forcing](../glossary#term-teacher-forcing) — feeding the *ground-truth* previous
+tokens rather than the model's own — is what lets loss be computed for every position in a
+**single parallel forward pass**. It's why SFT is orders of magnitude faster than the
+sequential rollouts RL needs.
+</Aside>
+
+## Hyperparameters and diagnosis
+
+The learning rate is the single most impactful knob; the standard
+[AdamW](../glossary#term-adamw) starting point is $5\times10^{-5}$. A **linear warmup**
+(ramp from 0 over the first 5–10% of steps) avoids destabilizing the randomly-initialized
+parameters, then **cosine annealing** decays toward zero.
+
+A loss curve is a diagnostic instrument — most failures are readable at a glance:
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| Loss → `NaN` | LR too high | Reduce LR 10× |
+| Flat from step 0 | LR too low / data pipeline bug | Raise LR; verify the data |
+| Train ↓, val ↑ | Overfitting | Fewer epochs, more data, regularize |
+| Both plateau high | Underfitting | More epochs, higher LR, larger model |
+| Mid-run spikes | Corrupted batch / bad examples | Inspect the data |
+| Oscillating | LR too high / batch too small | Lower LR or raise batch |
+
+<Aside category="pattern">
+Batch sizes are powers of two (8/16/32/64) for memory alignment. Hit OOM? **Halve the batch
+and double gradient-accumulation steps** — the *effective* batch size is unchanged, the
+gradient is identical, only memory drops.
+</Aside>
+
+Two reproducibility notes: seed **all** RNGs (`random`, `numpy`, `torch` + CUDA), and even
+then expect minor run-to-run drift from GPU floating-point atomics — report results averaged
+over 3–5 seeds.
+
+## Parameter-efficient fine-tuning: LoRA
+
+<ConceptBox title="The low-rank insight">
+The weight update during fine-tuning, $\Delta W$, is empirically **low-rank** — the useful
+adaptation lives in a small subspace. So instead of updating the full $d\times d$ matrix,
+[LoRA](../glossary#term-lora) freezes $W$ and trains two thin matrices
+$B \in \mathbb{R}^{d\times r}$ and $A \in \mathbb{R}^{r\times d}$ with $r \ll d$ (so the
+product $BA$ is $d\times d$). The effective update is $\Delta W = BA$.
+</ConceptBox>
+
+<Figure
+  src="/figures/finetuning-rl-intro/lora-architecture.svg"
+  alt="LoRA: input x flows through the frozen weight matrix W and, in parallel, through a trainable low-rank branch A then B; the outputs sum to h = Wx + (alpha/r)BAx. Only A and B are trained."
+  caption="LoRA adds a trainable low-rank branch (A, B) alongside the frozen weight W. Only A and B receive gradients; their product is scaled by α/r and added to the frozen output."
+  id="fig-lora"
+/>
+
+The forward pass becomes $h = Wx + \tfrac{\alpha}{r}BAx$, where [rank $r$](../glossary#term-rank)
+sets the capacity of the update and [alpha $\alpha$](../glossary#term-alpha) scales it — the
+ratio $\alpha/r$ is what actually controls adaptation magnitude.
+
+<WorkedExample id="lora-params" title="Worked example: how few parameters is LoRA, really?">
+Take one attention projection, $d = 4096$, adapted at rank $r = 8$.
+
+- **Full fine-tune** of that matrix: $d^2 = 4096^2 \approx 16.8\text{M}$ parameters.
+- **LoRA:** $B$ is $d\times r$ and $A$ is $r\times d$, so $2dr = 2 \cdot 4096 \cdot 8 = 65{,}536$ — about **0.39%** of the full matrix.
+
+Across a whole 1.2B model adapting Q and V projections, `print_trainable_parameters()`
+reports ~1.57M trainable of 1.24B — **0.13%**. Two practical consequences fall out of the
+math: (1) you train with a **~10× higher learning rate** than full FT, because $A$ starts
+as small random values and $B$ starts at exactly zero (so $\Delta W = BA = 0$ at step 0 — no perturbation) and
+the small matrices need larger steps to move; (2) after training the adapter can be **merged**
+back into $W$ for zero inference overhead.
+</WorkedExample>
+
+### LoRA vs QLoRA vs full fine-tuning
+
+[QLoRA](../glossary#term-qlora) goes further: it stores the frozen base in **4-bit NF4**
+quantization while keeping the LoRA adapters in full precision — ~4× less memory for a slight
+quality cost. The memory story on a 7B model:
+
+| Method | Trainable | Memory (7B) | Quality |
+|---|---|---|---|
+| Full fine-tuning | 100% | ~60 GB | Best |
+| LoRA ($r{=}8$) | ~0.1% | ~16 GB | Near-full |
+| QLoRA ($r{=}8$) | ~0.1% | ~6 GB | Slightly below LoRA |
+
+<DecisionTree title="Which fine-tuning method?">
+- **Multiple GPUs, >80 GB aggregate VRAM?** → **Full fine-tuning** for best quality.
+- **Single 16–24 GB GPU?** → **LoRA**, $r{=}8\text{–}16$, target Q+V (or all-linear if quality lags).
+- **Single consumer GPU under 16 GB?** → **QLoRA** (4-bit, `bitsandbytes`).
+- **Serving many task-specific models?** → **LoRA adapters hot-swapped** on one base model — a large serving win.
+</DecisionTree>
+
+Start by targeting the **query and value** projections; expand to `all-linear` only if quality
+is insufficient. The minimal config:
+
+```python
+from peft import LoraConfig, get_peft_model, TaskType
+
+lora_config = LoraConfig(
+    r=8,                                  # low-rank dimension
+    lora_alpha=16,                        # scaling — alpha/r = 2
+    target_modules=["q_proj", "v_proj"],  # start with Q + V
+    lora_dropout=0.05,
+    task_type=TaskType.CAUSAL_LM,
+)
+model = get_peft_model(base_model, lora_config)
+# trainable: 1,572,864 / 1,236,635,648 → 0.13%
+```
+
+<RedFlag title="Catastrophic forgetting">
+Fine-tuning on a narrow dataset — especially *full* fine-tuning — can destroy pre-trained
+general capabilities: the model "forgets" tasks it used to handle.
+
+**Why:** unconstrained gradient updates on a narrow distribution overwrite the broadly-useful
+weights with task-specific ones.
+
+**Mitigations:** prefer **LoRA** (it caps the magnitude of weight change), **mix in general
+data** during training, and **keep epochs low**. (The RL-side failure mode — *mode collapse* —
+is covered in Chapter 2b.) <EvidenceTag kind="verified" />
+</RedFlag>
+
+## Retrieval check
+
+Answer from memory, then expand to check — or go deeper in the
+[practice questions](../practice-exam).
+
+<SelfCheck q="Give two splitting rules that prevent leakage, and the one rule unique to RL test sets." los="FRI-2.1">
+Use **time-based splits** (train past, test future) and always hold out an **out-of-distribution** set; avoid random splits (near-duplicates leak across them). The RL-specific rule: the RL test set must be graded by a **different reward model** than training used.
+</SelfCheck>
+
+<SelfCheck q="Write the cross-entropy gradient at one output position, and read off its magnitude when p = 0.9." los="FRI-2.2">
+$\partial\mathcal{L}/\partial z_i = p_i - \mathbb{1}[i = y]$ ("predicted − target"). For the correct token at $p = 0.9$, the magnitude is $|0.9 - 1| = 0.1$ — a gentle nudge; a wrong-and-confident token ($p=0.1$) gets $0.9$.
+</SelfCheck>
+
+<SelfCheck q="Why does loss masking matter, and roughly how much of an instruction example is prompt?" los="FRI-2.2">
+Masking the prompt focuses every gradient update on generating the **completion** — the model already receives the prompt as input, so training it to reproduce the prompt wastes capacity. For instruction data the prompt is often **~80%** of the sequence, so unmasked training misallocates ~80% of updates.
+</SelfCheck>
+
+<SelfCheck q="Map four loss-curve symptoms to their fixes." los="FRI-2.3">
+`NaN` → LR too high, cut ~10×. Flat from step 0 → LR too low / data bug. Train ↓ but val ↑ → overfitting (fewer epochs, more data). Oscillating → LR too high or batch too small.
+</SelfCheck>
+
+<SelfCheck q="State the LoRA forward pass; explain why the alpha/r ratio (not alpha alone) is the knob." los="FRI-2.4">
+$h = Wx + \frac{\alpha}{r}BAx$. The **ratio** $\alpha/r$ scales the update, so raising $r$ without rescaling $\alpha$ silently *halves* the effective adaptation — the more expressive adapter can end up adapting less.
+</SelfCheck>
+
+## Summary
+
+Supervised fine-tuning is stable imitation, and its quality is set long before training: by
+data curation, dedup, and honest splits. The objective is cross-entropy, whose gradient
+($p - \mathbb{1}[i=y]$) self-scales with error; [loss masking](../glossary#term-loss-mask) and teacher forcing make it both
+focused and fast. The learning rate dominates the hyperparameters, and the loss curve diagnoses
+most failures. LoRA exploits the low-rank structure of fine-tuning updates to cut trainable
+parameters ~1000× — the practitioner's default — with QLoRA pushing it onto a single consumer
+GPU. Chapter 2b turns to RL: reward models, RLHF, and the PPO → GRPO line.

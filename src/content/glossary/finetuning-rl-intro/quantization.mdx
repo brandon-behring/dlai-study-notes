@@ -1,0 +1,13 @@
+---
+term: Quantization
+aliases: [INT8, NF4, 4-bit]
+domain: production-pipelines
+see: [lora, qlora, knowledge-distillation]
+tags: [infrastructure, serving]
+---
+
+Reducing weight precision (32 → 16 → 8 → 4-bit) to cut memory and serving cost — a 7B model
+needs 28 / 14 / 7 / 3.5 GB at FP32 / FP16 / INT8 / NF4. Typically a 2–8× memory reduction;
+**near-lossless at 8-bit**, with measurable (often acceptable) degradation at 4-bit. The
+highest-ROI serving optimization, since each precision step roughly doubles batch capacity —
+quantize until the eval *just* holds, not blindly to the smallest format.

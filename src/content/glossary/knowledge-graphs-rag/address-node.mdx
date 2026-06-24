@@ -1,0 +1,13 @@
+---
+term: Address Node
+aliases: [Address node]
+domain: graph-rag-chat
+see: [located-at, geospatial-point, point-distance]
+tags: [schema, geospatial]
+---
+
+A graph node representing a physical location — city, state, and a geospatial `location` property
+(a latitude/longitude point). Connected to Company and Manager nodes via `LOCATED_AT`
+relationships, it adds the geography dimension to the graph and enables distance-based discovery
+with `point.distance()`. Address nodes are themselves an instance of Extract-Enhance-Expand:
+extract from CSV, enhance with a geospatial point, expand with LOCATED_AT.

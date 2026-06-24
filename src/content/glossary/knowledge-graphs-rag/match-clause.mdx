@@ -1,0 +1,12 @@
+---
+term: MATCH Clause
+aliases: [MATCH]
+domain: cypher-querying
+see: [where-clause, multi-hop-traversal, return-clause]
+tags: [cypher]
+---
+
+Cypher's primary **read** clause: it specifies a graph pattern in ASCII-art notation, and the
+engine finds every matching subgraph and binds variables to the matched elements. Filter inline
+by label (`(m:Movie)`) or property (`{name: "Tom"}`), or add richer conditions with a
+[WHERE clause](#term-where-clause). `MATCH` is the start of nearly every query.

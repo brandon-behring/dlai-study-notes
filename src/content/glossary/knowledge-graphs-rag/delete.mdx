@@ -1,0 +1,12 @@
+---
+term: DELETE
+aliases: [DELETE clause]
+domain: cypher-querying
+see: [detach-delete, merge]
+tags: [cypher, write]
+---
+
+The Cypher clause that **removes matched nodes or relationships** (returns no data). It
+**cannot delete a node that still has relationships** — Neo4j protects referential integrity —
+so you must delete the relationships first, or use [DETACH DELETE](#term-detach-delete) to
+remove the node and its relationships together.

@@ -1,0 +1,35 @@
+---
+id: fri-2b-dpo-online-offline
+type: mcq
+chapter: 2
+domain: sft-vs-rl
+bloom_level: analyze
+objective_id: FRI-2.5
+difficulty: '2'
+tags: [rl, dpo, ppo]
+options:
+  - id: a
+    text: DPO requires a separate reward model; PPO and GRPO do not
+  - id: b
+    text: DPO simply fine-tunes on the preferred outputs, while PPO/GRPO add a reward signal
+  - id: c
+    text: DPO uses a critic and GRPO a group baseline, but they are otherwise identical
+  - id: d
+    text: DPO trains offline on a fixed preference dataset; PPO/GRPO generate fresh rollouts online
+    correct: true
+---
+import Rationale from '@brandon_m_behring/book-scaffold-astro/components/Rationale.astro';
+
+What is the **core practical difference** between DPO and the PPO/GRPO family?
+
+<Rationale title="Why">
+**DPO is offline, PPO/GRPO are online.** DPO trains once on a fixed
+`chosen`/`rejected` dataset with no reward model and no sampling loop; PPO and GRPO
+generate fresh rollouts from the current policy each step and score them live. The
+"DPO requires a reward model" option is backwards — DPO is the one that *skips* it.
+The "DPO simply fine-tunes on the preferred outputs" option misses DPO's mechanism: its
+contrastive loss uses **both** `chosen` and `rejected` (widening the margin between them),
+so it is not plain SFT on the winners. The "otherwise identical" option
+conflates DPO with the PPO-vs-GRPO critic distinction. (This question uses *vanilla*
+offline DPO; iterative/online-DPO variants exist but aren't the contrast here.)
+</Rationale>

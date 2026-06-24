@@ -1,0 +1,13 @@
+---
+term: Eval-Train Loop
+aliases: [eval-driven training]
+domain: evaluation
+see: [north-star-eval, error-analysis]
+tags: [evaluation]
+---
+
+The iterative cycle where evaluation *drives* training: define a target capability
+in the eval suite → train toward it → measure on held-out data → diagnose failures →
+fix data/reward/hyperparameters → repeat. Production models improve through this loop,
+not a single run. Key discipline: add a new capability to the evals **before** training
+for it, so progress is measurable from the start.

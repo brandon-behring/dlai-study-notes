@@ -1,0 +1,15 @@
+---
+term: Extract-Enhance-Expand
+aliases: [extract enhance expand, EEE pattern]
+domain: graph-rag-chat
+see: [located-at, idempotent-pipeline, knowledge-graph]
+tags: [pattern, kg-construction]
+---
+
+A repeatable three-phase pattern for growing a knowledge graph incrementally, applied at every
+stage of this course. **Extract**: pull source data into nodes (text → Chunks; CSV → Company /
+Manager / Address nodes). **Enhance**: add indexes or computed properties (vector embeddings,
+full-text indexes, geospatial points). **Expand**: connect the new nodes into the existing graph
+with relationships (NEXT, PART_OF, FILED, OWNS_STOCK_IN, LOCATED_AT). Its one assumption — that new
+data links to existing nodes by a shared identifier — is exactly where it needs an entity-resolution
+step when identifiers are absent or ambiguous.

@@ -1,0 +1,13 @@
+---
+term: FILED Relationship
+aliases: [FILED]
+domain: kg-expansion
+see: [company-node, cusip, form-node]
+tags: [schema, traversal]
+---
+
+A directed relationship from a Company to a Form (`Company -[:FILED]-> Form`) recording that the
+company filed that SEC document. It is created by matching Company and Form nodes on their shared
+`cusip6` — the concrete realisation of cross-dataset linking. Traversed *backward* from a form
+(`Form <-[:FILED]- Company`), it is the bridge hop that connects document content to the company
+and, onward, to that company's investors.

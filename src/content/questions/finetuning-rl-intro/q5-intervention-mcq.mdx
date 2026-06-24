@@ -1,0 +1,32 @@
+---
+id: fri-5-intervention
+type: mcq
+chapter: 5
+domain: production-pipelines
+bloom_level: apply
+objective_id: FRI-5.4
+difficulty: '2'
+tags: [production, data]
+options:
+  - id: a
+    text: Run a fresh round of RL with a format reward
+  - id: b
+    text: Fine-tune (SFT) on a few hundred correctly-formatted examples
+  - id: c
+    text: Adjust the prompt or output template — a ~1-day format fix
+    correct: true
+  - id: d
+    text: Retrain from the cold-start SFT stage to rebuild formatting
+---
+import Rationale from '@brandon_m_behring/book-scaffold-astro/components/Rationale.astro';
+
+A deployed model starts returning answers in the wrong JSON shape for a new request type.
+Following the intervention framework, what do you reach for first?
+
+<Rationale title="Why">
+The framework says try the **fastest** intervention that could work first: a formatting problem
+is the canonical prompt-engineering fix (~1 day, no new data), so you start there and escalate
+only if it fails or the pattern proves systemic. SFT and RL are week-scale interventions for
+*consistent behavior* and *quality* respectively — overkill for a format bug — and retraining
+from cold-start throws away everything to fix a template.
+</Rationale>

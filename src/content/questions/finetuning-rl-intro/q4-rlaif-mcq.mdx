@@ -1,0 +1,31 @@
+---
+id: fri-4-rlaif
+type: mcq
+chapter: 4
+domain: data-and-grading
+bloom_level: understand
+objective_id: FRI-4.5
+difficulty: '2'
+tags: [safety, rl, alignment]
+options:
+  - id: a
+    text: It removes the reward model and optimizes the policy directly from raw text
+  - id: b
+    text: It replaces reinforcement learning with supervised fine-tuning on revised outputs
+  - id: c
+    text: It restricts training to verifiable tasks where a deterministic checker exists
+  - id: d
+    text: The reward model's preference labels come from an AI judge scoring against a constitution, not humans
+    correct: true
+---
+import Rationale from '@brandon_m_behring/book-scaffold-astro/components/Rationale.astro';
+
+Compared with RLHF, the defining change that RLAIF introduces is that…
+
+<Rationale title="Why">
+RLAIF's defining move is replacing **human** preference labels with **AI-generated** ones —
+a model judging outputs against a written constitution — which is what lets it scale
+alignment cheaply. It still trains a reward model and still runs RL, so it neither discards
+the reward model nor swaps RL for plain SFT. And it is not limited to checker-verifiable
+tasks; that instead describes verifier-based rewards, a separate approach.
+</Rationale>

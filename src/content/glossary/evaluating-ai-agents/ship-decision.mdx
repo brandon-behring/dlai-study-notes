@@ -1,0 +1,13 @@
+---
+term: Ship Decision
+aliases: [shipping decision, variant promotion]
+domain: trajectory-evals
+see: [dashboard-comparison, statistical-significance]
+tags: [evaluation, production]
+---
+
+Deciding whether to promote a candidate variant by reading the **whole per-evaluator row plus
+cost, latency, and statistical significance** — never an aggregate score alone. A correctness
+gain that isn't statistically significant, or that a latency SLO would reject, is not a ship.
+The dashboard supports the call; cost/latency/significance are the context that turns scores
+into a decision.

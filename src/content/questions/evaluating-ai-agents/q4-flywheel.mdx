@@ -1,0 +1,23 @@
+---
+id: eaa-4-flywheel
+type: free
+chapter: 4
+domain: trajectory-evals
+bloom_level: understand
+objective_id: EAA-4.6
+difficulty: '2'
+tags: [flywheel, production]
+answer: >
+  The evaluation flywheel is the self-reinforcing loop: production traces → new test cases →
+  updated evaluators → agent improvements → better production data → repeat. Chapter 2's tracing
+  supplies the raw production data. Its most common bottleneck is the speed of promoting a
+  production trace into the dataset: if that needs slow manual review, the loop stalls and the
+  eval set lags reality. The fix is automation of trace-to-dataset promotion, annotation, and
+  evaluator updates — with a quality gate, because unfiltered bots/adversarial inputs entering
+  the dataset degrade evaluation quality. Common wrong answer: "just collect more production
+  data" — volume doesn't help if promotion is manual and slow, or if noisy traffic isn't
+  filtered.
+---
+
+Explain the production feedback flywheel, its most common bottleneck, and the risk that comes
+with automating it.

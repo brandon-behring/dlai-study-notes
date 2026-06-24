@@ -1,0 +1,13 @@
+---
+term: Tokenization (BPE)
+aliases: [Byte-Pair Encoding, BPE, tokenizer]
+domain: sft-vs-rl
+see: [sft]
+tags: [sft, tokenization]
+---
+
+Converting text into **subword tokens** before the model sees it. Byte-Pair
+Encoding iteratively merges the most frequent byte pairs; a typical vocabulary is
+~50k tokens. Compression is uneven ("ChatGPT" = 1 token, "indistinguishable" = 4).
+Tokenizers are **not interchangeable** across model families — a mismatch is a
+silent killer.

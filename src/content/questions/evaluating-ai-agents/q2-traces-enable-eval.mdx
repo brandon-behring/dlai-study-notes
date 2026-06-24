@@ -1,0 +1,31 @@
+---
+id: eaa-2-traces-enable-eval
+type: mcq
+chapter: 2
+domain: observability
+bloom_level: understand
+objective_id: EAA-2.5
+difficulty: '2'
+tags: [observability, evaluation]
+options:
+  - id: a
+    text: They compress the agent's logs so storage costs drop
+  - id: b
+    text: Each trace holds full inputs/outputs/steps, so evaluators can score thousands of runs
+    correct: true
+  - id: c
+    text: They make the agent deterministic, which evaluation requires
+  - id: d
+    text: They remove the need for a curated test dataset
+---
+import Rationale from '@brandon_m_behring/book-scaffold-astro/components/Rationale.astro';
+
+Why are collected traces called the "bedrock for evaluation at scale"?
+
+<Rationale title="Why">
+Each trace stores full inputs, outputs, and intermediate steps, so automated evaluators can
+score thousands of real runs and compare across versions — that is what "at scale" means. The
+value isn't compression or storage savings; traces don't make a non-deterministic agent
+deterministic; and they complement, rather than replace, a curated test dataset (you still
+need known-answer cases for some checks).
+</Rationale>

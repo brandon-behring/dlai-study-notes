@@ -1,0 +1,13 @@
+---
+term: Idempotent Pipeline
+aliases: [idempotency, exactly-once ingest]
+domain: cypher-querying
+see: [merge, uniqueness-constraint]
+tags: [pipeline, write]
+---
+
+A graph-construction pipeline that produces the **same graph no matter how many times it
+runs** — the property retry-prone ingestion needs, since data arrives from unreliable sources
+(API retries, replays, duplicate messages). Achieved with a uniqueness constraint + `MERGE` on
+a stable identifier + `ON CREATE SET`/`ON MATCH SET`, giving **exactly-once** semantics. The
+production standard for all graph construction.

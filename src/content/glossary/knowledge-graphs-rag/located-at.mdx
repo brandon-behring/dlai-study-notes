@@ -1,0 +1,12 @@
+---
+term: LOCATED_AT Relationship
+aliases: [LOCATED_AT]
+domain: graph-rag-chat
+see: [address-node, company-node, manager-node]
+tags: [schema, geospatial]
+---
+
+A directed relationship from a Company or Manager to an Address node, connecting an entity to its
+physical location. It is the hop that makes geographic questions answerable: traverse LOCATED_AT to
+reach an entity's coordinates, then compare with `point.distance()` to find what's nearby. The
+Expand step of the M7 Extract-Enhance-Expand cycle.

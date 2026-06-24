@@ -1,0 +1,13 @@
+---
+term: Span Kind
+aliases: [OpenInference span kinds]
+domain: observability
+see: [span, span-hierarchy, openinference]
+tags: [observability, tracing]
+---
+
+The role label on a span. Open Inference defines several kinds; the four most relevant to
+agents are **Agent** (the full run), **Chain** (a router iteration), **Tool** (a skill
+invocation), and **LLM** (a single model call) — others include Retriever, Reranker, and
+Embedding. These four give a trace its **Agent ⊃ Chain ⊃ Tool ⊃ LLM** shape, so a reader can
+tell a routing step from a tool call from a raw model call at a glance.

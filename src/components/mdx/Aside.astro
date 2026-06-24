@@ -1,0 +1,93 @@
+---
+/**
+ * Aside — inline labeled aside (Interview / Warning / Pattern / …).
+ *
+ * NOT a Tufte sidenote: it renders inline in the text column with a category
+ * label, not as a numbered margin float. (For real gutter marginalia use the
+ * scaffold's <Sidenote>.) Renamed from the old consumer <Sidenote> precisely
+ * because that name + its `.sidenote` class collided with the scaffold's
+ * numbered-margin counter (stray "0.") and it pinned undefined tokens
+ * (unreadable in dark mode). This component follows the consumer-component
+ * correctness standard: closed enum fail-loud, colors only from scaffold
+ * dark-aware tokens, its own `.aside` class.
+ *
+ * Usage: <Aside category="interview">…</Aside>
+ */
+const CATEGORIES = ['interview', 'warning', 'pattern', 'formula', 'practice', 'crossref'] as const;
+type Category = (typeof CATEGORIES)[number];
+
+interface Props {
+  category: Category;
+}
+const { category } = Astro.props;
+
+// Fail-loud closed enum (Astro has no runtime prop validation): an out-of-range
+// category is an authoring error that must stop the build, not render blank.
+if (typeof category !== 'string' || !(CATEGORIES as readonly string[]).includes(category)) {
+  const got = category === undefined ? 'nothing' : JSON.stringify(category);
+  throw new Error(`<Aside>: category=${got} is not one of ${CATEGORIES.join(', ')}.`);
+}
+
+const LABELS: Record<Category, string> = {
+  interview: 'Interview',
+  warning: 'Warning',
+  pattern: 'Pattern',
+  formula: 'Formula',
+  practice: 'Practice',
+  crossref: 'Cross-ref',
+};
+---
+<aside class={`aside aside--${category}`} role="note">
+  <span class="aside-label">{LABELS[category]}</span>
+  <span class="aside-body"><slot /></span>
+</aside>
+
+<style>
+  /* Own class — never `.sidenote` (that carries the scaffold's numbered counter). */
+  .aside {
+    display: block;
+    border-left: 2px solid var(--aside-accent, var(--color-border, #cbd5e0));
+    padding: 0.4rem 0.75rem;
+    margin: 1rem 0;
+    font-size: 0.92em;
+    /* --color-text-muted re-resolves per theme (AA in both) → readable in dark. */
+    color: var(--color-text-muted, #4a5568);
+  }
+  .aside-label {
+    display: inline-block;
+    font-weight: 700;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-right: 0.5rem;
+    /* a11y: the category hue is on the aside's left border; the label TEXT uses
+       the high-contrast heading color (the accent as small bold text — e.g. the
+       warning gold — failed WCAG-AA 4.5:1). */
+    color: var(--color-heading, var(--color-text-muted));
+  }
+  .aside-body :global(p:last-child) { margin-bottom: 0; }
+
+  /* Per-category accent (light) — scaffold tokens only. */
+  .aside--interview { --aside-accent: var(--warm-plum, #805ad5); }
+  .aside--warning   { --aside-accent: var(--warm-gold, #d69e2e); }
+  .aside--pattern   { --aside-accent: var(--warm-blue, #2b6cb0); }
+  .aside--formula   { --aside-accent: var(--warm-plum, #553c9a); }
+  .aside--practice  { --aside-accent: var(--warm-green, #38a169); }
+  .aside--crossref  { --aside-accent: var(--color-text-muted, #718096); }
+
+  /* Dark mode: brighten the accent for WCAG-AA on dark surfaces (mirrors
+     tokens.css's heading/link brightening). crossref already uses a flipping
+     token, so it needs no override. */
+  :root[data-theme='dark'] .aside--interview,
+  :root[data-theme='dark'] .aside--formula { --aside-accent: color-mix(in srgb, var(--warm-plum) 60%, white); }
+  :root[data-theme='dark'] .aside--warning { --aside-accent: color-mix(in srgb, var(--warm-gold) 68%, white); }
+  :root[data-theme='dark'] .aside--pattern { --aside-accent: color-mix(in srgb, var(--warm-blue) 58%, white); }
+  :root[data-theme='dark'] .aside--practice { --aside-accent: color-mix(in srgb, var(--warm-green) 62%, white); }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme='light']) .aside--interview,
+    :root:not([data-theme='light']) .aside--formula { --aside-accent: color-mix(in srgb, var(--warm-plum) 60%, white); }
+    :root:not([data-theme='light']) .aside--warning { --aside-accent: color-mix(in srgb, var(--warm-gold) 68%, white); }
+    :root:not([data-theme='light']) .aside--pattern { --aside-accent: color-mix(in srgb, var(--warm-blue) 58%, white); }
+    :root:not([data-theme='light']) .aside--practice { --aside-accent: color-mix(in srgb, var(--warm-green) 62%, white); }
+  }
+</style>

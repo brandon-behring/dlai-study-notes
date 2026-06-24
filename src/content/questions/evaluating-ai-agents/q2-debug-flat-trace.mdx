@@ -1,0 +1,22 @@
+---
+id: eaa-2-debug-flat-trace
+type: free
+chapter: 2
+domain: observability
+bloom_level: analyze
+objective_id: EAA-2.8
+difficulty: '2'
+tags: [observability, debugging]
+answer: >
+  Tracing is on but only the outermost (or a single) span is being created — there is no manual
+  instrumentation of the orchestration, so the router/tool structure is collapsed into one node.
+  Concrete fix: instrument outside-in — start_as_current_span for an Agent span around the run,
+  a Chain span inside each router-loop iteration, and a Tool span around each skill dispatch.
+  With current-context nesting the auto-traced LLM calls drop into place and the tree becomes
+  Agent contains Chain contains Tool contains LLM. Now a misroute localises to a Chain span and
+  a bad tool output to its Tool span. Common wrong answer: "increase log verbosity" — more flat
+  logs add no structure; you need nested spans at the boundaries.
+---
+
+A teammate says "tracing is on but useless — it's just one big span." Diagnose what is missing
+and give the concrete fix that makes router and tool boundaries visible.

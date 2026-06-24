@@ -1,0 +1,14 @@
+---
+term: SEC Form 10-K
+aliases: [10-K, Form 10-K, annual report]
+domain: kg-construction
+see: [edgar, chunk-metadata]
+tags: [sec-filings, source-data]
+---
+
+The annual report public companies file with the U.S. Securities and Exchange Commission — long,
+standardised business text that makes excellent knowledge-graph source data. The sections that
+matter for construction are **Item 1** (business description), **Item 1A** (risk factors),
+**Item 7** (management discussion & analysis), and **Item 7A** (market-risk disclosures). Raw
+filings are XML; pre-processing extracts these sections plus the `CIK` and `CUSIP` identifiers
+into JSON for ingestion.

@@ -1,0 +1,35 @@
+---
+id: fri-2b-ppo-grpo-choice
+type: mcq
+chapter: 2
+domain: sft-vs-rl
+bloom_level: apply
+objective_id: FRI-2.5
+difficulty: '2'
+tags: [rl, ppo, grpo]
+options:
+  - id: a
+    text: GRPO with the verifier as reward — no critic and no learned reward model to host
+    correct: true
+  - id: b
+    text: PPO with the verifier as reward, keeping the learned critic for token-level credit
+  - id: c
+    text: GRPO but drop the KL term, since a verifiable reward is exploit-proof
+  - id: d
+    text: DPO on verifier-labeled pass/fail pairs, refreshed each round
+---
+import Rationale from '@brandon_m_behring/book-scaffold-astro/components/Rationale.astro';
+
+You're RL-training a model on **math with a deterministic answer-checker**, on a
+memory-tight setup. Which approach fits best?
+
+<Rationale title="Why">
+**GRPO with the verifier.** GRPO's group-mean baseline drops PPO's critic, and the
+deterministic verifier means no learned reward model — so you host just the policy
+(plus a frozen reference for the KL term), not PPO's four models. The PPO option
+keeps exactly the learned critic whose memory you're trying to save. Dropping the
+KL term is a real misconception — a verifiable *reward* still leaves the policy
+free to collapse or drift, so KL still earns its place. Converting pass/fail into
+DPO preference pairs throws away the online signal and credit that RL exploits to
+*exceed* demonstrations.
+</Rationale>

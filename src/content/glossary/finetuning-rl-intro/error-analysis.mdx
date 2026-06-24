@@ -1,0 +1,14 @@
+---
+term: Error Analysis
+aliases: [failure analysis]
+domain: evaluation
+see: [embedding-clustering, eval-train-loop]
+tags: [evaluation]
+---
+
+The highest-leverage post-training skill: systematically diagnosing *how* a model fails
+(not just that it does). Collect failures → cluster them → categorize (hallucination,
+reasoning, schema, tool-use, refusal) → prioritize by **frequency × severity ÷ effort**
+→ fix the top cluster → re-evaluate. It's why ten targeted counterexamples can beat a
+thousand random additions — two models at the same accuracy can need entirely different
+fixes.

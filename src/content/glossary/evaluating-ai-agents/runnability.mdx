@@ -1,0 +1,12 @@
+---
+term: Runnability
+aliases: [runnable check]
+domain: component-evals
+see: [code-based-evaluation, llm-as-a-judge]
+tags: [evaluation, code-based]
+---
+
+A code-based check that generated code **executes without error** in a sandbox. It is
+*necessary but not sufficient* for correctness: code that runs yet plots the wrong data still
+passes a runnability check. Treat "it didn't crash" as a first gate, then layer a semantic
+check (an LLM judge or a result comparison) for whether the output is actually right.

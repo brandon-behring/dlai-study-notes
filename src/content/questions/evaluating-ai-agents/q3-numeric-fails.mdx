@@ -1,0 +1,20 @@
+---
+id: eaa-3-numeric-fails
+type: free
+chapter: 3
+domain: component-evals
+bloom_level: understand
+objective_id: EAA-3.4
+difficulty: '1'
+tags: [evaluation, llm-as-judge, rails]
+answer: >
+  An LLM cannot calibrate a fine numeric scale — it cannot reliably distinguish 79 from 83 — so
+  the numbers are noise with the appearance of precision, and averaging them aggregates that
+  noise into a confident-looking figure that doesn't track real quality. The fix is to use 2–4
+  discrete rails (e.g. correct/incorrect, or faithful/partially/unfaithful) so the judge does
+  only what it does reliably: classify. If you need a finer signal, add more *labels* with clear
+  definitions, not a wider numeric range. Common wrong answer: "use a larger judge model to
+  calibrate 1–10" — the problem is the task (uncalibrated numeric scoring), not model size.
+---
+
+Explain why numeric scoring scales fail for LLM judges, and what you use instead.

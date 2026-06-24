@@ -1,0 +1,32 @@
+---
+id: eaa-4-why-trajectory
+type: mcq
+chapter: 4
+domain: trajectory-evals
+bloom_level: understand
+objective_id: EAA-4.1
+difficulty: '1'
+tags: [trajectory, evaluation]
+options:
+  - id: a
+    text: The 9-step path costs more LLM calls and latency, with more chances to fail
+    correct: true
+  - id: b
+    text: The 9-step agent is more thorough, so its answer is more trustworthy
+  - id: c
+    text: Trajectory length is irrelevant once the final answer is correct
+  - id: d
+    text: A longer trajectory indicates a routing bug by definition
+---
+import Rationale from '@brandon_m_behring/book-scaffold-astro/components/Rationale.astro';
+
+Two agents return the same correct answer — one in 3 steps, the other in 9. Why does
+trajectory evaluation care about the difference?
+
+<Rationale title="Why">
+Same answer, different *path*: the 9-step route burns roughly 3× the LLM calls, adds latency,
+and gives non-determinism more chances to derail a run — at scale that decides whether the
+agent is viable. Extra steps don't make it more thorough or trustworthy; the final answer is
+identical. And length isn't irrelevant once correct (that's the whole point), nor is it a
+routing bug by definition — a longer path can be legitimately required for a harder query.
+</Rationale>

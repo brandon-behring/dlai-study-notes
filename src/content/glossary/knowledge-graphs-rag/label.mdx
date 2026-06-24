@@ -1,0 +1,13 @@
+---
+term: Label
+aliases: [node label]
+domain: kg-fundamentals
+see: [node, identity-through-relationships]
+tags: [graph-data-model]
+---
+
+A **tag applied to a node that groups it with similar entities** — `Person`, `Company`,
+`Movie`. A node can have several labels, and labels enable efficient filtering in queries
+(`MATCH (p:Person)`). Distinct from a relationship *type*: labels classify nodes, types
+classify connections. Over-using labels for *roles* is an anti-pattern — prefer
+[identity through relationships](#term-identity-through-relationships).

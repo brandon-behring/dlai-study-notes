@@ -1,0 +1,22 @@
+---
+id: kgr-5-var-length-meaning
+type: free
+chapter: 5
+domain: kg-relationships
+bloom_level: understand
+objective_id: KGR-5.3
+difficulty: '2'
+tags: [variable-length-path, boundaries]
+answer: >
+  A variable-length path matches a *range* of hops instead of a fixed count: `*0..1` matches zero
+  or one NEXT hop, `*0..2` zero to two, `*1..3` one to three. It is needed at linked-list
+  boundaries because a fixed two-hop window (before to middle to after) has nothing to match at the
+  first chunk (no predecessor) or last chunk (no successor), so it returns zero rows. With `*0..1`
+  the missing side matches zero hops — the endpoint collapses onto the target — so the query still
+  returns the neighbours that do exist. Pair it with `ORDER BY length(window) DESC LIMIT 1` to keep
+  the longest window available at each position. Common wrong answer: reading `*0..1` as "exactly
+  one hop" — the zero is the point, and it is what lets the pattern survive at the list ends.
+---
+
+What does a variable-length path like `*0..1` match, and why is it needed at the start and end of a
+chunk linked list?

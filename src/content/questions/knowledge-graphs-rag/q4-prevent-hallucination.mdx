@@ -1,0 +1,32 @@
+---
+id: kgr-4-prevent-hallucination
+type: mcq
+chapter: 4
+domain: kg-construction
+bloom_level: analyze
+objective_id: KGR-4.6
+difficulty: '2'
+tags: [hallucination, prompt-engineering]
+options:
+  - id: a
+    text: Increase chunk size so each chunk carries more of the company's context
+  - id: b
+    text: Raise the vector-index dimensionality to make the embeddings more accurate
+  - id: c
+    text: Switch the index similarity function from cosine to Euclidean distance
+  - id: d
+    text: Instruct the prompt to use only the retrieved context and refuse missing entities
+    correct: true
+---
+import Rationale from '@brandon_m_behring/book-scaffold-astro/components/Rationale.astro';
+
+A RAG system holding only NetApp's filing answers a question about Apple using NetApp's data.
+Which fix most directly addresses this?
+
+<Rationale title="Why">
+This is entity mis-attribution: the retriever returned NetApp's nearest chunks and the prompt
+never told the model to decline. The direct fix is a prompt that restricts the model to the
+retrieved context and refuses when the entity is missing ("say you don't know"), ideally paired
+with retrieval-score gating. Bigger chunks, higher dimensionality, and a different similarity
+function change retrieval mechanics but none of them stop the model from answering out-of-scope.
+</Rationale>

@@ -1,0 +1,13 @@
+---
+term: Production Monitoring
+aliases: [prod monitoring]
+domain: llm-judge-monitoring
+see: [silent-regression, alert-threshold]
+tags: [production, monitoring]
+---
+
+Watching a deployed agent with the same tracing and annotation tools used in development, plus
+time-series metrics: running evaluator scores per dimension, convergence, LLM-call counts (a
+spike signals a loop), latency (p50/p99 by component), and cost per query — alerting on roughly
+>10% deviation from baseline. Its real job is catching **silent regressions** that surface
+metrics like latency and error rate miss.

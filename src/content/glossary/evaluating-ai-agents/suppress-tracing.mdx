@@ -1,0 +1,12 @@
+---
+term: Suppress Tracing
+aliases: [suppress_tracing]
+domain: component-evals
+see: [llm-as-a-judge, llm-classify]
+tags: [evaluation, observability, tooling]
+---
+
+A Phoenix context manager that keeps an **LLM judge's own calls from being recorded as spans**,
+so evaluation artifacts don't intermingle with — and roughly double — the agent's traces. You
+wrap `llm_classify()` (and any judge call) in it during evaluation runs, and drop it only when
+deliberately debugging the judge itself.

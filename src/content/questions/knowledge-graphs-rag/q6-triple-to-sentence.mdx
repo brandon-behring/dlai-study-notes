@@ -1,0 +1,29 @@
+---
+id: kgr-6-triple-to-sentence
+type: mcq
+chapter: 6
+domain: kg-expansion
+bloom_level: apply
+objective_id: KGR-6.5
+difficulty: '2'
+tags: [graph-to-text, rag]
+options:
+  - id: a
+    text: To compress the result set and save storage space in the graph
+  - id: b
+    text: To encrypt sensitive investment values before they are displayed
+  - id: c
+    text: So the LLM can read the relationship facts as context it reasons over
+    correct: true
+  - id: d
+    text: To generate fresh embeddings for a second vector index
+---
+import Rationale from '@brandon_m_behring/book-scaffold-astro/components/Rationale.astro';
+
+Why convert graph-traversal results into natural-language sentences before passing them to the LLM?
+
+<Rationale title="Why">
+An LLM consumes text, so a relationship triple (manager–owns–company) is turned into a readable
+sentence the model can reason over as context — that is how structured graph facts enter a RAG
+prompt. It is not about storage compression, encryption, or building another embedding index.
+</Rationale>

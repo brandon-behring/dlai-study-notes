@@ -1,0 +1,13 @@
+---
+term: Statistical Significance
+aliases: [significance]
+domain: trajectory-evals
+see: [ship-decision, dashboard-comparison]
+tags: [evaluation, statistics]
+---
+
+Whether a measured score difference between variants is **real or sampling noise** — acutely
+relevant on the small "comprehensive, not exhaustive" datasets used for fast iteration. A
+higher aggregate score with no significance is not a reason to ship: gather more data or run an
+A/B test first. It is one of the contexts (with cost and latency) that an aggregate score needs
+before it becomes a decision.

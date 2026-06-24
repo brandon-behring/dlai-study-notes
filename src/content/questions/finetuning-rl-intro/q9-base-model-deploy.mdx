@@ -1,0 +1,34 @@
+---
+id: fri-1-base-model-deploy
+type: mcq
+chapter: 1
+domain: post-training-foundations
+bloom_level: understand
+objective_id: FRI-1.1
+difficulty: '1'
+tags: [post-training]
+options:
+  - id: a
+    text: It lacks world knowledge until it is fine-tuned
+  - id: b
+    text: It predicts fluent tokens but isn't instruction-following or aligned
+    correct: true
+  - id: c
+    text: It is too large to serve without quantization
+  - id: d
+    text: Its weights are randomly initialized until post-training
+---
+import Rationale from '@brandon_m_behring/book-scaffold-astro/components/Rationale.astro';
+
+Why can a freshly pre-trained **base model** not be deployed as a chat assistant
+as-is?
+
+<Rationale title="Why">
+Pre-training **already gives** the base model broad world knowledge and trained
+(not random) weights — exactly what the "lacks world knowledge" and "randomly
+initialized" options get wrong. It even has *some* latent reasoning and prompting
+ability. What it lacks is *reliable, aligned* behavior — consistently following
+instructions, refusing unsafe requests, structured reasoning on demand — which
+post-training (SFT + RL) installs. The "too large to serve" option is about serving
+cost, not why the base model is behaviorally undeployable.
+</Rationale>

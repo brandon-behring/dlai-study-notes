@@ -1,0 +1,24 @@
+---
+id: eaa-1-nondeterminism-testing
+type: free
+chapter: 1
+domain: eval-foundations
+bloom_level: understand
+objective_id: EAA-1.3
+difficulty: '2'
+tags: [non-determinism, fundamentals]
+answer: >
+  Traditional testing assumes identical inputs yield identical outputs, so a single passing
+  run proves correctness. LLM systems violate this: the same input can produce different
+  outputs across runs (sampling temperature, floating-point non-associativity, batching,
+  provider-side model updates). A single run is therefore a *sample*, not a proof — a change
+  can raise average quality while introducing rare failures one run never surfaces. So testing
+  must be statistical over a representative dataset, re-run on every change, comparing score
+  distributions rather than asserting one pass/fail. Temperature 0 reduces variation but does
+  not eliminate it (floating-point, batching, and provider drift remain), so it does not
+  restore determinism. Common wrong answer: "set temperature to 0 and it becomes
+  deterministic" — it lowers variance but production outputs still drift.
+---
+
+Explain why non-determinism makes LLM system testing fundamentally different from traditional
+software testing. Why is setting temperature to 0 not a complete fix?

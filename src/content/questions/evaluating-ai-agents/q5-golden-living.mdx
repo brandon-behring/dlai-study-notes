@@ -1,0 +1,22 @@
+---
+id: eaa-5-golden-living
+type: free
+chapter: 5
+domain: llm-judge-monitoring
+bloom_level: understand
+objective_id: EAA-5.3
+difficulty: '1'
+tags: [golden-dataset, shipping]
+answer: >
+  A golden dataset is a curated set of must-pass scenarios used as a CI shipping gate: every
+  agent-code change runs against it and a regression blocks the merge. It's a *living document* —
+  it grows with every production failure (each becomes a regression row) and new use case, so it
+  encodes institutional knowledge that new engineers inherit through the gate. A gate that passes
+  100% for months is a red flag, not a success: it usually means the set has gone stale and isn't
+  covering newly added features, so it only tests what used to break. The fix is an evolution
+  policy that adds rows on incidents/features and prunes stale ones. Common wrong answer: "100%
+  pass means the agent is solid" — it more often means the dataset stopped keeping pace.
+---
+
+What is a golden dataset and how is it a "living document"? Why is a CI gate that has passed
+100% for six months a warning sign rather than reassurance?

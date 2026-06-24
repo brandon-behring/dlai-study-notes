@@ -1,0 +1,13 @@
+---
+term: Open Inference
+aliases: [OpenInference]
+domain: observability
+see: [opentelemetry, span-kind, gen-ai-conventions]
+tags: [observability, standards]
+---
+
+Arize's **LLM-specific extension to OpenTelemetry**: it adds span *kinds* (Agent, Chain, Tool,
+LLM, and more — e.g. Retriever, Reranker) and attribute names for prompts, completions, and
+token counts. OTEL gives the generic
+trace/span machinery; Open Inference supplies the semantics that make an agent trace
+meaningful. As of 2026 it shares the space with OTEL's own `gen_ai.*` conventions.

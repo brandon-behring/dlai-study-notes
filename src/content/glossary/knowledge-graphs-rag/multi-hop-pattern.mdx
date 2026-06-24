@@ -1,0 +1,12 @@
+---
+term: Multi-Hop Pattern
+aliases: [multi-hop traversal, multi-relationship pattern]
+domain: kg-fundamentals
+see: [cypher, graph-traversal]
+tags: [cypher, querying]
+---
+
+A Cypher pattern that **chains several relationships** to express an indirect connection — e.g.
+`(a)-[:X]->(b)-[:Y]->(c)`. Matching subgraphs across multiple hops is the traversal a graph does
+cheaply and a relational database does expensively (one self-JOIN per hop). Multi-hop patterns
+are how graph-RAG reaches context several relationships away from the initial match.

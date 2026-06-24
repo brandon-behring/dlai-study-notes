@@ -1,0 +1,32 @@
+---
+id: eaa-5-golden-gate
+type: mcq
+chapter: 5
+domain: llm-judge-monitoring
+bloom_level: understand
+objective_id: EAA-5.3
+difficulty: '1'
+tags: [golden-dataset, shipping]
+options:
+  - id: a
+    text: It is simply larger and tries to cover every possible input
+  - id: b
+    text: Curated for criticality, seeded with known failures, and wired as a CI gate
+    correct: true
+  - id: c
+    text: It uses only LLM-judge evaluators, not code-based ones
+  - id: d
+    text: It is frozen at creation and does not change
+---
+import Rationale from '@brandon_m_behring/book-scaffold-astro/components/Rationale.astro';
+
+What distinguishes a golden dataset from a general evaluation dataset?
+
+<Rationale title="Why">
+A golden dataset is the *shipping gate*: every row is a must-pass scenario, it codifies known
+failure modes from past bugs, it grows as new failures appear, and a regression on it blocks
+the merge. It is deliberately small and critical, not an attempt to cover every input (that
+would be too slow to gate on). It composes code-based and LLM-judge evaluators as appropriate,
+and far from frozen, it must evolve — a golden set that never changes goes stale and stops
+catching new regressions.
+</Rationale>

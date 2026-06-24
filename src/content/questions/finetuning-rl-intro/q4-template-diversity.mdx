@@ -1,0 +1,25 @@
+---
+id: fri-4-template-diversity
+type: free
+chapter: 4
+domain: data-and-grading
+bloom_level: apply
+objective_id: FRI-4.4
+difficulty: '2'
+tags: [synthetic-data, data]
+answer: >
+  The persona-varying engineer's data. Temperature only adds token-level randomness to the
+  same response style, so the outputs cluster around one voice and risk collapsing into
+  near-duplicates. Varying the persona slot changes the structure and register of the answer
+  — a patient teacher explains step by step, a terse senior engineer compresses — so the
+  model sees genuinely different ways to answer the same question and learns stylistic range.
+  Persona variation is one of the highest-leverage diversity levers in template engineering
+  precisely because it changes structure, not just surface tokens. Common wrong answer:
+  "temperature is enough for diversity" — high temperature mostly produces noisier versions
+  of one style, not structurally different examples, and pushed too high it degrades coherence.
+---
+
+Two engineers generate synthetic training data from the same set of questions. One varies
+only temperature; the other varies a persona slot (patient teacher, terse senior engineer,
+domain expert) in the prompt template. Whose data will be more useful for teaching the
+model stylistic range, and why?

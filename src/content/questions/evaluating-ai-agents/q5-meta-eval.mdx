@@ -1,0 +1,32 @@
+---
+id: eaa-5-meta-eval
+type: mcq
+chapter: 5
+domain: llm-judge-monitoring
+bloom_level: understand
+objective_id: EAA-5.1
+difficulty: '2'
+tags: [meta-evaluation, llm-as-judge]
+options:
+  - id: a
+    text: Increase the eval dataset size to reduce variance in the number
+  - id: b
+    text: Meta-evaluate the judge against code-based ground truth before trusting its score
+    correct: true
+  - id: c
+    text: Switch the judge to numeric 1–10 scoring for more precision
+  - id: d
+    text: Average several judges' scores so their errors cancel out
+---
+import Rationale from '@brandon_m_behring/book-scaffold-astro/components/Rationale.astro';
+
+Your dashboard reports the agent is 92% accurate — but that number comes from an LLM judge.
+What must you do before trusting it?
+
+<Rationale title="Why">
+The 92% is the judge grading itself, which is circular: if the judge is only 75% accurate, the
+number is noise. Meta-evaluation compares the judge's labels against a code-based ground-truth
+reference and reports the agreement rate — the independent check the dashboard lacks. A bigger
+dataset reduces variance but not the judge's bias; numeric scoring makes calibration *worse*;
+and averaging several uncalibrated judges still gives you no ground truth.
+</Rationale>

@@ -1,0 +1,23 @@
+---
+id: eaa-3-diagnose-dimension
+type: free
+chapter: 3
+domain: component-evals
+bloom_level: analyze
+objective_id: EAA-3.8
+difficulty: '2'
+tags: [routing, evaluation, debugging]
+answer: >
+  Compare the trace against the ground-truth label on both dimensions separately. First check
+  the chosen tool against the expected tool: if it differs, it's a tool-selection failure. If
+  the tool matches, inspect the extracted arguments against the expected parameter values: a
+  mismatch there is a parameter-extraction failure. Confirm by re-running a few near-identical
+  queries where only the tool-ambiguity (or only the parameter difficulty) varies — if failures
+  track the parameter variation while the tool stays correct, it's parameter extraction. The
+  router's two-dimension breakdown is exactly what makes this attribution possible from the
+  trace. Common wrong answer: "the answer was wrong, so the router failed" — that doesn't say
+  *which* dimension; you must check tool and parameters separately.
+---
+
+A router-handled query produced a wrong result. Describe how you determine whether the cause was
+tool selection or parameter extraction, and how you confirm it.

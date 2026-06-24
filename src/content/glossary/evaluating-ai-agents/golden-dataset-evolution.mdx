@@ -1,0 +1,13 @@
+---
+term: Golden-Dataset Evolution
+aliases: [golden dataset maintenance]
+domain: llm-judge-monitoring
+see: [golden-dataset, ci-shipping-gate]
+tags: [evaluation, shipping]
+---
+
+The policy that keeps a golden dataset useful: **add** a regression row for every production
+incident and new feature, **prune** rows that never trigger a failure on a stable feature,
+**never prune** safety-critical rows, and **stabilise** the size (~40–60 rows) so it stays fast
+enough to run on every PR. The guiding signal: a gate that never fails is *stale, not safe* — it
+has stopped keeping pace with the system.

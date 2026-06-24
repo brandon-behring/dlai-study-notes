@@ -1,0 +1,21 @@
+---
+id: kgr-3-params-security
+type: free
+chapter: 3
+domain: text-for-rag
+bloom_level: apply
+objective_id: KGR-3.5
+difficulty: '2'
+tags: [cypher, security]
+answer: >
+  Rewrite `kg.query(f'... {{ token: "{api_key}" }} ...')` as `kg.query("... { token:
+  $openAiApiKey } ...", params={"openAiApiKey": api_key})`. The f-string version interpolates the
+  secret into the query text, where it can leak into logs, error messages, and the query cache
+  (and opens an injection hole for any user-derived value). The parameterised version keeps the
+  key out of the string entirely. Two benefits: security (no leakage, no injection) and
+  performance (Neo4j caches the execution plan for the parameterised query and reuses it across
+  calls). Caveat: DDL like `CREATE INDEX` can't take parameters, so sanitise those manually.
+  Common wrong answer: "log the query for debugging, key and all" — that's exactly how keys leak.
+---
+
+Rewrite this insecure call to use a query parameter, and name two benefits: `kg.query(f'... {{ token: "{api_key}" }} ...')`.

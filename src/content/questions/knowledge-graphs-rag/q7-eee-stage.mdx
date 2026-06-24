@@ -1,0 +1,29 @@
+---
+id: kgr-7-eee-stage
+type: mcq
+chapter: 7
+domain: graph-rag-chat
+bloom_level: understand
+objective_id: KGR-7.1
+difficulty: '1'
+tags: [extract-enhance-expand, pattern]
+options:
+  - id: a
+    text: Enhance — it adds an index to existing nodes
+    correct: true
+  - id: b
+    text: Extract — it pulls new nodes from the source data
+  - id: c
+    text: Expand — it connects nodes with a new relationship
+  - id: d
+    text: A separate validation phase outside the pattern
+---
+import Rationale from '@brandon_m_behring/book-scaffold-astro/components/Rationale.astro';
+
+Creating a full-text index on manager names is which phase of Extract-Enhance-Expand?
+
+<Rationale title="Why">
+Adding an index (or computed property) to nodes that already exist is the **Enhance** phase —
+like vector embeddings or geospatial points. Extract *creates* the nodes, Expand *connects* them
+with relationships, and validation isn't one of the three phases.
+</Rationale>

@@ -1,0 +1,15 @@
+---
+term: Hallucination
+aliases: [RAG hallucination]
+domain: kg-construction
+see: [rag, retrievalqa, score-threshold]
+tags: [rag, evaluation, reliability]
+---
+
+When an LLM produces plausible but factually wrong output. In RAG it has two distinct failure
+modes: (1) **invention** — the model fabricates facts absent from the retrieved context; and
+(2) **mis-attribution** — it applies entity A's retrieved context to entity B (e.g. answering a
+question about Apple using NetApp's chunks, because those were the nearest vectors available).
+Mitigations layer: prompt instructions ("use ONLY this context"; "say you don't know"), scoping
+the context to named sources, and **retrieval-score gating** so out-of-scope questions return no
+context. Prompt engineering helps but is not foolproof — pair it with a score threshold.

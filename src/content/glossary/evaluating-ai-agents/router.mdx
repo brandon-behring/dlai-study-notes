@@ -1,0 +1,14 @@
+---
+term: Router
+aliases: [routing layer]
+domain: eval-foundations
+see: [skill, centralised-routing, distributed-routing]
+tags: [agents, routing]
+---
+
+The agent component that **decides which skill or function to call** at each step — the
+agent's "brain." Implementations span rules-based code (deterministic, limited), an NLP
+classifier, and LLM function calling (flexible, non-deterministic). The router is usually
+the **first** thing to evaluate: routing errors cascade, wasting every downstream step, and
+are the cheapest failure to catch — build a labelled message→expected-skill dataset and
+measure per-category routing accuracy.

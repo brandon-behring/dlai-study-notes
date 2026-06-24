@@ -1,0 +1,13 @@
+---
+term: llm_classify
+aliases: [Phoenix llm_classify]
+domain: component-evals
+see: [llm-as-a-judge, rails, suppress-tracing]
+tags: [evaluation, tooling]
+---
+
+Phoenix's function for running an LLM judge over a dataframe of spans, **constrained to a rails
+label set**, returning one classification per row. In the standard workflow it is wrapped in
+`suppress_tracing()` (to keep judge calls out of the agent's traces) and followed by
+`log_evaluations()` (to upload the results back onto the spans). It is the concrete form of
+LLM-as-a-judge in the Phoenix stack.

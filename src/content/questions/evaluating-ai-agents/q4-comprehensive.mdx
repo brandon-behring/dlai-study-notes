@@ -1,0 +1,22 @@
+---
+id: eaa-4-comprehensive
+type: free
+chapter: 4
+domain: trajectory-evals
+bloom_level: understand
+objective_id: EAA-4.4
+difficulty: '1'
+tags: [datasets, principle]
+answer: >
+  "Comprehensive, not exhaustive" means cover every input *type* with 1–2 examples rather than
+  piling up 100 near-duplicates per category. The reason is iteration speed: a small, varied
+  dataset runs fast and stays cheap to maintain, so you can re-run it on every change — while
+  still spanning the behaviour space enough to catch regressions. A bloated dataset slows each
+  experiment and adds little new signal once a type is represented. Input keys are forwarded to
+  the agent; output keys are forwarded to the evaluators for comparison. Common wrong answer:
+  "more cases are always better" — past one or two per type you mostly buy slower runs, not more
+  coverage.
+---
+
+Why should an evaluation dataset be "comprehensive, not exhaustive," and what are the two
+key-types it contains?

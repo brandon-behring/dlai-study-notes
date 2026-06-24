@@ -1,0 +1,13 @@
+---
+term: Agent
+aliases: [LLM agent, agentic system]
+domain: production-pipelines
+see: [tool-use, handoff-reward]
+tags: [agents, rl]
+---
+
+A model that **takes actions in an environment** — calling tools, planning multi-step
+strategies, coordinating with other agents — rather than just emitting a response.
+Post-training an agent is harder than instruction-following because the reward comes from
+*task completion*, which is **sparse and delayed**, making credit assignment across a long
+action sequence the central difficulty.

@@ -1,0 +1,12 @@
+---
+term: Input and Output Keys
+aliases: [input keys, output keys, dataset keys]
+domain: trajectory-evals
+see: [evaluation-dataset, comprehensive-not-exhaustive]
+tags: [experiments, datasets]
+---
+
+The two field types in an evaluation dataset. **Input keys** are forwarded to the agent (the
+query, expected parameters); **output keys** are forwarded to evaluators for comparison
+(expected SQL tables, expected trend direction). Including output keys wherever possible is
+what unlocks cheap **code-based** evaluators instead of paying for an LLM judge.

@@ -1,0 +1,22 @@
+---
+id: eaa-2-instrument-agent
+type: free
+chapter: 2
+domain: observability
+bloom_level: apply
+objective_id: EAA-2.3
+difficulty: '2'
+tags: [observability, instrumentation]
+answer: >
+  Apply outside-in. Wrap run_agent() in an Agent span. Inside the router loop, wrap each
+  iteration in a Chain span. Inside each iteration, wrap every skill/tool call in a Tool span
+  named for the function. Leave the model calls to automatic instrumentation — they appear as
+  LLM spans nested correctly because the enclosing with-blocks are the current span. The nesting
+  falls out of the block structure, giving Agent contains Chain contains Tool contains LLM.
+  Common wrong answer: "wrap each LLM call in its own top-level span" — that produces a flat list
+  of LLM spans with no router or tool structure; start from the outermost layer and let inner
+  spans attach to the current parent.
+---
+
+You have an agent with a router loop that dispatches skills, each of which makes one or more
+LLM calls. Describe how you would instrument it so the trace shows the full structure.

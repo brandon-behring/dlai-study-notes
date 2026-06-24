@@ -1,0 +1,22 @@
+---
+id: eaa-3-multiplicative-calc
+type: free
+chapter: 3
+domain: component-evals
+bloom_level: apply
+objective_id: EAA-3.7
+difficulty: '2'
+tags: [routing, reliability]
+answer: >
+  End-to-end router accuracy = 0.92 × 0.88 = 0.8096 ≈ 81%. It is below both factors because both
+  independent dimensions must succeed, so each one discards a fraction of the other's successes
+  — the product is bounded above by the smaller factor (0.88) and is always ≤ either. To reach
+  90% end-to-end you need the product ≥ 0.90; holding tool selection at 0.92, parameter
+  extraction must reach 0.90 / 0.92 ≈ 0.978, i.e. ~97.8% — so you'd realistically lift both
+  dimensions, not one. Common wrong answer: "average them to ~90%" — independent component rates
+  multiply, they don't average.
+---
+
+A router has 92% tool-selection accuracy and 88% parameter-extraction accuracy, independent.
+Compute end-to-end router accuracy, explain why it is below both, and state what parameter
+accuracy you'd need (holding tool selection fixed) to reach 90% end-to-end.

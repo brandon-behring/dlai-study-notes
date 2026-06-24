@@ -1,0 +1,31 @@
+---
+id: eaa-5-silent-regression
+type: mcq
+chapter: 5
+domain: llm-judge-monitoring
+bloom_level: analyze
+objective_id: EAA-5.4
+difficulty: '2'
+tags: [monitoring, production]
+options:
+  - id: a
+    text: Wrong-but-plausible answers returned with no error or slowdown
+    correct: true
+  - id: b
+    text: An API timeout spike
+  - id: c
+    text: A latency increase after a model swap
+  - id: d
+    text: A crash loop that exhausts retries
+---
+import Rationale from '@brandon_m_behring/book-scaffold-astro/components/Rationale.astro';
+
+Which production failure will latency and error-rate dashboards fail to catch?
+
+<Rationale title="Why">
+A silent regression produces wrong-but-plausible output without any error or slowdown — so
+latency and error-rate stay green and nothing fires; only content-quality monitoring
+(evaluator scores over live traces, provenance checks) detects it. The other three all move a
+*system* metric a standard dashboard already watches: timeouts and crash loops spike the error
+rate, and a model-swap slowdown spikes latency.
+</Rationale>

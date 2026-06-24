@@ -1,0 +1,13 @@
+---
+term: Meta-Evaluation
+aliases: [evaluating the evaluator]
+domain: llm-judge-monitoring
+see: [agreement-rate, false-positive-rate]
+tags: [evaluation, llm-as-judge]
+---
+
+Evaluating an **evaluator's own accuracy** by comparing its judgments against known ground
+truth — quantified as the agreement rate between an LLM judge and a deterministic (code-based)
+reference. Without it, a dashboard's "92%" is meaningless if the judge itself is only 75%
+accurate. For subjective dimensions with no code oracle (tone, creativity), human
+inter-annotator agreement replaces the code-based reference.

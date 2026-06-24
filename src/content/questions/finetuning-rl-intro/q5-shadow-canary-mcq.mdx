@@ -1,0 +1,32 @@
+---
+id: fri-5-shadow-canary
+type: mcq
+chapter: 5
+domain: production-pipelines
+bloom_level: understand
+objective_id: FRI-5.3
+difficulty: '2'
+tags: [production, deployment]
+options:
+  - id: a
+    text: A shadow deploy uses synthetic test traffic while a canary uses real traffic
+  - id: b
+    text: A shadow runs on live traffic but doesn't serve its outputs; a canary serves a small slice of users
+    correct: true
+  - id: c
+    text: A canary runs offline against a frozen test set while a shadow runs online
+  - id: d
+    text: A shadow deploy is only for safety tests and a canary is only for latency tests
+---
+import Rationale from '@brandon_m_behring/book-scaffold-astro/components/Rationale.astro';
+
+In the staging-to-production ladder, the key difference between a shadow deployment and a
+canary is that…
+
+<Rationale title="Why">
+Both run on **live** traffic; the distinction is *exposure*. A shadow deploy compares the
+candidate's outputs to the production baseline **without serving them**, while a canary actually
+serves the candidate to a small slice (1–5%) of users and watches error rate, latency, and
+feedback. Shadow doesn't use synthetic traffic, a canary isn't an offline frozen-set run, and
+neither is restricted to a single metric type.
+</Rationale>

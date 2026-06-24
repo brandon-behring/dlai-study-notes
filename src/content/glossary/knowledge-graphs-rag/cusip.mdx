@@ -1,0 +1,14 @@
+---
+term: CUSIP
+aliases: [CUSIP 6, cusip6]
+domain: kg-expansion
+see: [company-node, filed-relationship, sec-form-10k]
+tags: [identifiers, entity-resolution]
+---
+
+Committee on Uniform Security Identification Procedures — a 9-character code uniquely identifying
+a financial instrument; the first 6 characters (CUSIP 6) identify the *issuing company*. Because
+both the Form 10-K and Form 13 datasets carry it, CUSIP 6 is the **linking key** that joins
+independently created Company and Form nodes automatically (`WHERE com.cusip6 = f.cusip6`). It is
+the worked example of cross-dataset linking via a shared universal identifier — the pattern that
+fails (needing entity resolution) only when datasets use different identifier schemes.

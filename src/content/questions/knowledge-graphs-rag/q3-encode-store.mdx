@@ -1,0 +1,22 @@
+---
+id: kgr-3-encode-store
+type: free
+chapter: 3
+domain: text-for-rag
+bloom_level: apply
+objective_id: KGR-3.2
+difficulty: '2'
+tags: [embeddings, neo4j]
+answer: >
+  Match the nodes, encode their text, and store the vector on each node: `MATCH (c:Chunk) WHERE
+  c.text IS NOT NULL WITH c, genai.vector.encode(c.text, "OpenAI", {token: $openAiApiKey}) AS v
+  CALL db.create.setNodeVectorProperty(c, "textEmbedding", v)`. The `WHERE ... IS NOT NULL`
+  skips chunks with no text; `genai.vector.encode` returns the embedding (text, provider, config
+  with the token as a parameter); `setNodeVectorProperty` writes it onto the node so it's
+  co-located with the graph. Pass `$openAiApiKey` via `params`, never in the string. Then verify
+  with `size(c.textEmbedding)` = 1536. Common wrong answer: returning the vector to Python and
+  writing it back in a second round trip — `setNodeVectorProperty` stores it in the same query.
+---
+
+Write a Cypher query that generates an OpenAI embedding for each `Chunk` node's `text` and
+stores it on the node. Name the two procedures involved and where the API key goes.

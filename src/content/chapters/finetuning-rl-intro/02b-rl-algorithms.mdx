@@ -1,0 +1,282 @@
+---
+book: finetuning-rl-intro
+title: 'Core Techniques II: RL Algorithms — RLHF, PPO, GRPO'
+chapter: 2
+part: 1
+description: >
+  The RL half of post-training mechanics: reward signals and preference learning,
+  DPO, the RLHF objective and its KL penalty, the four models of RLHF, PPO's
+  clipped objective, GRPO's group-relative baseline, and the failure mode of mode
+  collapse.
+learning_outcomes:
+  - id: FRI-2.5
+    verb: Compare
+    text: >
+      the RLHF, PPO, GRPO, and DPO objectives — reward source, advantage
+      estimation, models in memory, online vs offline — and choose between them.
+  - id: FRI-2.6
+    verb: Analyze
+    text: >
+      mode collapse (and catastrophic forgetting) during fine-tuning, and select
+      mitigations (KL penalty, entropy/diversity, group-relative methods).
+tags:
+  - rlhf
+  - ppo
+  - grpo
+  - dpo
+  - reward-model
+last_verified: 2026-06-18
+volatility: feature-surface
+sources:
+  - ouyang2022training
+  - rafailov2023direct
+  - schulman2017proximal
+  - shao2024deepseekmath
+provenance:
+  ai_tools:
+    - Claude Code
+draft: false
+---
+
+<Diagnostic skimTo="PPO and GRPO">
+1. PPO-based RLHF is famously memory-hungry. Beyond the policy you're training, what else sits in GPU memory — and which one does GRPO drop?
+2. Predict what happens to an RLHF run if you set the KL coefficient $\beta$ to zero.
+3. How does **GRPO** compute an advantage without a value model?
+4. **DPO** and **GRPO** both optimize preferences. What's the core difference?
+
+<Fragment slot="answers">
+1. Three more beyond the policy: a frozen **reference** (for the KL term), a **reward model** (scores outputs), and a **value/critic** (PPO only). GRPO drops the **critic** — a group-mean baseline replaces it → three models.
+2. With no leash to the reference, the policy chases reward unchecked — drifting into degenerate, reward-hacked, mode-collapsed outputs (reward up, quality down). $\beta$ is what keeps it near $\pi_{\text{ref}}$.
+3. It samples a **group** of $G$ outputs per prompt and uses the group's **mean reward as the baseline**: $\hat{A}_i = r(y_i) - \frac1G\sum_j r(y_j)$ — no critic needed.
+4. **DPO is offline** (train once on a fixed preference dataset, no reward model); **GRPO is online** (generate fresh rollouts and score them each step).
+</Fragment>
+</Diagnostic>
+
+<NarrativeBox title="Where we are">
+Chapter 2a covered supervised fine-tuning — stable imitation bounded by demonstration
+quality. This chapter is the RL half: how a model learns from a **scalar reward on its own
+outputs** rather than from gold targets. We build up from reward signals to the RLHF
+objective, then to the PPO → GRPO algorithm line that powers today's reasoning models.
+</NarrativeBox>
+
+## Reward signals: verifiers and reward models
+
+[RL](../glossary#term-rl) needs something to score the model's own generations. Two kinds:
+
+- **Verifiers** — deterministic checks ("is this math answer correct?", "does the code
+  pass?"). No ambiguity, and far less to game than a learned model — though a weak or
+  incomplete checker can still be exploited. DeepSeek R1 Zero famously used just two:
+  math correctness and format compliance.
+- [Reward models](../glossary#term-reward-model) — neural nets trained on human
+  **preference pairs** to score open-ended outputs where no verifier exists.
+
+<ConceptBox title="Bradley-Terry preference loss">
+Given a preferred output $y_w$ and a dispreferred $y_l$ for the same prompt, a
+[reward model](../glossary#term-bradley-terry) is trained to score $y_w$ higher:
+
+$$
+\mathcal{L}_{\text{RM}} = -\log\,\sigma\!\bigl(r_\theta(y_w) - r_\theta(y_l)\bigr)
+$$
+
+It never predicts an absolute "goodness" — only **relative** preference, which is all
+humans can reliably annotate.
+</ConceptBox>
+
+[DPO](../glossary#term-dpo) (Direct Preference Optimization) takes a shortcut: it
+**skips the reward model entirely** and trains the policy directly on `chosen`/`rejected`
+pairs, with an implicit KL term (strength $\beta$) to a reference. One model, one fixed
+dataset, no RL loop.
+
+<Aside category="crossref">
+**DPO is *offline*** — a fixed preference dataset, trained once. **PPO/GRPO are *online*** —
+they generate fresh rollouts from the current policy during training and score them live.
+That online/offline split is the cleanest way to file the algorithms in your head.
+</Aside>
+
+## The RLHF objective
+
+When you *do* run the online loop, the [RLHF](../glossary#term-rlhf) objective is reward
+maximization **regularized toward a reference**:
+
+$$
+\max_\theta\; \mathbb{E}_{x \sim D,\; y \sim \pi_\theta(\cdot|x)}
+\Bigl[\, r_\phi(x, y) \;-\; \beta\,\mathrm{KL}\bigl(\pi_\theta(\cdot|x)\,\|\,\pi_{\text{ref}}(\cdot|x)\bigr) \,\Bigr]
+$$
+
+The [KL penalty](../glossary#term-kl-divergence) (coefficient $\beta$) is load-bearing: it
+keeps the policy close to the frozen reference $\pi_{\text{ref}}$, guarding against
+[reward hacking](../glossary#term-reward-hacking) and mode collapse. Too small and the
+policy drifts into degenerate high-reward regions; too large and it never improves.
+
+<KeyConcept title="The four models of RLHF" los="FRI-2.5">
+Full PPO-based RLHF holds **four models** in memory at once:
+
+1. **Policy** $\pi_\theta$ — the LLM being trained.
+2. **Reference** $\pi_{\text{ref}}$ — a frozen copy, for the KL term.
+3. **Reward model** $r_\phi$ — scores generated outputs.
+4. **Value model** (critic) — estimates expected future reward for [advantage](../glossary#term-advantage) estimation.
+
+**Why it matters:** four 7B+ models is enormous memory pressure — the primary reason the
+field moved toward GRPO, which drops the critic. <EvidenceTag kind="verified" />
+</KeyConcept>
+
+<Aside category="interview">
+"RLHF requires four models in GPU memory simultaneously — name them" is a frequent frontier-lab
+screen. Miss the **reference** model (the one people forget) and it reads as never having
+implemented it.
+</Aside>
+
+## PPO and GRPO
+
+[PPO](../glossary#term-ppo) (the algorithm behind ChatGPT's RLHF) updates the policy with a
+**clipped** surrogate objective that discourages steps which move the policy too far:
+
+$$
+\mathcal{L}^{\text{PPO}} = \min\!\Bigl(\rho_t\,\hat{A}_t,\; \mathrm{clip}(\rho_t,\,1-\epsilon,\,1+\epsilon)\,\hat{A}_t\Bigr),
+\quad \rho_t = \frac{\pi_\theta(a|s)}{\pi_{\text{old}}(a|s)}
+$$
+
+The probability ratio $\rho_t$ measures how much the new policy changed; **clipping**
+(typically $\epsilon = 0.2$) holds it within $[1-\epsilon,\,1+\epsilon]$ on the side that
+would otherwise inflate the objective — a *soft* trust region that removes the incentive to
+move far, not a hard cap on the update (so KL is still worth watching). PPO uses **[GAE](../glossary#term-advantage)** with
+a learned **critic** (the 4th model) for per-token credit.
+
+[GRPO](../glossary#term-grpo) (DeepSeek's algorithm for R1) removes the critic. For each
+prompt it samples a **group** of $G$ outputs and uses the group mean as the baseline:
+
+$$
+\hat{A}_i = r(y_i) - \frac{1}{G}\sum_{j=1}^{G} r(y_j)
+$$
+
+Each output's advantage is simply how much better than its peers it scored — **no value
+model**, so memory drops from four models to three. (The original DeepSeekMath GRPO also
+divides by the group's standard deviation, $\hat{A}_i = (r_i - \text{mean})/\text{std}$; we
+use the mean-only form here for clarity — the sign and ranking carry the lesson.)
+
+<WorkedExample id="grpo-advantage" title="Worked example: a GRPO advantage update">
+A prompt is rolled out $G=4$ times against a math verifier (reward 1 = correct, 0 = wrong).
+Rewards: $r = [1, 0, 1, 0]$.
+
+Group baseline $= \frac14(1+0+1+0) = 0.5$. Advantages:
+
+$$
+\hat{A} = [\,1{-}0.5,\; 0{-}0.5,\; 1{-}0.5,\; 0{-}0.5\,] = [\,+0.5,\; -0.5,\; +0.5,\; -0.5\,]
+$$
+
+The two correct rollouts get a **positive** push (make these more likely), the two wrong
+ones a **negative** push — all measured *relative to the group*, with no critic to train.
+Note the failure mode: if all four rollouts score the same (all right or all wrong), every
+advantage is **0** and the prompt contributes no gradient — which is why GRPO needs prompts
+of intermediate difficulty to learn efficiently.
+</WorkedExample>
+
+**Completion problem.** The same prompt is rolled out $G = 4$ times, now scoring $r = [1, 1, 1, 0]$.
+Fill the blanks: the group baseline is ___, and the four advantages are ___.
+
+<CompletionProblem id="grpo-adv" level="completion" title="Check your completion">
+Baseline $= \tfrac14(1+1+1+0) = 0.75$; advantages $= [+0.25,\, +0.25,\, +0.25,\, -0.75]$. The lone
+failure gets a large negative push while each success gets a small positive one — the *rarer*
+outcome moves the policy more.
+</CompletionProblem>
+
+**Now you.** What are the advantages when every rollout succeeds ($r = [1, 1, 1, 1]$), and why
+does that make the prompt useless for this GRPO step?
+
+<CompletionProblem id="grpo-adv" level="solo" title="Reveal the reasoning">
+Every advantage is $0$: the baseline equals every reward ($1$), so nothing scores "better than the
+group." The all-correct (and all-wrong) group is exactly the zero-gradient case — which is why GRPO
+needs prompts of *intermediate* difficulty to learn efficiently.
+</CompletionProblem>
+
+### PPO vs GRPO
+
+| Aspect | PPO | GRPO |
+|---|---|---|
+| Advantage | Learned critic (GAE) | Group-mean baseline |
+| Credit assignment | Per-token (GAE) | One advantage per sequence |
+| Models in memory | 4 (policy, ref, reward, critic) | 3 (policy, ref, reward) |
+| Complexity | Higher | Lower |
+| Notable use | ChatGPT | DeepSeek-R1 |
+| Reward | Reward model | Verifiers or reward model |
+
+<DecisionTree title="PPO vs GRPO">
+- **Need token-level credit (long-form generation)?** → **PPO** with GAE.
+- **Memory-constrained (can't fit four models)?** → **GRPO** (drops the critic).
+- **Verifiable rewards (math, code)?** → **GRPO with verifiers** — the DeepSeek R1 recipe.
+- **General-purpose assistant with a learned reward model?** → **PPO** remains the proven path.
+- **Want simplicity/stability?** → **GRPO** — the field is trending toward simpler algorithms.
+</DecisionTree>
+
+<Newthought>Beyond PPO and GRPO</Newthought>, the 2025–2026 landscape has proliferated into a
+family of variants — **DAPO**, **KTO**, **SimPO**, and the broader **RLVR** (RL with verifiable
+rewards) paradigm. You don't need each by name; the useful skill is recognizing which of the
+**three axes** a new method is turning: the *reward source*, the *baseline*, and *online vs
+offline*.
+
+## Mode collapse
+
+<RedFlag title="Mode collapse">
+In RL training the policy can converge to a single high-reward output pattern, losing
+diversity — every response becomes nearly identical (the "hello hello hello" failure from
+Chapter 1 is the degenerate case).
+
+**Why:** unconstrained reward maximization has no incentive to stay diverse; the easiest way
+to raise average reward is to collapse onto the single highest-scoring mode.
+
+**Mitigations:** the **KL penalty** against the reference (RLHF/PPO), an **entropy bonus**,
+or **group-relative** methods (GRPO) whose within-group comparison preserves spread. This is
+the RL cousin of [catastrophic forgetting](../02a-supervised-finetuning/) (the SFT-side
+failure from Chapter 2a) — both are *loss of generality*, one from reward pressure, one from
+narrow-data overwriting. <EvidenceTag kind="verified" />
+</RedFlag>
+
+## Where practitioners disagree
+
+**GRPO ≈ DPO?** Recent analysis argues GRPO and DPO optimize closely related objectives —
+both push probability mass toward preferred outputs and away from dispreferred ones — and the
+practical gap is mostly **online vs offline**: GRPO samples fresh rollouts each step, DPO
+trains once on a fixed preference set. So "which is better" is less a clean algorithmic win
+than a question of whether you can afford an online loop and have a live grader.
+<EvidenceTag kind="inference" /> A second open question is **how far RL can push a base
+model**: there is evidence that RL largely *elicits* capabilities already latent in the base
+model rather than creating new ones — which would make base-model choice, not the RL
+algorithm, the dominant lever. In an interview, name the *axis* (online/offline, reward
+source, latent-vs-new capability) rather than declaring a winner.
+
+## Retrieval check
+
+Answer from memory, then expand to check — or go deeper in the
+[practice questions](../practice-exam).
+
+<SelfCheck q="Write the Bradley-Terry reward-model loss and say what it learns (relative vs absolute)." los="FRI-2.5">
+$\mathcal{L} = -\log\sigma\!\left(r(y_w) - r(y_l)\right)$, where $y_w$ is preferred. It learns **relative** preference (which output is better) — never an absolute goodness score, which is all humans reliably annotate.
+</SelfCheck>
+
+<SelfCheck q="Name the four RLHF models and which one GRPO removes." los="FRI-2.5">
+Policy, reference (frozen, for the KL term), reward model, and value/critic. GRPO removes the **value/critic**, replacing it with a group-mean baseline → three models.
+</SelfCheck>
+
+<SelfCheck q="Compute GRPO advantages for rewards [1, 1, 0, 0]; when does a prompt give zero gradient?" los="FRI-2.5">
+Baseline = mean = 0.5 → advantages $[+0.5, +0.5, -0.5, -0.5]$. A prompt gives **zero gradient when all rollouts score the same** (the baseline equals every reward) — so GRPO needs prompts of intermediate difficulty.
+</SelfCheck>
+
+<SelfCheck q="State the role of the KL penalty and what happens if beta is too small." los="FRI-2.5, FRI-2.6">
+$-\beta\,\mathrm{KL}(\pi_\theta \| \pi_{\text{ref}})$ keeps the policy near the frozen reference, guarding against reward hacking and mode collapse. Too small → the policy drifts and games the reward; too large → it can't improve.
+</SelfCheck>
+
+<SelfCheck q="Distinguish catastrophic forgetting from mode collapse, with one mitigation each." los="FRI-2.6">
+**Forgetting** (SFT side): narrow-data training overwrites general capabilities → mitigate with LoRA / a general-data mix / low epochs. **Mode collapse** (RL side): reward pressure converges on one output mode → mitigate with the KL penalty / entropy bonus / GRPO.
+</SelfCheck>
+
+## Summary
+
+RL post-training optimizes a scalar reward on the model's own generations, regularized toward
+a reference by a KL penalty. Rewards come from deterministic verifiers (clean, ungameable) or
+learned reward models trained with the Bradley-Terry preference loss; DPO skips the reward
+model and trains offline on preference pairs. The online algorithms trade off along clear
+axes: PPO uses a learned critic for token-level credit (four models), GRPO replaces the critic
+with a group-mean baseline (three models, sequence-level) and powers verifier-driven reasoning
+models like DeepSeek R1. The recurring failure mode is mode collapse — loss of diversity under
+reward pressure — held off by the KL penalty, entropy bonuses, and group-relative comparison.
+That completes the core mechanics; later chapters turn to evaluation, data, and production.

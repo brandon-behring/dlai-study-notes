@@ -1,0 +1,20 @@
+---
+id: kgr-4-chunk-count
+type: free
+chapter: 4
+domain: kg-construction
+bloom_level: apply
+objective_id: KGR-4.2
+difficulty: '2'
+tags: [chunking, calculation]
+answer: >
+  Each chunk advances by chunk_size minus overlap, so the count is roughly the total length
+  divided by that effective advance. For a 50,000-character section at chunk_size 2000, overlap
+  200, the advance is 2000 − 200 = 1800, giving ceil(50,000 / 1800) ≈ 28 chunks. The formula is
+  ceil((L − O) / (S − O)) for length L, size S, overlap O. Common wrong answer: dividing by the
+  full chunk size (50,000 / 2000 = 25) — that ignores overlap, which shrinks the advance and so
+  slightly raises the count.
+---
+
+A 10-K section is 50,000 characters. Using `chunk_size=2000` and `chunk_overlap=200`, about how
+many chunks result? Show the reasoning, not just the number.

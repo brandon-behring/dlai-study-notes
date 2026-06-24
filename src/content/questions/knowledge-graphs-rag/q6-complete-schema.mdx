@@ -1,0 +1,22 @@
+---
+id: kgr-6-complete-schema
+type: free
+chapter: 6
+domain: kg-expansion
+bloom_level: understand
+objective_id: KGR-6.8
+difficulty: '2'
+tags: [schema, summary]
+answer: >
+  Four node types — Chunk (text + embedding), Form (the 10-K), Company, Manager. Five relationship
+  types — Chunk NEXT Chunk (linked list), Chunk PART_OF Form (membership), Form SECTION Chunk
+  (section entry), Company FILED Form (filing, via CUSIP), Manager OWNS_STOCK_IN Company
+  (investment, with shares/value/quarter). Two indexes — a vector index on Chunk.textEmbedding and
+  a full-text index on Manager.managerName. Together these support semantic search (vector),
+  keyword search (full-text), sequential and hierarchical document navigation (NEXT/PART_OF/
+  SECTION), and cross-entity traversal (FILED/OWNS_STOCK_IN). Common wrong answer: forgetting the
+  indexes — they are part of the schema's capability, not an afterthought.
+---
+
+List the complete graph schema after Module 6: all node types, all relationship types, and the
+indexes.

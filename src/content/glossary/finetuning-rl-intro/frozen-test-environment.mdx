@@ -1,0 +1,13 @@
+---
+term: Frozen Test Environment
+aliases: [frozen grader, pinned eval environment]
+domain: evaluation
+see: [verifier, alignment-tax]
+tags: [evaluation, rl]
+---
+
+An RL eval setup that pins all external components — graders, tools, APIs, reward
+models — at fixed versions, so a score change reflects the **model** update, not a
+shifted rubric or updated tool. Prefer deterministic verifiers over learned reward
+models for grading (reproducible vs drifting). Re-sync periodically or the frozen target
+drifts from production reality.

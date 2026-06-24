@@ -1,0 +1,36 @@
+---
+/**
+ * /404 — not-found page (a launch gate). Astro serves dist/404.html for unknown
+ * routes on static hosts (Cloudflare Pages/Workers). showSidebar=false: no
+ * current book here, so no chapter nav.
+ */
+import Base from '@brandon_m_behring/book-scaffold-astro/layouts/Base.astro';
+import { getCollection } from 'astro:content';
+
+const books = (await getCollection('books'))
+  .filter((b) => !b.data.draft)
+  .sort((a, b) => b.data.chapter_count - a.data.chapter_count);
+---
+
+<Base
+  title="Page not found — DLAI Study Notes"
+  description="That page does not exist. Browse the corpus of DLAI study guides."
+  showSidebar={false}
+  showChrome={false}
+>
+  <article class="prose">
+    <h1>404 — Page not found</h1>
+    <p>
+      That page doesn't exist (or it moved). Head back to the
+      <a href="/">corpus home</a>, or jump into a guide:
+    </p>
+    <ul>
+      {books.map((book) => (
+        <li><a href={`/${book.data.book}/`}>{book.data.title}</a></li>
+      ))}
+    </ul>
+    <p>
+      Looking for something specific? Use the search (⌕, top-right) on any page.
+    </p>
+  </article>
+</Base>

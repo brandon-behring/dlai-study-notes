@@ -1,0 +1,13 @@
+---
+term: Score Threshold
+aliases: [similarity threshold]
+domain: text-for-rag
+see: [similarity-score]
+tags: [vector-search, evaluation]
+---
+
+A **minimum similarity score below which results are discarded**, so weak context never reaches
+the LLM (where it would invite hallucination). There is no universal value — calibrate against
+the corpus's own score distribution: raise it for precision (customer-facing), lower it for
+recall (research). Because scores are relative, a threshold tuned on one corpus rarely transfers
+to another.

@@ -1,0 +1,13 @@
+---
+term: Counterexample Mining
+aliases: [counterexample-driven improvement]
+domain: data-and-grading
+see: [iterative-data-refinement, error-analysis, catastrophic-forgetting]
+tags: [data]
+---
+
+Instead of adding random data, **mine the model's failure distribution** and write
+examples that directly counter its most common mistakes. Ten well-chosen counterexamples
+can outperform a thousand random additions, because they spend every example where the
+model is currently *wrong* rather than re-teaching what it already knows. Over-indexing
+on them risks catastrophic forgetting, so re-evaluate broadly after each addition.

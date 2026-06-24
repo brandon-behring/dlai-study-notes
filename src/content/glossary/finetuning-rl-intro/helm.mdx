@@ -1,0 +1,13 @@
+---
+term: HELM (Holistic Evaluation of Language Models)
+aliases: [HELM, holistic benchmark]
+domain: evaluation
+see: [pass-at-k, ece]
+tags: [evaluation, benchmarks]
+---
+
+Stanford's benchmark covering many scenarios across **multiple dimensions** — accuracy,
+calibration, robustness, fairness, bias, toxicity, efficiency — rather than a single
+score. Useful for regression-testing a model across post-training iterations: a change
+that lifts accuracy but worsens calibration or toxicity is visible instead of hidden in
+one aggregate number.

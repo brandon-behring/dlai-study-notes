@@ -1,0 +1,32 @@
+---
+id: eaa-3-rails-why
+type: mcq
+chapter: 3
+domain: component-evals
+bloom_level: understand
+objective_id: EAA-3.4
+difficulty: '2'
+tags: [evaluation, llm-as-judge, rails]
+options:
+  - id: a
+    text: The scale should be 1 to 100 for finer resolution
+  - id: b
+    text: LLMs are poor at calibrating a numeric scale; use 2–4 discrete rails instead
+    correct: true
+  - id: c
+    text: The judge model is too small; a larger model calibrates 1–10 reliably
+  - id: d
+    text: Numeric scores are fine as long as you round them to the nearest 5
+---
+import Rationale from '@brandon_m_behring/book-scaffold-astro/components/Rationale.astro';
+
+An LLM judge is asked to "score answer quality from 1 to 10." What is the core problem, and the
+fix?
+
+<Rationale title="Why">
+An LLM cannot reliably distinguish 83 from 79 — or 7 from 8 — so a numeric score is noise with
+the appearance of precision, and averaging such scores aggregates the noise. The fix is to ask
+only what the model does reliably: classify into 2–4 discrete rails. A finer scale (1–100)
+makes calibration *worse*, not better; the problem is calibration, not model size; and rounding
+to the nearest 5 doesn't fix an uncalibrated scale.
+</Rationale>

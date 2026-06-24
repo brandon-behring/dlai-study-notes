@@ -1,0 +1,32 @@
+% LoRA architecture — frozen W plus a trainable low-rank A·B branch.
+% Uses the shared corpus palette (tolblue/tolgreen); neutrals (text, arrows)
+% are remapped to --diagram-* tokens by build-figures so the figure themes.
+\documentclass[tikz, border=8pt]{standalone}
+\input{../_shared/preamble.tex}
+\begin{document}
+% Transparent fills + colored borders so the figure themes cleanly: labels are
+% black (→ remapped to --diagram-ink, flips light/dark) and stay legible on any
+% background; the blue/green BORDERS carry the frozen-vs-trainable identity.
+\begin{tikzpicture}[
+    block/.style={draw, rounded corners, minimum width=2cm, minimum height=0.8cm, font=\small, line width=1pt},
+    frozen/.style={block, draw=tolblue},
+    trainable/.style={block, draw=tolgreen},
+    arr/.style={-{Stealth[length=3mm]}, thick}
+]
+    \node[frozen]    (W) at (0, 0)      {$W$ (frozen)};
+    \node[trainable] (A) at (4, 0.9)    {$A$ ($d \times r$)};
+    \node[trainable] (B) at (4, -0.9)   {$B$ ($r \times d$)};
+
+    \node (input)  at (-2.6, 0) {$x$};
+    \node (output) at (7.4, 0)  {$h = Wx + \dfrac{\alpha}{r}\,BAx$};
+
+    \draw[arr] (input) -- (W);
+    \draw[arr] (W) -- ++(1.6, 0);
+    \draw[arr] (input) |- (A);
+    \draw[arr] (A) -- (B);
+    \draw[arr] (B) -| ++(1.6, 0.9);
+
+    \node[font=\scriptsize] at (4, -1.8)
+        {Only $A$ and $B$ are trained ($r \ll d$)};
+\end{tikzpicture}
+\end{document}

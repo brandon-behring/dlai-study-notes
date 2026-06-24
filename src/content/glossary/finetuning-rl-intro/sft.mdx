@@ -1,0 +1,12 @@
+---
+term: Supervised Fine-Tuning (SFT)
+aliases: [SFT, instruction tuning]
+domain: sft-vs-rl
+see: [rl, chain-of-thought]
+tags: [sft]
+---
+
+Post-training via supervised learning on (input, desired-output) pairs: the
+model imitates high-quality demonstrations. Stable and data-efficient (LoRA
+makes it single-GPU feasible), but **bounded by demonstration quality** — it
+cannot exceed what it was shown.

@@ -1,0 +1,13 @@
+---
+term: Tool Use
+aliases: [function calling]
+domain: production-pipelines
+see: [agent, handoff-reward]
+tags: [agents]
+---
+
+Training a model to invoke external APIs, databases, or code interpreters instead of relying
+on parametric knowledge. SFT on tool-use transcripts teaches the *format*; RL rewards correct
+invocation and final-answer accuracy. The guiding principle: **prefer tools over internal
+knowledge** for factual lookups, since a tool result is current and auditable where parametric
+recall is neither.

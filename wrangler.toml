@@ -1,0 +1,20 @@
+# Cloudflare Workers (static assets) config — study-notes.brandon-behring.dev.
+#
+# Deployed via Workers Builds (Git-connected). Cloudflare disabled Pages-project
+# creation on this account (Workers-only flow, 2026-06-11), so the launch uses
+# Workers static assets — matching guides / guides-ai-engineering / ssm-foundations.
+#
+#   Build command:  npm run build
+#   Deploy command: npx wrangler deploy   (Workers Builds default)
+#   Node version:   22 (auto-detected; Astro 6 requires >=22.12.0)
+#
+# Root-domain consumer (Astro base = '/'), so NO public/_redirects rewrite is
+# needed (unlike guides-ai-engineering, which builds at base=/ai-engineering/).
+# Figures: build:figures skips gracefully when LaTeX is absent (the node-only
+# Workers Builds container) and serves the committed public/figures/ SVGs.
+
+name = "dlai-study-notes"
+compatibility_date = "2026-06-03"
+
+[assets]
+directory = "./dist"

@@ -1,0 +1,24 @@
+---
+id: kgr-5-missing-filter-bug
+type: free
+chapter: 5
+domain: kg-relationships
+bloom_level: analyze
+objective_id: KGR-5.7
+difficulty: '3'
+tags: [debugging, next]
+answer: >
+  Under per-section numbering (Introduction seq 0–4, Methods seq 0–4), the correct build with the
+  `item` filter gives 4 edges per section = 8 total. Without the filter, the `chunkSeqId + 1` join
+  matches by number across the whole form, so each chunk also links to the next-numbered chunk in
+  the other section (Introduction seq-3 → Methods seq-4, and so on) — spurious cross-section edges
+  that fork the list. Detect them by querying for NEXT edges whose endpoints sit in different
+  sections: `MATCH (a)-[:NEXT]->(b) WHERE a.item <> b.item RETURN a, b` — any rows are boundary
+  bleed. Fix by deleting those edges and rebuilding with the `item` filter. Common wrong answer:
+  assuming a single stray edge (one "last-of-A → first-of-B" link) — the unfiltered join adds a
+  cross-section edge at every sequence number that lines up, not just one.
+---
+
+A 10-chunk document (Introduction seq 0–4, Methods seq 0–4, sequence ids restarting per section)
+was loaded with NEXT but no section filter. How many edges should exist, what does the bug add, and
+how would you detect the bad edges?

@@ -1,0 +1,30 @@
+---
+id: kgr-5-window-size
+type: mcq
+chapter: 5
+domain: kg-relationships
+bloom_level: apply
+objective_id: KGR-5.4
+difficulty: '1'
+tags: [chunk-window, calculation]
+options:
+  - id: a
+    text: 4 chunks, with k chunks on each side of the target
+  - id: b
+    text: 5 chunks — the target plus two on each side
+    correct: true
+  - id: c
+    text: 3 chunks, the same as the default window
+  - id: d
+    text: 7 chunks, following a 3k plus 1 rule
+---
+import Rationale from '@brandon_m_behring/book-scaffold-astro/components/Rationale.astro';
+
+A chunk window takes `k` hops in each direction. For `k = 2`, how many chunks does a full
+(non-boundary) window contain?
+
+<Rationale title="Why">
+The window size is `w = 2k + 1`: the target plus `k` neighbours on each side. For `k = 2` that is
+2(2) + 1 = 5 chunks. The "4" answer forgets to count the target itself, "3" is the `k = 1` default,
+and "3k + 1" is not the window formula.
+</Rationale>

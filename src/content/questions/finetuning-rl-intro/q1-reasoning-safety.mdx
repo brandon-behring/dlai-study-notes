@@ -1,0 +1,25 @@
+---
+id: fri-1-reasoning-safety
+type: free
+chapter: 1
+domain: post-training-foundations
+bloom_level: understand
+objective_id: FRI-1.4
+difficulty: '2'
+tags: [post-training, reasoning, safety]
+answer: >
+  Reasoning comes in two moves: chain-of-thought SFT teaches the model to show step-by-step
+  work (imitating reasoning traces), then RL with verifiable rewards lets it discover novel
+  strategies beyond the demonstrations — DeepSeek R1 is the canonical example, where GRPO on
+  math/code verifiers produced reasoning the SFT data never showed. Safety comes from
+  Constitutional AI / RLAIF: a written constitution drives the model to self-critique and
+  revise its outputs and to generate its own preference labels, so harmlessness scales without
+  armies of human annotators. The throughline: pre-training gives raw capability; post-training
+  shapes it into reasoning format and safe behavior. Common wrong answer: "reasoning and safety
+  come from a bigger pre-training corpus" — scale helps raw capability, but the step-by-step
+  reasoning habit and the safety alignment are post-training behaviors, instilled by SFT+RL and
+  Constitutional AI respectively.
+---
+
+Explain how post-training produces (a) reasoning ability and (b) safety alignment, naming
+the specific mechanism behind each.

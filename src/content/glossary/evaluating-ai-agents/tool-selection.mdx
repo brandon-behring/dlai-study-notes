@@ -1,0 +1,13 @@
+---
+term: Tool Selection
+aliases: [function-calling choice]
+domain: component-evals
+see: [parameter-extraction, router-evaluation]
+tags: [routing, evaluation]
+---
+
+The router dimension measuring whether the agent chose the **correct tool** for a query
+(function-calling choice), scored by exact match against a labelled target
+(`predicted_tool == expected_tool`). It is one of the *two* independent router dimensions — a
+high tool-selection score can still mask poor [parameter
+extraction](#term-parameter-extraction), so the two must be tracked separately.

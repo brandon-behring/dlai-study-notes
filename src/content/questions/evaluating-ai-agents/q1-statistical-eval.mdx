@@ -1,0 +1,23 @@
+---
+id: eaa-1-statistical-eval
+type: free
+chapter: 1
+domain: eval-foundations
+bloom_level: apply
+objective_id: EAA-1.3
+difficulty: '2'
+tags: [non-determinism, eval-driven-development]
+answer: >
+  Run the new prompt against a fixed, representative evaluation dataset — dozens to hundreds of
+  inputs covering the real query distribution — not one demo. Generate several samples per
+  input to estimate variance, score outputs against defined criteria (a quality metric and/or
+  LLM-as-a-judge), and compare the *distribution* of scores to the previous prompt: check the
+  average AND the tail (rare failures), plus any regression in downstream components that
+  consume the summary. Ship only if the aggregate improves with no tail regression. Common
+  wrong answer: "re-run the demo a few times and eyeball it" — too few samples on
+  unrepresentative inputs; you need a curated dataset and a statistical comparison to detect
+  the rare failures that hide behind a good average.
+---
+
+You changed a summarisation prompt and one demo looked great. Design a check that would
+actually tell you whether the change is safe to ship.

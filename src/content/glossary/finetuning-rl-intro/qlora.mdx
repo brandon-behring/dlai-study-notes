@@ -1,0 +1,12 @@
+---
+term: QLoRA (Quantized LoRA)
+aliases: [QLoRA, 4-bit LoRA]
+domain: sft-vs-rl
+see: [lora, rank]
+tags: [sft, lora, quantization]
+---
+
+Combines LoRA with **4-bit NormalFloat (NF4)** quantization of the frozen base
+model: base weights are stored in 4-bit while the LoRA adapters stay full
+precision. Reduces memory ~4× (a 7B model fits in ~6 GB vs ~16 GB for LoRA) with
+minimal quality loss — the route to fine-tuning on a single consumer GPU.

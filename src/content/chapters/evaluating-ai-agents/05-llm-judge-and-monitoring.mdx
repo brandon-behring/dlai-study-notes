@@ -1,686 +1,329 @@
 ---
 book: evaluating-ai-agents
-title: LLM-as-Judge and Production Monitoring
+title: 'LLM-Judge & Monitoring'
 chapter: 5
-description: Meta-evaluation for judge accuracy, prompt engineering for judges,
-  golden datasets as shipping gates, and the self-improving agent pipeline for
-  production monitoring.
+part: 1
+description: >
+  Meta-evaluation (measuring the judge against code-based ground truth), agreement
+  rate vs false-positive rate as leniency indicators, four levers to improve a
+  judge, golden datasets as CI shipping gates and how they evolve, production
+  monitoring for silent regressions, and the self-improving pipeline with its
+  feedback-poisoning risk.
 learning_outcomes:
   - id: EAA-5.1
-    verb: design
-    text: a meta-evaluation experiment to measure LLM judge accuracy by comparing
-      against code-based ground truth
+    verb: Design
+    text: >
+      a meta-evaluation experiment to measure LLM judge accuracy by comparing
+      against code-based ground truth.
   - id: EAA-5.2
-    verb: apply
-    text: "four techniques to improve judge accuracy: prompt engineering, few-shot
-      examples, model selection, semantic similarity"
+    verb: Apply
+    text: >
+      four techniques to improve judge accuracy: prompt engineering, few-shot
+      examples, model selection, semantic similarity.
   - id: EAA-5.3
-    verb: describe
-    text: the golden dataset pattern as a shipping gate for agent changes
+    verb: Describe
+    text: >
+      the golden dataset pattern as a shipping gate for agent changes.
   - id: EAA-5.4
-    verb: explain
-    text: production monitoring strategies using traces, annotations, and
-      time-series metrics
+    verb: Explain
+    text: >
+      production monitoring strategies using traces, annotations, and time-series
+      metrics.
   - id: EAA-5.5
-    verb: design
-    text: a self-improving agent pipeline that incorporates production feedback into
-      evaluation datasets and CI/CD experiments
+    verb: Design
+    text: >
+      a self-improving agent pipeline that incorporates production feedback into
+      evaluation datasets and CI/CD experiments.
   - id: EAA-5.6
-    verb: evaluate
-    text: the risk of feedback poisoning in self-improving pipelines and design
-      quality filters—engagement-time thresholds, cross-signal validation,
-      confidence weighting—that prevent noisy or adversarial feedback from
-      contaminating evaluation datasets
+    verb: Evaluate
+    text: >
+      the risk of feedback poisoning in self-improving pipelines and design quality
+      filters (engagement-time thresholds, cross-signal validation, confidence
+      weighting) that prevent noisy or adversarial feedback from contaminating datasets.
   - id: EAA-5.7
-    verb: compare
-    text: judge agreement-rate vs. false-positive rate as leniency indicators and
-      pick acceptance thresholds for both
+    verb: Compare
+    text: >
+      judge agreement-rate vs false-positive rate as leniency indicators and pick
+      acceptance thresholds for both.
   - id: EAA-5.8
-    verb: design
-    text: golden-dataset evolution policy across the first 90 days—when to add,
-      prune, and stabilise rows—so the gate keeps catching real regressions
-      without growing unboundedly
-sources: []
-tools_compared:
-  - AI Engineer / MLE --- Anthropic
-  - Google
-  - Meta --- L4/L5
-last_verified: 2026-05-21
+    verb: Design
+    text: >
+      a golden-dataset evolution policy across the first 90 days — when to add,
+      prune, and stabilise rows — so the gate keeps catching real regressions
+      without growing unboundedly.
+tags:
+  - llm-as-judge
+  - meta-evaluation
+  - golden-dataset
+  - monitoring
+  - self-improving
+last_verified: 2026-06-19
 volatility: architectural-pattern
-provenance:
-  ai_tools:
-    - Claude Code
+sources:
+  - zheng2023judging
+  - arize2024phoenix
+draft: false
 ---
 
-{/* TODO: per-chapter polish pass — see plan decision Q1 round 3 */}
-
-&lt;!–MDXB-3-OPEN–&gt;
-
-Chapter 4 introduced structured experimentation and the evaluation
-dashboard. But one question remains: *how accurate are the
-evaluators themselves?* This chapter tackles meta-evaluation, then
-extends the framework into production with golden datasets, monitoring,
-and the self-improving pipeline.
-
-&lt;!–MDXB-3-CLOSE–&gt;
-
-# Meta-Evaluation: Evaluating the Evaluator
-
-
-
-<Sidenote category="interview">"How do you know your LLM evaluator is accurate?" Meta-evaluation: run both code-based and LLM judge on the same data, measure agreement.</Sidenote>
-
-
-
-
-
-<Term name="Meta-Evaluation" los="EAA-5.1">
-  Evaluating an evaluator's accuracy by comparing its judgments against known ground truth. Quantified by agreement rate between the LLM judge and a deterministic reference evaluator.
-</Term>
-<AnkiCard type="term" front={"Meta-Evaluation"} back={"Evaluating an evaluator's accuracy by comparing its judgments against known ground truth. Quantified by agreement rate between the LLM judge and a deterministic reference evaluator."} los="EAA-5.1" />
-
-
-
-
-
-<Term name="Agreement Rate" los="EAA-5.1">
-  The fraction of cases where the LLM judge produces the same label as the ground-truth evaluator. Target: $ 0.90$.
-</Term>
-<AnkiCard type="term" front={"Agreement Rate"} back={"The fraction of cases where the LLM judge produces the same label as the ground-truth evaluator. Target: $ 0.90$."} los="EAA-5.1" />
-
-
-
-The protocol<Citation src="zheng2023judging" />: (1) select cases with deterministic
-expected outputs, (2) run a code-based evaluator (100% accurate by
-construction), (3) run the LLM judge on the same cases, (4) compute agreement.
-
-
-
-<Sidenote category="formula">Agreement rate = $\{judge matches code eval\} \{total cases\}$. Below 85% = do not ship the judge.</Sidenote>
-
-
-
-&lt;!–MDXB-5-OPEN–&gt;
-
-**Core Insight:** You cannot measure LLM judge accuracy without
-a deterministic reference. The code-based evaluator on ground-truth
-data provides that reference.
-
-**Why It Matters:** A dashboard showing “92% accuracy” means
-nothing if the judge itself is only 75% accurate.
-
-**When It Breaks:** For purely subjective dimensions (tone,
-creativity), inter-annotator agreement with humans replaces code-based
-meta-evaluation.
-
-&lt;!–MDXB-5-CLOSE–&gt;
-
-&lt;!–MDXB-9-OPEN–&gt;
-
-**Why interviewers ask this:** Anthropic (Applied Research, all
-levels), Google (L5+ Trust & Safety ML), and OpenAI (Research
-Engineer) ask about evaluator reliability to test whether candidates
-understand that the evaluation layer itself can fail. Asked in 55%+
-of safety-aware ML loops as a follow-up to “how would you evaluate
-an agent?”
-
-**What they’re really testing:** Whether you recognise that an
-LLM judge can conflate helpfulness (polite, well-structured) with
-faithfulness (factually correct). The meta-signal: candidates who
-propose meta-evaluation—comparing judge labels against code-based
-ground truth (EAA-5.1)—and track false positive rate separately
-from agreement rate demonstrate they have shipped evaluators that
-actually work. Those who also describe the golden dataset as a CI
-shipping gate (EAA-5.3) show production maturity.
-
-**Expected depth by level:**
-
-- **IC3/IC4:** Explain meta-evaluation protocol (ground
-  truth → code eval → LLM judge → agreement rate).
-  State the 85%+ agreement threshold and why numeric judge
-  scores fail (EAA-5.2).
-
-- **IC5+/Staff:** Design the full self-improving pipeline
-  (EAA-5.5): production traces → feedback filter →
-  dataset augmentation → CI experiments → golden dataset
-  gate. Discuss feedback poisoning risks and asymmetric error
-  analysis (FPR vs. FNR).
-
-**Red flag:** “Our LLM judge reports 94% accuracy so the agent
-is production-ready” — uses the judge’s own score as validation,
-with no independent ground truth or meta-evaluation.
-
-&lt;!–MDXB-9-CLOSE–&gt;
-
-
-
-<Sidenote category="warning">A 70% agreement rate means 30% of evaluations are wrong. Enough to mask real regressions or flag false improvements.</Sidenote>
-
-
-
-# Improving LLM Judge Accuracy
-
-Four techniques, each targeting a different failure mode:
-
-**1. Prompt Engineering**: Reword the judge prompt—make criteria
-explicit, specify output format strictly, add chain-of-thought. Simplest
-and often most effective.
-
-**2. Few-Shot Examples**: Add 3–5 examples of correct judgments
-covering boundary cases (e.g., case-insensitive match, floating-point
-tolerance).
-
-**3. Model Selection**: Swap the judge model. GPT-4o at $0.01/eval
-may agree 95%; GPT-3.5 at $0.001 may agree 82%.
-
-**4. Semantic Similarity**: For non-binary outputs, use embedding
-cosine distance instead of exact string comparison<Citation src="schick2023toolformer" />.
-
-&lt;!–MDXB-6-OPEN–&gt;
-
-**Core Insight:** Prompt engineering, few-shot, model selection,
-and semantic similarity target different failure modes. The agreement
-rate is the single metric that tells you if any worked.
-
-**Why It Matters:** Each lever targets a specific failure. Prompt
-fixes misunderstood criteria. Few-shot fixes calibration. Model
-selection fixes capability gaps. Semantic similarity fixes false
-negatives on paraphrases.
-
-**When It Breaks:** Stacking all four simultaneously makes
-attribution hard. Apply one at a time.
-
-&lt;!–MDXB-6-CLOSE–&gt;
-
-
-
-<Sidenote category="pattern">Meta-eval protocol: ground-truth subset $$ code eval as oracle $$ LLM judge $$ agreement rate. Repeat after every judge change.</Sidenote>
-
-
-
-
-
-<Sidenote category="interview">"How would you debug a low-accuracy LLM judge?" Start with the prompt. 80% of judge failures are prompt failures.</Sidenote>
-
-
-
-# Golden Datasets
-
-
-
-<Term name="Golden Dataset" los="EAA-5.3">
-  A curated evaluation dataset capturing critical use cases and known failure modes. Used as a shipping gate: every agent change must pass before deployment.
-</Term>
-<AnkiCard type="term" front={"Golden Dataset"} back={"A curated evaluation dataset capturing critical use cases and known failure modes. Used as a shipping gate: every agent change must pass before deployment."} los="EAA-5.3" />
-
-
-
-The golden dataset differs from general evaluation datasets:
-(1) curated for criticality—every row is a must-pass scenario,
-(2) includes known failure modes codified from past production bugs,
-(3) grows continuously as new failures are discovered.
-
-
-
-<Sidenote category="pattern">Golden dataset as CI gate: every PR modifying agent code triggers a run. Any regression blocks the merge.</Sidenote>
-
-
-
-Because agent tests are probabilistic, teams run golden dataset evaluations
-multiple times and use the median or worst score with tolerance bands.
-
-&lt;!–MDXB-7-OPEN–&gt;
-
-**Core Insight:** A golden dataset grows with every production
-failure and new use case. Its value compounds over time.
-
-**Why It Matters:** Encodes institutional knowledge. New team
-members inherit it through the CI gate.
-
-**When It Breaks:** If too large (&gt;100 rows), run times become
-prohibitive. Periodically prune rows that never triggered regressions.
-
-&lt;!–MDXB-7-CLOSE–&gt;
-
-# Production Monitoring
-
-Production reveals failure modes no dataset anticipated: unseen queries,
-new entities, API degradations, distribution shifts. The development tools
-(tracing, annotations) carry directly into production, enriched by real
-user data.
-
-
-
-<Sidenote category="warning">Most dangerous production failure: *silent regression*. Plausible-looking but wrong answers. Only monitoring with evaluators catches this.</Sidenote>
-
-
-
-Key production metrics:
-
-- **Evaluator scores**: Running averages per dimension.
-
-- **Convergence scores**: Steps to terminal state.
-
-- **LLM call counts**: Unexpected increases signal loops.
-
-- **Latency**: End-to-end, broken by component.
-
-- **Cost**: Dollar cost per query, per model, per skill.
-
-
-
-<Sidenote category="formula">Alert thresholds: eval scores, convergence, LLM calls/query, p50/p99 latency, cost/query. Alert on $>$10% deviation.</Sidenote>
-
-
-
-
-
-<Sidenote category="crossref">Tracing from Ch 2 carries directly into production. Phoenix works identically in dev and prod.</Sidenote>
-
-
-
-# The Self-Improving Agent Pipeline
-
-
-
-<Term name="Self-Improving Agent" los="EAA-5.5">
-  An automated pipeline where production feedback continuously updates evaluation datasets, triggers CI/CD experiments, and refines the agent with minimal human intervention.
-</Term>
-<AnkiCard type="term" front={"Self-Improving Agent"} back={"An automated pipeline where production feedback continuously updates evaluation datasets, triggers CI/CD experiments, and refines the agent with minimal human intervention."} los="EAA-5.5" />
-
-
-
-Five stages<Citation src="arize2024phoenix" />: (1) collect user feedback, (2) augment
-evaluation dataset with successful and failed interactions, (3) run CI/CD
-experiments on every dataset update, (4) incorporate few-shot examples from
-collected data, (5) gate deployment via golden dataset.
-
-&lt;!–MDXB-8-OPEN–&gt;
-
-**Core Insight:** The pipeline transforms evaluation from periodic
-manual effort into continuous automated process. Each interaction makes
-the system incrementally better.
-
-**Why It Matters:** Teams with automated pipelines iterate orders
-of magnitude faster.
-
-**When It Breaks:** Automation without quality gates is dangerous.
-Noisy or adversarial feedback can poison the dataset. Human review is
-a necessary safety valve.
-
-&lt;!–MDXB-8-CLOSE–&gt;
-
-
-
-<Sidenote category="interview">"Describe a self-improving agent system." Walk through all five stages. Emphasize the automated feedback loop and golden dataset gate.</Sidenote>
-
-
-
-# Practice Problems
-
-&lt;!–MDXB-10-OPEN–&gt;
-
-Your LLM judge scores code correctness by prompting a model to assess
-generated code. You suspect it is too lenient. Design a meta-evaluation:
-
-1.  ground-truth evaluator,
-
-2.  dataset requirements,
-
-3.  agreement metric,
-
-4.  acceptance threshold.
-
-&lt;!–MDXB-10-CLOSE–&gt;
-
-&lt;!–MDXB-12-OPEN–&gt;
-
-**Approach:**
-
-1.  Execute code in sandbox, compare actual vs. expected output. 100% accurate by construction.
-
-2.  40–50 rows: correct code, syntax errors, subtle logic bugs (30%+ of dataset—where leniency manifests), edge case failures.
-
-3.  Binary agreement rate, plus false positive rate (judge says correct, code fails). FPR is the leniency metric.
-
-4.  Overall agreement ≥ 85% *and* FPR ≤ 10%.
-
-**Key Insight:** A single agreement rate can mask asymmetric errors.
-Breaking into FP and FN reveals whether the judge is too lenient or strict.
-
-**Answer:**
-
-1.  Ground truth: sandboxed code execution comparing actual to expected output (100% accurate by construction).
-
-2.  Dataset: 40–50 rows mixing correct code, syntax errors, subtle logic bugs (≥30% to surface leniency), and edge-case failures.
-
-3.  Metrics: binary agreement rate plus false-positive rate (judge accepts code that fails)—FPR is the leniency signal.
-
-4.  Acceptance: overall agreement ≥85% *and* FPR ≤10%.
-
-&lt;!–MDXB-12-CLOSE–&gt;
-
-&lt;!–MDXB-11-OPEN–&gt;
-
-Your agent handles payment processing, account security, and data export.
-Define:
-
-1.  minimum golden dataset composition,
-
-2.  pass/fail criteria,
-
-3.  evolution over 3 months.
-
-&lt;!–MDXB-11-CLOSE–&gt;
-
-&lt;!–MDXB-13-OPEN–&gt;
-
-**Approach:**
-
-1.  5 rows × 3 workflows = 15 core. 2 rows × 3 known failures = 6. 3 cross-workflow rows. Total: 24 minimum.
-
-2.  100% pass on payment/security (zero tolerance). ≥90% on data export. ≥0.85 LLM clarity. Run 3×, take worst score.
-
-3.  Month 1: add every production bug (5–10 rows). Month 2: prune never-triggered rows, add new features. Month 3: stabilize at 40–60 rows with quarterly review.
-
-**Key Insight:** Asymmetric thresholds—zero tolerance on
-safety-critical, softer on lower stakes.
-
-**Answer:**
-
-1.  24 rows minimum: 5 happy-path × 3 workflows = 15, plus 2 known-failure × 3 = 6, plus 3 cross-workflow rows.
-
-2.  Pass thresholds: 100% on payment/security (zero tolerance), ≥90% on data export, ≥0.85 LLM clarity. Run 3× and take the worst score.
-
-3.  Month 1: capture every production bug (5–10 rows). Month 2: prune never-triggered rows, add new features. Month 3: stabilise at 40–60 rows with quarterly review.
-
-&lt;!–MDXB-13-CLOSE–&gt;
-
-**Case Study: The Lenient Judge Disaster**
-
-Your team ships an LLM judge for a customer support agent that classifies
-responses as “helpful” or “not helpful.” After two weeks in production,
-CSAT scores drop 15% despite the judge reporting 94% helpfulness. A manual
-audit of 50 production traces reveals the judge marks 40% of incorrect
-answers as “helpful” because they are polite and well-structured.
-
-| **Metric**                   | **Judge Reports** | **Manual Audit** |
-|:-----------------------------|:------------------|:-----------------|
-| Helpfulness                  | 94%               | 67%              |
-| False positive rate          | unknown           | 40%              |
-| False negative rate          | unknown           | 3%               |
-| Agreement (judge vs. manual) | —                 | 72%              |
-
-1.  What meta-evaluation failure allowed this to ship? Design the
-    meta-evaluation that would have caught it.
-
-2.  The judge has a 40% FPR but only 3% FNR. What does this
-    asymmetry reveal about the judge prompt?
-
-3.  Propose two changes (one prompt-level, one architectural) to fix
-    the judge without replacing the model.
-
-&lt;!–MDXB-14-OPEN–&gt;
-
-**Approach:** **1.** No meta-evaluation was run before shipping. The 94% metric was
-the judge’s self-reported score, not validated against ground truth. Fix:
-build a 50-row ground-truth dataset with code-verifiable outcomes (e.g.,
-did the agent return the correct order status?). Run the judge against this
-dataset and require ≥85% agreement and ≤10% FPR before
-shipping.
-
-**2.** The judge conflates politeness/structure with correctness. It
-is biased toward surface-level quality signals and ignores factual
-accuracy. The prompt likely says “evaluate helpfulness” without defining
-that helpfulness requires factual correctness.
-
-**3.** Prompt fix: Add explicit criterion: “A response is helpful
-ONLY if the factual content is correct. A polite but incorrect answer
-scores 0.” Add 3 few-shot examples of polite-but-wrong responses scored
-as “not helpful.” Architectural fix: Add a code-based evaluator that
-checks factual claims against the knowledge base, run in parallel with the
-LLM judge. Flag disagreements for human review.
-
-**Key Insight:** Agreement rate alone can mask asymmetric errors.
-Always compute FPR and FNR separately. A judge with 40% FPR is
-operationally useless for quality gating.
-
-**Answer:**
-
-1.  No meta-evaluation was run before shipping; 94% was the judge’s self-reported score, not validated against ground truth. Build a 50-row code-verifiable dataset and require ≥85% agreement / ≤10% FPR.
-
-2.  The judge conflated politeness/structure with correctness. The prompt asked for “helpfulness” without anchoring it to factual accuracy.
-
-3.  Prompt fix: “A response is helpful ONLY if its factual content is correct. A polite but incorrect answer scores 0.” Plus 3 few-shot examples of polite-but-wrong → “not helpful”. Architectural fix: parallel code-based evaluator that checks factual claims against the knowledge base; flag any LLM/code disagreement for human review.
-
-&lt;!–MDXB-14-CLOSE–&gt;
-
-**Case Study: Golden Dataset Rot**
-
-A payment processing agent has a golden dataset of 45 rows that was
-curated 6 months ago. The team runs it as a CI gate on every PR. Last
-quarter, 3 production incidents occurred—all involving features added
-after the golden dataset was frozen. The golden dataset passed 100% on
-every PR during this period.
-
-| **Metric**                 | **Q1 (fresh)** | **Q2 (stale)** |
-|:---------------------------|:---------------|:---------------|
-| Golden dataset rows        | 45             | 45             |
-| Production incidents       | 0              | 3              |
-| Golden dataset pass rate   | 98%            | 100%           |
-| New features since freeze  | 0              | 4              |
-| Rows covering new features | —              | 0              |
-
-1.  Why did a 100% pass rate coexist with 3 production incidents?
-
-2.  Design a process that prevents golden dataset staleness.
-
-3.  Should the team add all 3 incident cases to the golden dataset?
-    What criteria should govern additions?
-
-&lt;!–MDXB-15-OPEN–&gt;
-
-**Approach:** **1.** The golden dataset tested only pre-existing features. New
-features (4 added in Q2) had zero coverage. 100% pass rate on stale rows
-creates false confidence—the dataset tests what used to break, not what
-might break now.
-
-**2.** Process: (a) Every PR that adds a new feature or workflow MUST
-add ≥2 golden dataset rows covering that feature. Code review
-enforces this. (b) Monthly review: compare golden dataset coverage against
-the current feature list. Flag uncovered features. (c) After every
-production incident, add a regression row within 48 hours.
-
-**3.** Add all 3 incidents as regression rows. Criteria for additions:
-(a) any production incident, (b) any new feature or workflow, (c) any
-edge case discovered during testing. Criteria for removal: rows that have
-not triggered a failure in 6+ months AND cover a feature that has been
-stable. Never remove rows for safety-critical workflows.
-
-**Key Insight:** A golden dataset that never fails is a red flag, not
-a success signal. It means the dataset is not keeping pace with the system.
-
-**Answer:**
-
-1.  The dataset only tested pre-existing features. The 4 new features added in Q2 had zero coverage; 100% pass rate on stale rows is false confidence.
-
-2.  Process: every feature-adding PR must include ≥2 golden rows for the new feature (enforced in code review); monthly coverage review against current feature list flags uncovered features; every production incident gets a regression row within 48 hours.
-
-3.  Add all 3 incidents as regression rows. Inclusion criteria: production incidents, new features/workflows, testing-discovered edge cases. Removal criteria: rows untriggered for 6+ months covering a stable feature; never remove rows for safety-critical workflows.
-
-&lt;!–MDXB-15-CLOSE–&gt;
-
-**Case Study: Self-Improving Pipeline Feedback Poisoning**
-
-A travel booking agent implements the self-improving pipeline. After 2
-months, the agent starts recommending luxury hotels for budget-conscious
-users. Investigation reveals that 30% of the “positive” feedback came
-from users who clicked “helpful” on any response without reading it.
-This noise was incorporated into the few-shot examples and evaluation
-dataset.
-
-| **Metric**                 | **Month 1** | **Month 2** |
-|:---------------------------|:------------|:------------|
-| User satisfaction (survey) | 82%         | 64%         |
-| Automated eval score       | 88%         | 91%         |
-| Feedback volume            | 200         | 500         |
-| Noisy feedback (%)         | 10%         | 30%         |
-| Few-shot examples added    | 15          | 40          |
-
-1.  Why did the automated eval score increase while user satisfaction
-    decreased?
-
-2.  Design a feedback quality filter that prevents noisy signals from
-    entering the pipeline.
-
-3.  What role should the golden dataset play in catching this type of
-    drift?
-
-&lt;!–MDXB-16-OPEN–&gt;
-
-**Approach:** **1.** The automated eval dataset was contaminated by the same noisy
-feedback. As noisy “positive” examples entered the dataset, the
-evaluator learned to score luxury recommendations highly. The eval score
-tracked the noise, not actual quality. User surveys, being independent,
-captured the true degradation.
-
-**2.** Feedback quality filter: (a) Require minimum engagement
-time—feedback submitted within 2 seconds of response is discarded.
-(b) Cross-validate against explicit signals: if a user rates “helpful”
-but immediately re-queries the same topic, treat as noisy.
-(c) Confidence weighting: feedback from users with &gt;10 interactions
-weighted 3x vs. new users. (d) Human review sample: randomly audit 10%
-of feedback weekly.
-
-**3.** The golden dataset should include “budget user requests
-budget hotel” scenarios. If these pass before and after pipeline updates,
-the drift would be detected. The golden dataset acts as an anchor:
-automated eval can drift, but golden dataset rows are human-curated and
-fixed.
-
-**Key Insight:** The self-improving pipeline’s strength (automated
-feedback incorporation) is also its vulnerability. The golden dataset is
-the firewall between noisy automation and production quality.
-
-**Answer:**
-
-1.  The eval dataset was contaminated by the same noisy feedback. The evaluator learned to score luxury recommendations highly because the few-shot examples ingested noise. Independent user surveys captured the true degradation.
-
-2.  Feedback filters: minimum engagement time (discard &lt;2s clicks), cross-validation against explicit signals (re-query within 30s = noise), confidence weighting (users with &gt;10 interactions count 3× vs. first-touch), and a 10% weekly human-review audit.
-
-3.  The golden dataset must include “budget user requests budget hotel”-style scenarios; human-curated fixed rows act as a firewall against drift in automated eval. Pipeline updates that fail golden rows fail to ship even when automated eval is unchanged.
-
-&lt;!–MDXB-16-CLOSE–&gt;
-
-&lt;!–MDXB-17-OPEN–&gt;
-
-\[EAA-5.4, EAA-5.5\]
-Your production agent uses an external knowledge base API for the
-`search_kb` skill. On Saturday at 2 AM, the API provider deploys a
-breaking change that returns empty results for 40% of queries. The agent
-gracefully handles the empty results by generating responses from its
-training data instead. Monday morning, the team discovers that weekend users
-received plausible but fabricated answers. The golden dataset CI gate passed
-on Friday’s last PR, and no alerts fired over the weekend.
-
-**Question 1:** Why did the golden dataset gate and the existing
-monitoring fail to catch this production failure? Identify at least two
-gaps in the monitoring strategy.
-
-**Question 2:** Design a production monitoring rule that would have
-detected the knowledge base degradation within 1 hour. Specify the metric,
-the data source (traces), and the alerting threshold.
-
-**Question 3:** After fixing the immediate issue, the team wants to
-add this failure mode to the self-improving pipeline. Describe the specific
-steps: what gets added to the golden dataset, what new evaluator is created,
-and how the feedback loop prevents recurrence.
-
-**Answer Rubric:**
-
-- **Q1:** The golden dataset gate runs only on PR merges (not continuously in production), and existing monitoring tracked surface metrics (latency, error rate) rather than *output provenance*—since the agent gracefully fell back to training data instead of erroring, no alert fired. The two gaps are: (1) no production-time content quality monitoring, and (2) no trace-level check on whether the `search_kb` skill returned substantive results.
-
-- **Q2:** Monitor the `search_kb` skill’s empty-result rate from production traces; alert when the 1-hour rolling percentage of empty results exceeds a baseline threshold (e.g., &gt;15% when the historical norm is &lt;5%). This uses trace data already collected by the observability layer and would have fired within the first hour of the API degradation.
-
-- **Q3:** Add the Saturday failure cases (queries that returned empty KB results + the fabricated responses) to the golden dataset as negative examples with ground-truth labels. Create a “source attribution” evaluator that checks whether the agent’s response cites KB documents when the query requires factual lookup. The feedback loop prevents recurrence because each new failure mode becomes a permanent regression test.
-
-&lt;!–MDXB-17-CLOSE–&gt;
-
-&lt;!–MDXB-4-OPEN–&gt;
-
-**Answer from memory before checking the chapter.**
-
-1.  What is meta-evaluation and why does it need ground truth?
-    *(EAA-5.1)*
-
-2.  Name the four judge improvement techniques. Which first?
-    *(EAA-5.2)*
-
-3.  What is a golden dataset? How does it differ from a general
-    eval dataset? *(EAA-5.3)*
-
-4.  Describe the five stages of the self-improving pipeline.
-    *(EAA-5.5)*
-
-5.  Name three production monitoring metrics and their alert
-    thresholds. *(EAA-5.4)*
-
-6.  Evaluate the risk of feedback poisoning in self-improving
-    pipelines and design quality filters—engagement-time thresholds,
-    cross-signal validation, confidence weighting—that prevent noisy
-    or adversarial feedback from contaminating evaluation datasets.
-
-&lt;!–MDXB-4-CLOSE–&gt;
-
-{/* CARD-PLACEMENT-AUTOSTART */}
-
-## Review
-
-{/* CARD-PLACEMENT-TODO: polish pass should move these cards inline */}
-{/* near the concepts they test, per Q-R4.4 hybrid placement.       */}
-
-### Checkpoint cards (6)
-
-<AnkiCard type="checkpoint" id="chapters-vol0-ch00-CHECKPOINT-CHECKPOINT_C5_LLMASJUDGE_AND_MONITORING_Q1" los="EAA-5.1" front={"What is meta-evaluation and why does it need ground truth?\n (EAA-5.1)"} back={"Self-check from: Checkpoint: C5 --- LLM-as-Judge and Monitoring\n\n(Answer from memory, then verify against the chapter text.)"} />
-
-<AnkiCard type="checkpoint" id="chapters-vol0-ch00-CHECKPOINT-CHECKPOINT_C5_LLMASJUDGE_AND_MONITORING_Q2" los="EAA-5.2" front={"Name the four judge improvement techniques. Which first?\n (EAA-5.2)"} back={"Self-check from: Checkpoint: C5 --- LLM-as-Judge and Monitoring\n\n(Answer from memory, then verify against the chapter text.)"} />
-
-<AnkiCard type="checkpoint" id="chapters-vol0-ch00-CHECKPOINT-CHECKPOINT_C5_LLMASJUDGE_AND_MONITORING_Q3" los="EAA-5.3" front={"What is a golden dataset? How does it differ from a general\n eval dataset? (EAA-5.3)"} back={"Self-check from: Checkpoint: C5 --- LLM-as-Judge and Monitoring\n\n(Answer from memory, then verify against the chapter text.)"} />
-
-<AnkiCard type="checkpoint" id="chapters-vol0-ch00-CHECKPOINT-CHECKPOINT_C5_LLMASJUDGE_AND_MONITORING_Q4" los="EAA-5.5" front={"Describe the five stages of the self-improving pipeline.\n (EAA-5.5)"} back={"Self-check from: Checkpoint: C5 --- LLM-as-Judge and Monitoring\n\n(Answer from memory, then verify against the chapter text.)"} />
-
-<AnkiCard type="checkpoint" id="chapters-vol0-ch00-CHECKPOINT-CHECKPOINT_C5_LLMASJUDGE_AND_MONITORING_Q5" los="EAA-5.4" front={"Name three production monitoring metrics and their alert\n thresholds. (EAA-5.4)"} back={"Self-check from: Checkpoint: C5 --- LLM-as-Judge and Monitoring\n\n(Answer from memory, then verify against the chapter text.)"} />
-
-<AnkiCard type="checkpoint" id="chapters-vol0-ch00-CHECKPOINT-CHECKPOINT_C5_LLMASJUDGE_AND_MONITORING_Q6" los="EAA-5.6" front={"Evaluate the risk of feedback poisoning in self-improving\n pipelines and design quality filters—engagement-time thresholds,\n cross-signal validation, confidence weighting—that prevent noisy\n or adversarial feedback from contaminating evaluation datasets."} back={"Self-check from: Checkpoint: C5 --- LLM-as-Judge and Monitoring\n\n(Answer from memory, then verify against the chapter text.)"} />
-
-### Keyconcept cards (4)
-
-<AnkiCard type="keyconcept" id="chapters-vol0-ch00-CONCEPT-METAEVALUATION_REQUIRES_GROUND_TRUTH" los="EAA-5.1" front={"Key Concept: Meta-Evaluation Requires Ground Truth"} back={"Core Insight: You cannot measure LLM judge accuracy without\n a deterministic reference. The code-based evaluator on ground-truth\n data provides that reference.\n\n Why It Matters: A dashboard showing \"92\n nothing if the judge itself is only 75\n\n When It Breaks: For purely subjective dimensions (tone,\n creativity), inter-annotator agreement with humans replaces code-based\n meta-evaluation."} />
-
-<AnkiCard type="keyconcept" id="chapters-vol0-ch00-CONCEPT-FOUR_LEVERS_ONE_METRIC" los="EAA-5.2" front={"Key Concept: Four Levers, One Metric"} back={"Core Insight: Prompt engineering, few-shot, model selection,\n and semantic similarity target different failure modes. The agreement\n rate is the single metric that tells you if any worked.\n\n Why It Matters: Each lever targets a specific failure. Prompt\n fixes misunderstood criteria. Few-shot fixes calibration. Model\n selection fixes capability gaps. Semantic similarity fixes false\n negatives on paraphrases.\n\n When It Breaks: Stacking all four simultaneously makes\n attribution hard. Apply one at a time."} />
-
-<AnkiCard type="keyconcept" id="chapters-vol0-ch00-CONCEPT-GOLDEN_DATASETS_ARE_LIVING_DOCUMENTS" los="EAA-5.3" front={"Key Concept: Golden Datasets Are Living Documents"} back={"Core Insight: A golden dataset grows with every production\n failure and new use case. Its value compounds over time.\n\n Why It Matters: Encodes institutional knowledge. New team\n members inherit it through the CI gate.\n\n When It Breaks: If too large ($>$100 rows), run times become\n prohibitive. Periodically prune rows that never triggered regressions."} />
-
-<AnkiCard type="keyconcept" id="chapters-vol0-ch00-CONCEPT-AUTOMATION_IS_THE_MULTIPLIER" los="EAA-5.5" front={"Key Concept: Automation Is the Multiplier"} back={"Core Insight: The pipeline transforms evaluation from periodic\n manual effort into continuous automated process. Each interaction makes\n the system incrementally better.\n\n Why It Matters: Teams with automated pipelines iterate orders\n of magnitude faster.\n\n When It Breaks: Automation without quality gates is dangerous.\n Noisy or adversarial feedback can poison the dataset. Human review is\n a necessary safety valve."} />
-
-### Problem cards (5)
-
-<AnkiCard type="problem" id="chapters-vol0-ch00-PROB-YOUR_LLM_JUDGE_SCORES_CODE_CORRECTNESS_BY_PROMPTIN" los="EAA-5.1" front={"Your LLM judge scores code correctness by prompting a model to assess\ngenerated code. You suspect it is too lenient. Design a meta-evaluation:\n\n- ground-truth evaluator,\n\n- dataset requirements,\n\n- agreement metric,\n\n- acceptance threshold."} back={"Approach:\n\n- Execute code in sandbox, compare actual vs. expected output. 100\n\n- 40–50 rows: correct code, syntax errors, subtle logic bugs (30\n\n- Binary agreement rate, plus false positive rate (judge says correct, code fails). FPR is the leniency metric.\n\n- Overall agreement $\\geq$ 85\n\nKey Insight: A single agreement rate can mask asymmetric errors.\nBreaking into FP and FN reveals whether the judge is too lenient or strict.\n\nAnswer:\n\n- Ground truth: sandboxed code execution comparing actual to expected output (100\n\n- Dataset: 40–50 rows mixing correct code, syntax errors, subtle logic bugs ($\\geq$30\n\n- Metrics: binary agreement rate plus false-positive rate (judge accepts code that fails)—FPR is the leniency signal.\n\n- Acceptance: overall agreement $\\geq$85"} />
-
-<AnkiCard type="problem" id="chapters-vol0-ch00-PROB-YOUR_AGENT_HANDLES_PAYMENT_PROCESSING_ACCOUNT_SECU" los="EAA-5.3" front={"Your agent handles payment processing, account security, and data export.\nDefine:\n\n- minimum golden dataset composition,\n\n- pass/fail criteria,\n\n- evolution over 3 months."} back={"Approach:\n\n- 5 rows $\\times$ 3 workflows = 15 core. 2 rows $\\times$ 3 known failures = 6. 3 cross-workflow rows. Total: 24 minimum.\n\n- 100\n\n- Month 1: add every production bug (5–10 rows). Month 2: prune never-triggered rows, add new features. Month 3: stabilize at 40–60 rows with quarterly review.\n\nKey Insight: Asymmetric thresholds—zero tolerance on\nsafety-critical, softer on lower stakes.\n\nAnswer:\n\n- 24 rows minimum: 5 happy-path $\\times$ 3 workflows = 15, plus 2 known-failure $\\times$ 3 = 6, plus 3 cross-workflow rows.\n\n- Pass thresholds: 100\n\n- Month 1: capture every production bug (5–10 rows). Month 2: prune never-triggered rows, add new features. Month 3: stabilise at 40–60 rows with quarterly review."} />
-
-<AnkiCard type="problem" id="chapters-vol0-ch00-PROB-CASE_STUDY_THE_LENIENT_JUDGE_DISASTER" los="" front={"Case Study: The Lenient Judge Disaster\n\nYour team ships an LLM judge for a customer support agent that classifies\nresponses as \"helpful\" or \"not helpful.\" After two weeks in production,\nCSAT scores drop 15\naudit of 50 production traces reveals the judge marks 40\nanswers as \"helpful\" because they are polite and well-structured.\n\ncompacttable\n\nMetric | Judge Reports | Manual Audit \n\nHelpfulness | 94\nFalse positive rate | unknown | 40\nFalse negative rate | unknown | 3\nAgreement (judge vs."} back={"Approach: 1. No meta-evaluation was run before shipping. The 94\nthe judge's self-reported score, not validated against ground truth. Fix:\nbuild a 50-row ground-truth dataset with code-verifiable outcomes (e.g.,\ndid the agent return the correct order status?). Run the judge against this\ndataset and require $\\geq$85\nshipping.\n\n2. The judge conflates politeness/structure with correctness. It\nis biased toward surface-level quality signals and ignores factual\naccuracy. The prompt likely says \"evaluate helpfulness\" without defining\nthat helpfulness requires factual correctness.\n\n3. Prompt fix: Add explicit criterion: \"A response is helpful\nONLY if the factual content is correct. A polite but incorrect answer\nscores 0.\" Add 3 few-shot examples of polite-but-wrong responses scored\nas \"not helpful.\" Architectural fix: Add a code-based evaluator that\nchecks factual claims against the knowledge base, run in parallel with the\nLLM judge. Flag disagreements for human review.\n\nKey Insight: Agreement rate alone can mask asymmetric errors.\nAlways compute FPR and FNR separately. A judge with 40\noperationally useless for quality gating.\n\nAnswer:\n\n- No meta-evaluation was run before shipping; 94\n\n- The judge conflated politeness/structure with correctness. The prompt asked for \"helpfulness\" without anchoring it to factual accuracy.\n\n- Prompt fix: \"A response is helpful ONLY if its factual content is correct. A polite but incorrect answer scores 0.\" Plus 3 few-shot examples of polite-but-wrong $\\to$ \"not helpful\". Architectural fix: parallel code-based evaluator that checks factual claims against the knowledge base; flag any LLM/code disagreement for human review."} />
-
-<AnkiCard type="problem" id="chapters-vol0-ch00-PROB-CASE_STUDY_GOLDEN_DATASET_ROT" los="" front={"Case Study: Golden Dataset Rot\n\nA payment processing agent has a golden dataset of 45 rows that was\ncurated 6 months ago. The team runs it as a CI gate on every PR. Last\nquarter, 3 production incidents occurred—all involving features added\nafter the golden dataset was frozen. The golden dataset passed 100\nevery PR during this period.\n\ncompacttable\n\nMetric | Q1 (fresh) | Q2 (stale) \n\nGolden dataset rows | 45 | 45 \nProduction incidents | 0 | 3 \nGolden dataset pass rate | 98\nNew features since freeze | 0 | 4 \nRows covering new features | — | 0 \n\ncompacttable\n\n- Why did a 100\n\n- Design a process that prevents golden dataset staleness.\n\n- Should the team add all 3 incident cases to the golden dataset?\n What criteria should govern additions?"} back={"Approach: 1. The golden dataset tested only pre-existing features. New\nfeatures (4 added in Q2) had zero coverage. 100\ncreates false confidence—the dataset tests what used to break, not what\nmight break now.\n\n2. Process: (a) Every PR that adds a new feature or workflow MUST\nadd $\\geq$2 golden dataset rows covering that feature. Code review\nenforces this. (b) Monthly review: compare golden dataset coverage against\nthe current feature list. Flag uncovered features. (c) After every\nproduction incident, add a regression row within 48 hours.\n\n3. Add all 3 incidents as regression rows. Criteria for additions:\n(a) any production incident, (b) any new feature or workflow, (c) any\nedge case discovered during testing. Criteria for removal: rows that have\nnot triggered a failure in 6+ months AND cover a feature that has been\nstable. Never remove rows for safety-critical workflows.\n\nKey Insight: A golden dataset that never fails is a red flag, not\na success signal. It means the dataset is not keeping pace with the system.\n\nAnswer:\n\n- The dataset only tested pre-existing features. The 4 new features added in Q2 had zero coverage; 100\n\n- Process: every feature-adding PR must include $\\geq$2 golden rows for the new feature (enforced in code review); monthly coverage review against current feature list flags uncovered features; every production incident gets a regression row within 48 hours.\n\n- Add all 3 incidents as regression rows. Inclusion criteria: production incidents, new features/workflows, testing-discovered edge cases. Removal criteria: rows untriggered for 6+ months covering a stable feature; never remove rows for safety-critical workflows."} />
-
-<AnkiCard type="problem" id="chapters-vol0-ch00-PROB-CASE_STUDY_SELFIMPROVING_PIPELINE_FEEDBACK_POISONI" los="" front={"Case Study: Self-Improving Pipeline Feedback Poisoning\n\nA travel booking agent implements the self-improving pipeline. After 2\nmonths, the agent starts recommending luxury hotels for budget-conscious\nusers. Investigation reveals that 30\nfrom users who clicked \"helpful\" on any response without reading it.\nThis noise was incorporated into the few-shot examples and evaluation\ndataset.\n\ncompacttable\n\nMetric | Month 1 | Month 2 \n\nUser satisfaction (survey) | 82\nAutomated eval score | 88\nFeedback volume | 200 | 500 \nNoisy feedback (\nFew-shot examples added | 15 | 40 \n\ncompacttable\n\n- Why did the automated eval score increase while user satisfaction\n decreased?\n\n- Design a feedback quality filter that prevents noisy signals from\n entering the pipeline."} back={"Approach: 1. The automated eval dataset was contaminated by the same noisy\nfeedback. As noisy \"positive\" examples entered the dataset, the\nevaluator learned to score luxury recommendations highly. The eval score\ntracked the noise, not actual quality. User surveys, being independent,\ncaptured the true degradation.\n\n2. Feedback quality filter: (a) Require minimum engagement\ntime—feedback submitted within 2 seconds of response is discarded.\n(b) Cross-validate against explicit signals: if a user rates \"helpful\"\nbut immediately re-queries the same topic, treat as noisy.\n(c) Confidence weighting: feedback from users with $>$10 interactions\nweighted 3x vs. new users. (d) Human review sample: randomly audit 10\nof feedback weekly.\n\n3. The golden dataset should include \"budget user requests\nbudget hotel\" scenarios. If these pass before and after pipeline updates,\nthe drift would be detected. The golden dataset acts as an anchor:\nautomated eval can drift, but golden dataset rows are human-curated and\nfixed.\n\nKey Insight: The self-improving pipeline's strength (automated\nfeedback incorporation) is also its vulnerability. The golden dataset is\nthe firewall between noisy automation and production quality.\n\nAnswer:\n\n- The eval dataset was contaminated by the same noisy feedback. The evaluator learned to score luxury recommendations highly because the few-shot examples ingested noise. Independent user surveys captured the true degradation.\n\n- Feedback filters: minimum engagement time (discard $<$2s clicks), cross-validation against explicit signals (re-query within 30s = noise), confidence weighting (users with $>$10 interactions count 3$\\times$ vs. first-touch), and a 10\n\n- The golden dataset must include \"budget user requests budget hotel\"-style scenarios; human-curated fixed rows act as a firewall against drift in automated eval. Pipeline updates that fail golden rows fail to ship even when automated eval is unchanged."} />
-
-### Vignette cards (1)
-
-<AnkiCard type="vignette" id="chapters-vol0-ch00-VIG-THE_WEEKEND_OUTAGE_NOBODY_DETECTED" los="EAA-5.4, EAA-5.5" front={"Case Study: The Weekend Outage Nobody Detected\n\nYour production agent uses an external knowledge base API for the\nsearch_kb skill. On Saturday at 2 AM, the API provider deploys a\nbreaking change that returns empty results for 40\ngracefully handles the empty results by generating responses from its\ntraining data instead. Monday morning, the team discovers that weekend users\nreceived plausible but fabricated answers. The golden dataset CI gate passed\non Friday's last PR, and no alerts fired over the weekend."} back={"Question 1: Why did the golden dataset gate and the existing\nmonitoring fail to catch this production failure? Identify at least two\ngaps in the monitoring strategy.\n\nQuestion 2: Design a production monitoring rule that would have\ndetected the knowledge base degradation within 1 hour. Specify the metric,\nthe data source (traces), and the alerting threshold.\n\nQuestion 3: After fixing the immediate issue, the team wants to\nadd this failure mode to the self-improving pipeline. Describe the specific\nsteps: what gets added to the golden dataset, what new evaluator is created,\nand how the feedback loop prevents recurrence.\n\nAnswer Rubric:\n\n- Q1: The golden dataset gate runs only on PR merges (not continuously in production), and existing monitoring tracked surface metrics (latency, error rate) rather than output provenance—since the agent gracefully fell back to training data instead of erroring, no alert fired. The two gaps are: (1) no production-time content quality monitoring, and (2) no trace-level check on whether the search_kb skill returned substantive results.\n\n- Q2: Monitor the search_kb skill's empty-result rate from production traces; alert when the 1-hour rolling percentage of empty results exceeds a baseline threshold (e.g., $>$15\n\n- Q3: Add the Saturday failure cases (queries that returned empty KB results + the fabricated responses) to the golden dataset as negative examples with ground-truth labels. Create a \"source attribution\" evaluator that checks whether the agent's response cites KB documents when the query requires factual lookup. The feedback loop prevents recurrence because each new failure mode becomes a permanent regression test."} />
-
-### Interview cards (1)
-
-<AnkiCard type="interview" id="chapters-vol0-ch00-INT-FAITHFULNESS_VS_HELPFULNESS_TRADEOFFS_IN_EVALUATIO" los="EAA-5.1" front={"Interview Q: evaluate\n an agent?"} back={"Why interviewers ask this: Anthropic (Applied Research, all\n levels), Google (L5+ Trust & Safety ML), and OpenAI (Research\n Engineer) ask about evaluator reliability to test whether candidates\n understand that the evaluation layer itself can fail. Asked in 55\n of safety-aware ML loops as a follow-up to \"how would you evaluate\n an agent?\"\n\n What they're really testing: Whether you recognise that an\n LLM judge can conflate helpfulness (polite, well-structured) with\n faithfulness (factually correct)."} />
-
-{/* CARD-PLACEMENT-AUTOEND */}
+<Diagnostic skimTo="Meta-evaluation: evaluating the evaluator">
+Predict before reading — check each against the chapter.
+
+1. Your dashboard says the agent is "94% helpful" — but that number comes from an LLM judge. Predict what's missing before you trust it.
+2. A judge agrees with ground truth 95% of the time, but when it's wrong it almost always says "correct" for a wrong answer. Estimate whether that judge is safe to gate releases.
+3. A golden-dataset CI gate has passed 100% for six months straight. Predict whether that's reassuring or alarming.
+4. A self-improving pipeline ingests user "👍" clicks to build its eval set. Guess the failure mode if some users click 👍 without reading.
+
+<Fragment slot="answers">
+1. An independent check on the *judge itself* — meta-evaluation against code-based ground truth. A 94% from an unvalidated judge is meaningless if the judge is only 75% accurate.
+2. **Unsafe** — high agreement hides an asymmetric error: a high **false-positive rate** (lenient judge passing wrong answers) is exactly what makes a judge useless as a quality gate.
+3. **Alarming** — a gate that never fails probably isn't keeping pace with new features; it tests what *used* to break, not what might break now.
+4. **Feedback poisoning** — noisy 👍 enters the eval dataset and few-shot examples, the automated score rises while real quality drops, and the agent optimises for the noise.
+</Fragment>
+</Diagnostic>
+
+<NarrativeBox title="Where we are">
+Chapter 4 built structured experiments and the dashboard. One question remains:
+*how accurate are the evaluators themselves?* This chapter tackles
+meta-evaluation, then extends everything into production — golden datasets as
+shipping gates, monitoring for silent regressions, and the self-improving
+pipeline (with the firewall that keeps it from poisoning itself).
+</NarrativeBox>
+
+## Meta-evaluation: evaluating the evaluator
+
+<Newthought>If a dashboard says</Newthought> "92% accuracy" but the judge that
+produced it is itself only 75% accurate, the number is noise.
+[**Meta-evaluation**](../glossary#term-meta-evaluation) fixes this by scoring the
+judge against a deterministic reference.
+
+The protocol: <EvidenceTag kind="verified" /> (1) select cases with deterministic
+expected outputs, (2) run a code-based evaluator (a deterministic oracle — only as
+correct as its comparison logic, but exact on these cases) to get ground truth,
+(3) run the LLM judge on the same cases, (4) compute the
+[**agreement rate**](../glossary#term-agreement-rate) — the fraction where the
+judge's label matches ground truth. Target ≥ 0.90 (the aspiration); treat ~0.85 as
+the hard floor below which you don't ship the judge.
+
+<KeyConcept title="You can't measure a judge without ground truth" los="EAA-5.1">
+LLM judge accuracy is unknowable without a deterministic reference, and the
+code-based evaluator on ground-truth data *is* that reference. A 70% agreement
+rate means 30% of evaluations are wrong — enough to mask real regressions or flag
+false improvements. The exception: for purely subjective dimensions (tone,
+creativity) where no code oracle exists, inter-annotator agreement with humans
+replaces the code-based reference. <EvidenceTag kind="verified" />
+</KeyConcept>
+
+<Aside category="pattern">
+Where practitioners disagree — *is LLM-as-a-judge trustworthy enough to gate releases?* One camp runs judges as CI gates once meta-evaluation clears a bar (≥ 85% agreement, low false-positive rate); another holds that judges drift, conflate fluency with correctness, and should only *flag* for humans, never *block* a release alone. The defensible middle, and this chapter's stance: gate with a judge **only** on dimensions where meta-evaluation against ground truth is strong, keep a human in the loop for subjective or safety-critical calls, and re-run meta-evaluation after every judge change. <EvidenceTag kind="verified" />
+</Aside>
+
+<SelfCheck q="What is meta-evaluation, and why does it require ground truth?" los="EAA-5.1">
+Meta-evaluation measures an evaluator's *own* accuracy by comparing its judgments against a known-correct reference, reported as the agreement rate. It needs ground truth because a judge can't validate itself — its self-reported score is circular. A code-based evaluator on deterministic cases supplies a 100%-accurate reference; without one (for subjective dimensions) you fall back to human inter-annotator agreement.
+</SelfCheck>
+
+## Agreement rate is not enough: watch the asymmetry
+
+A single agreement rate hides *which way* the judge errs. Split its mistakes into
+a [**false-positive rate**](../glossary#term-false-positive-rate) (judge says
+"correct" when the answer is wrong — **leniency**) and a false-negative rate
+(judge says "wrong" when it's right — strictness). For a quality gate, leniency is
+the dangerous one: a lenient judge passes bad answers.
+
+<WorkedExample title="The lenient judge that shipped" los="EAA-5.7">
+**Problem.** A support agent's judge classifies responses "helpful" / "not
+helpful." It reports **~93% helpfulness**, but a 50-trace audit finds true
+helpfulness is **67%**, with an **~85% false-positive rate** and **3% false-negative
+rate**; judge-vs-human agreement is **~70%**. CSAT dropped 15%. (a) What failed?
+(b) What does the FPR/FNR asymmetry reveal? (c) Thresholds to require next time?
+
+**Reasoning.**
+- (a) **No meta-evaluation ran before shipping** — 93% was the judge's *self-reported* score, never checked against ground truth. Agreement was actually ~70%, so ~30% of its labels were wrong.
+- (b) FPR ~85% vs FNR 3% is wildly asymmetric: the judge is **lenient** — it passes polite-but-wrong answers because the prompt rewards fluency/structure, not factual correctness. (The numbers cohere: 67% truly-helpful at 3% FNR plus 33% truly-unhelpful at 85% FPR ≈ 93% judged-helpful and ≈ 70% agreement.) A judge this lenient is operationally useless for gating.
+- (c) Require **agreement ≥ 85% AND FPR ≤ 10%** on a code-verifiable ground-truth set before the judge gates anything.
+
+**Answer.** The dashboard trusted the judge's own number; meta-evaluation against
+ground truth (plus an FPR cap, not just agreement) would have blocked it. Always
+report FPR and FNR separately — the aggregate hides the leniency that sinks a gate.
+</WorkedExample>
+
+<CompletionProblem id="agreement-fpr" title="Compute agreement and FPR, then decide" level="completion">
+You meta-evaluate a judge on **100 ground-truth cases** (50 truly correct, 50 truly
+wrong). The judge labels: of the 50 correct, it calls **47 "correct"**; of the 50
+wrong, it calls **35 "wrong"** and **15 "correct."**
+
+**Your turn — fill the blanks:**
+- Agreement rate = (correct-correct + wrong-wrong) / 100 = $(47 + 35)/100 = \_\_\_$
+- False positives (said correct, truly wrong) = \_\_\_ → FPR = \_\_\_ / 50 = \_\_\_
+- Against the bar (agreement ≥ 0.85 **and** FPR ≤ 0.10), ship the judge?
+
+<Fragment slot="solution">
+- Agreement = $82/100 = \mathbf{0.82}$.
+- False positives = **15** → FPR = $15/50 = \mathbf{0.30}$.
+- **Don't ship.** It fails *both* gates: agreement 0.82 < 0.85, and FPR 0.30 ≫ 0.10. The FPR is the louder signal — the judge is far too lenient to gate releases. Fix the prompt (anchor "correct" to factual accuracy) and add few-shot wrong-but-plausible examples, then re-meta-evaluate.
+</Fragment>
+</CompletionProblem>
+
+<SelfCheck q="A judge agrees with ground truth 95% of the time but has a 30% false-positive rate. Why are these different leniency indicators, and is it safe to gate with?" los="EAA-5.7">
+Agreement is the overall match rate; FPR isolates one *direction* of error — passing wrong answers as correct. A high agreement can still hide a high FPR if errors cluster on the rarer class. A 30% FPR means nearly a third of bad answers slip through, so the judge is too lenient to *gate* releases regardless of the 95% headline — you'd set both thresholds (e.g. agreement ≥ 0.85 and FPR ≤ 0.10) and reject on either.
+</SelfCheck>
+
+## Improving a judge: four levers, one metric
+
+When meta-evaluation fails the bar, four techniques each target a different failure
+mode — and the [judge-improvement](../glossary#term-judge-improvement) work is
+measured by the *same* agreement rate:
+
+1. **Prompt engineering** — make criteria explicit, fix output format, add chain-of-thought. Simplest and often most effective: ~80% of judge failures are prompt failures.
+2. **[Few-shot examples](../glossary#term-few-shot-examples)** — 3–5 labelled judgments covering boundary cases (case-insensitive match, float tolerance) to fix calibration.
+3. **Model selection** — a stronger judge model closes capability gaps (GPT-4o might agree 95% where a smaller model agrees 82%).
+4. **Semantic similarity** — for non-binary outputs, embedding [cosine similarity](../glossary#term-cosine-similarity) instead of exact match fixes false negatives on paraphrases.
+
+Apply **one at a time**, or you can't attribute the gain. Start with the prompt.
+
+<SelfCheck q="Name the four levers for improving an LLM judge and the single metric that tells you whether any worked." los="EAA-5.2">
+**Prompt engineering** (fix misunderstood criteria), **few-shot examples** (fix calibration on boundary cases), **model selection** (fix capability gaps), and **semantic similarity** (fix false negatives on paraphrases). The single metric is the **agreement rate** from meta-evaluation — re-run it after each change, applied one lever at a time so the improvement is attributable.
+</SelfCheck>
+
+## Golden datasets: the shipping gate
+
+A [**golden dataset**](../glossary#term-golden-dataset) is a curated set of
+must-pass scenarios used as a [**CI shipping gate**](../glossary#term-ci-shipping-gate):
+every agent change runs against it, and a regression blocks the merge. It differs
+from a general eval dataset on three counts — curated for *criticality* (every row
+is must-pass), seeded with *known failure modes* codified from past production
+bugs, and *grown continuously* as new failures appear. Because agent runs are
+probabilistic, run it several times and take the median or worst score with
+tolerance bands.
+
+<KeyConcept title="Golden datasets are living documents" los="EAA-5.3">
+A golden dataset encodes institutional knowledge — new team members inherit it
+through the CI gate — and its value compounds as it grows with every production
+failure. But it must be *maintained*: it stabilises around 40–60 rows, and past
+~100 run times turn prohibitive, so periodically prune rows that have never caught a
+regression. The
+red flag: **a golden dataset that never fails isn't a success — it's a sign the set
+has gone stale** and no longer tests what might break now. <EvidenceTag kind="verified" />
+</KeyConcept>
+
+<WorkedExample title="Designing a golden-dataset gate and its evolution" los="EAA-5.8">
+**Problem.** An agent handles payment, account security, and data export. Define
+(a) a minimum golden-dataset composition, (b) pass/fail criteria, (c) a 90-day
+evolution policy.
+
+**Reasoning.**
+- (a) **Composition (~24 rows):** 5 happy-path × 3 workflows = 15, plus 2 known-failure × 3 = 6, plus 3 cross-workflow rows.
+- (b) **Asymmetric thresholds:** 100% pass on payment/security (zero tolerance), ≥ 90% on data export, ≥ 0.85 LLM-judge clarity. Run 3× and take the worst score (runs are probabilistic).
+- (c) **Evolution:** *Month 1* — add every production bug as a regression row (5–10). *Month 2* — prune rows that never triggered a failure on a stable feature; add rows for new features. *Month 3* — stabilise at ~40–60 rows with quarterly review.
+
+**Answer.** A small, criticality-weighted set with zero tolerance on
+safety-critical workflows, run multiple times for probabilistic stability, that
+*grows* from incidents and *prunes* stale rows — so it keeps catching real
+regressions without ballooning past the point where it's too slow to run on every PR.
+</WorkedExample>
+
+<SelfCheck q="How does a golden dataset differ from a general evaluation dataset, and why is a 100%-pass-for-months gate a warning sign?" los="EAA-5.3">
+A golden dataset is curated for *criticality* (every row must pass), seeded with *known failure modes* from past bugs, and grown continuously — and it's wired as a CI gate that blocks merges. A general eval dataset is for broad iteration, not a hard gate. A gate that passes 100% for months usually means it's gone stale: new features have zero coverage, so it tests only what used to break. The fix is an evolution policy (add on every incident/feature, prune stale rows).
+</SelfCheck>
+
+## Production monitoring
+
+Production reveals failures no dataset anticipated — unseen queries, new entities,
+API degradations, distribution shifts. The dev tools carry straight over: Phoenix
+works the same in prod, enriched by real traffic.
+
+<Aside category="warning">
+The most dangerous production failure is a [**silent regression**](../glossary#term-silent-regression): plausible-looking but wrong answers that throw no error. Surface metrics (latency, error rate) stay green; only content-quality monitoring with evaluators over live traces catches it.
+</Aside>
+
+Track [**production metrics**](../glossary#term-production-monitoring) with
+[alert thresholds](../glossary#term-alert-threshold): running evaluator scores per
+dimension, convergence (steps to terminal state), LLM-call counts (a spike signals
+a loop), latency (p50/p99, by component), and cost per query. A common rule:
+**alert on more than ~10% deviation** from baseline.
+
+<SelfCheck q="What is a silent regression, and why do latency/error-rate dashboards miss it?" los="EAA-5.4">
+A silent regression is when the agent returns plausible-looking but *wrong* answers without erroring — e.g. it gracefully falls back to fabricated content when a data source fails. Latency and error-rate dashboards stay green because nothing crashed and responses are fast, so only *content-quality* monitoring (evaluator scores over sampled live traces, provenance checks) catches the drop. It's the failure mode production monitoring exists for.
+</SelfCheck>
+
+## The self-improving pipeline — and its firewall
+
+A [**self-improving agent**](../glossary#term-self-improving-agent) pipeline runs
+five stages: <EvidenceTag kind="verified" /> (1) collect user feedback, (2) augment
+the eval dataset with successful and failed interactions, (3) run CI/CD experiments
+on every dataset update, (4) add few-shot examples from collected data, (5) gate
+deployment via the golden dataset. Automation is the multiplier — each interaction
+makes the system incrementally better.
+
+But automation without a quality gate is dangerous:
+[**feedback poisoning**](../glossary#term-feedback-poisoning) lets noisy or
+adversarial feedback contaminate the dataset, and — because the *evaluator* learns
+from the same poisoned data — the automated score can *rise* while real quality
+*falls*.
+
+<WorkedExample title="Why the eval score rose while users left" los="EAA-5.6">
+**Problem.** A travel agent's self-improving pipeline starts pushing luxury hotels
+to budget users. Automated eval rose 88% → 91% over a month while survey
+satisfaction fell 82% → 64%; noisy feedback went 10% → 30% (users clicking 👍
+without reading). Why the divergence, and what filter stops it?
+
+**Reasoning.** The eval *dataset* was contaminated by the same noisy 👍, so the
+evaluator learned to score luxury recommendations highly — the automated score
+tracked the *noise*, not quality. The independent user survey captured the real
+degradation.
+
+[**Feedback quality filters**](../glossary#term-feedback-quality-filter): (1)
+**engagement-time threshold** — discard feedback submitted within ~2s of the
+response; (2) **cross-signal validation** — a 👍 followed by an immediate re-query
+of the same topic is treated as noise; (3) **confidence weighting** — weight
+feedback from users with a history (over ~10 interactions) above first-touch
+clicks; (4) a **weekly human audit** of a 10% sample.
+
+**Answer.** When the evaluator is trained on the feedback it's grading, poison
+propagates and the metric self-confirms. Independent signals (surveys, the
+human-curated golden dataset) are what reveal the truth — and a budget-user→budget-hotel
+golden row would have failed and blocked the drift.
+</WorkedExample>
+
+<Vignette title="The Weekend Outage Nobody Detected">
+Your production agent's `search_kb` skill calls an external knowledge-base API. On
+Saturday at 2 AM the provider ships a breaking change: 40% of queries now return
+empty results. The agent "gracefully" handles the emptiness by answering from its
+training data instead. By Monday, weekend users got plausible but **fabricated**
+answers. Friday's golden-dataset CI gate passed, and no alert fired all weekend.
+
+**Why it slipped through — two gaps.** (1) The golden-dataset gate runs only on PR
+merges, not continuously in production. (2) Monitoring tracked *surface* metrics
+(latency, error rate) rather than *output provenance* — since the agent fell back
+gracefully instead of erroring, nothing tripped. This is a textbook **silent
+regression**.
+
+**The monitor that would have caught it in an hour.** From the existing traces,
+track the `search_kb` empty-result rate; alert when the 1-hour rolling rate exceeds
+baseline (e.g. > 15% when the norm is < 5%). The data is already collected — it just
+wasn't watched.
+
+**Folding it into the pipeline.** Add the Saturday cases (empty-KB queries + their
+fabricated responses) to the golden dataset as negative examples; create a
+**source-attribution evaluator** that checks the response cites KB documents when
+the query needs a lookup; auto-fail responses that skip `search_kb` on
+lookup-requiring queries. Each new failure mode becomes a permanent regression test.
+</Vignette>
+
+<Aside category="interview">
+"Describe a self-improving agent system." — walk the five stages (feedback → augment dataset → CI/CD experiments → few-shot → golden-dataset gate), then immediately name the risk: **feedback poisoning**, with the evaluator learning from the same noise so the score self-confirms. Close on the firewall — quality filters (engagement time, cross-signal, confidence weighting, human audit) plus the human-curated golden dataset as the anchor. Red flag: "the pipeline retrains on all user feedback automatically" with no quality gate.
+</Aside>
+
+## Summary — the guide, end to end
+
+You can now trust (or distrust) the evaluators themselves, and run all of this in
+production: meta-evaluation scores the judge against ground truth; agreement *and*
+false-positive rate together reveal leniency; four levers improve a failing judge;
+golden datasets gate shipping and must evolve; monitoring catches the silent
+regressions surface metrics miss; and the self-improving pipeline compounds quality
+— guarded by feedback filters and the golden-dataset firewall.
+
+Across five chapters the arc closes: **decompose** the agent (ch1), **observe** it
+with traces (ch2), **evaluate** its components (ch3), score its **trajectory** and
+compare variants (ch4), and **trust the evaluators and watch production** (ch5).
+Paired with the [Fine-tuning & RL guide](/finetuning-rl-intro/), that's the full
+loop — you can train a model *and* prove it works.

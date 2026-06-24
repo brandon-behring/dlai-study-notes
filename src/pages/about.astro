@@ -1,0 +1,77 @@
+---
+/**
+ * /about — license, attribution, AI-assisted disclosure, and takedown contact.
+ *
+ * The corpus landing (index.astro) carries a short compliance note; this page is
+ * the full statement, including the explicit AI-assisted-authoring disclosure
+ * (the per-chapter <Provenance> "How this was made" block carries the specifics).
+ */
+import Base from '@brandon_m_behring/book-scaffold-astro/layouts/Base.astro';
+---
+
+<Base
+  title="About — DLAI Study Notes"
+  description="License, attribution, AI-assisted-authoring disclosure, and takedown contact for the DLAI Study Notes corpus."
+  showSidebar={false}
+  showChrome={false}
+>
+  <article class="prose">
+    <p class="breadcrumb"><a href="/">DLAI Study Notes</a> / <strong>About</strong></p>
+
+    <h1>About this corpus</h1>
+
+    <p>
+      <strong>DLAI Study Notes</strong> is a corpus of personal study notes synthesized
+      from <a href="https://www.deeplearning.ai/">DeepLearning.AI</a> short courses — the
+      readable, searchable, math-rendered companion form to courses that ship as video +
+      handouts. Author: <a href="https://brandon-behring.dev">Brandon Behring</a>, an
+      applied mathematician who builds and learns in public.
+    </p>
+
+    <h2>License</h2>
+    <p>
+      Prose is <strong>CC-BY-NC-4.0</strong> (attributed, non-commercial); code samples are
+      <strong>MIT</strong>. You may share and adapt for non-commercial purposes with attribution.
+      Source: <a href="https://github.com/brandon-behring/dlai-study-notes">github.com/brandon-behring/dlai-study-notes</a>.
+    </p>
+
+    <h2>Attribution &amp; compliance</h2>
+    <p>
+      Each guide names its source course and instructor and complies with the{' '}
+      <a href="https://community.deeplearning.ai/t/respecting-intellectual-property-how-to-share-deeplearning-ai-course-materials-responsibly/681787">
+        DLAI Community Code of Conduct
+      </a>: non-commercial, DLAI cited, instructor named, and <strong>no</strong> quizzes,
+      graded assignments, lab solutions, or verbatim transcripts. The notes are hand-written
+      paraphrased synthesis — the practice questions are <strong>original</strong>, never
+      derived from course quizzes.
+    </p>
+
+    <h2>AI-assisted authoring</h2>
+    <p>
+      These notes are <strong>hand-authored with AI assistance</strong>. The synthesis,
+      structure, worked examples, and original practice questions are human-directed and
+      human-reviewed; AI tools (Anthropic's Claude) assisted with drafting, cross-model
+      review, and consistency checking. Every chapter carries a <em>"How this was made"</em>
+      (<code>Provenance</code>) block disclosing the tools and process for that chapter.
+      Technical claims are checked against primary sources; confidence is flagged inline
+      where it matters.
+    </p>
+
+    <h2>Privacy</h2>
+    <p>
+      No ads, no personal data collected. Math renders via KaTeX, search via Pagefind — all
+      client-side. (Any analytics used are privacy-friendly and cookieless.)
+    </p>
+
+    <h2>Takedown</h2>
+    <p>
+      Rights-holder concerns:{' '}
+      <a href="mailto:brandon.m.behring@gmail.com">brandon.m.behring@gmail.com</a>{' '}
+      — 48-hour response.
+    </p>
+  </article>
+</Base>
+
+<style>
+  .breadcrumb { color: var(--color-text-muted); font-size: 0.92em; }
+</style>

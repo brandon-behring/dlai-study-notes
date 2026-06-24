@@ -1,0 +1,23 @@
+---
+id: fri-2b-mode-collapse-diagnose
+type: free
+chapter: 2
+domain: sft-vs-rl
+bloom_level: analyze
+objective_id: FRI-2.6
+difficulty: '2'
+tags: [rl]
+answer: >
+  This is mode collapse: under reward pressure the policy has converged onto a
+  single high-reward pattern and lost diversity, while the *measured* reward keeps
+  climbing because the reward model/verifier rewards that pattern. Diagnostic
+  signals: collapsing output diversity, a rising KL from the reference, reward up
+  but human/held-out quality flat or down. Mitigations: increase the KL penalty
+  (β), add an entropy bonus, or use a group-relative method (GRPO) whose
+  within-group comparison preserves spread. Common wrong answer: "train longer" or
+  "raise the learning rate" — both accelerate the collapse.
+---
+
+During RL fine-tuning, your reward keeps rising but every sampled response is
+becoming nearly identical and a held-out quality check is flat. Name the failure
+mode, the signals that confirm it, and two mitigations.

@@ -1,0 +1,12 @@
+---
+term: Reinforcement Learning (RL)
+aliases: [RL, policy optimization]
+domain: sft-vs-rl
+see: [sft, reward-model, reward-hacking]
+tags: [rl]
+---
+
+Post-training via reward-signal optimization: the model generates outputs,
+receives a scalar reward, and updates to maximize expected reward. Can **exceed
+demonstration quality** by exploring novel strategies, but is less stable and
+requires careful reward design (PPO → GRPO are common algorithms).

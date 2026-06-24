@@ -1,0 +1,33 @@
+---
+id: eaa-5-judge-levers
+type: mcq
+chapter: 5
+domain: llm-judge-monitoring
+bloom_level: understand
+objective_id: EAA-5.2
+difficulty: '2'
+tags: [llm-as-judge, judge-improvement]
+options:
+  - id: a
+    text: Swap to a larger judge model, since capability is usually the issue
+  - id: b
+    text: Add semantic-similarity scoring to fix paraphrase mismatches
+  - id: c
+    text: Average more judge runs to reduce variance
+  - id: d
+    text: Fix the prompt first — most judge failures are prompt failures
+    correct: true
+---
+import Rationale from '@brandon_m_behring/book-scaffold-astro/components/Rationale.astro';
+
+Your LLM judge fails meta-evaluation. Which improvement lever should you reach for *first*, and
+why?
+
+<Rationale title="Why">
+Roughly 80% of judge failures are prompt failures — vague criteria or a loose output format —
+so reworking the prompt is the cheapest, highest-yield first move. A larger model targets
+capability gaps, which are the *less* common cause; semantic similarity fixes a specific
+failure (paraphrase false-negatives), not a general low score; and averaging runs addresses
+variance, not the systematic mis-judgment a failed meta-evaluation reveals. Apply one lever at
+a time and re-meta-evaluate.
+</Rationale>

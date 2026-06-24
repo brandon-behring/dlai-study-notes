@@ -1,0 +1,22 @@
+---
+id: kgr-6-schema-trace
+type: free
+chapter: 6
+domain: kg-expansion
+bloom_level: evaluate
+objective_id: KGR-6.8
+difficulty: '3'
+tags: [traversal, schema, design]
+answer: >
+  Trace it across both datasets. From a relevant chunk: PART_OF up to its Form; FILED backward
+  from the form to the Company that filed it; OWNS_STOCK_IN backward from the company to each
+  Manager, reading the holding's value and shares; optionally sort by value and take the top
+  holders. So `(:Chunk)-[:PART_OF]->(:Form)<-[:FILED]-(:Company)<-[:OWNS_STOCK_IN]-(:Manager)`,
+  then a graph-to-text sentence per manager for the LLM. This is exactly the question vector search
+  alone cannot answer: similarity finds *text about* NetApp, but only the relationships reach the
+  *investors*, which live in a second dataset linked by CUSIP. Common wrong answer: expecting
+  vector search to surface investors — they are not in the chunk text at all.
+---
+
+A user asks "Which investment managers hold the company described in this filing, and how much?"
+Trace the end-to-end path through the schema, and say why pure vector search could not answer it.

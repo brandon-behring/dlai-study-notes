@@ -1,0 +1,13 @@
+---
+term: KL Penalty
+aliases: [KL divergence penalty, KL regularization]
+domain: sft-vs-rl
+see: [rlhf, reward-hacking]
+tags: [rl, rlhf]
+---
+
+The $-\beta\,\mathrm{KL}(\pi_\theta \,\|\, \pi_{\text{ref}})$ term in the RLHF
+objective. It keeps the trained policy close to the frozen reference model so it
+can't drift into degenerate high-reward regions — the main guard against reward
+hacking and mode collapse. Too small → the policy drifts and games the reward;
+too large → it never improves.

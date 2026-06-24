@@ -1,0 +1,21 @@
+---
+id: eaa-4-convergence-calc
+type: free
+chapter: 4
+domain: trajectory-evals
+bloom_level: apply
+objective_id: EAA-4.2
+difficulty: '2'
+tags: [trajectory, convergence]
+answer: >
+  Convergence = (runs at the minimum step count) / (completed runs). For [3, 3, 5, 3, 7, 3]:
+  the minimum is 3, and 4 of the 6 runs hit it, so convergence = 4/6 ≈ 0.67. A key limitation:
+  it measures consistency, not correctness — if every run shared the same unnecessary step, that
+  waste would sit inside the minimum and convergence could still read 1.0, so it must be paired
+  with per-step correctness evaluators. (Also filter to completed runs first: a crash after 2
+  steps would falsely lower the minimum.) Common wrong answer: "0.67 means the agent is 67%
+  correct" — convergence is about path consistency, not answer correctness.
+---
+
+Given the step counts [3, 3, 5, 3, 7, 3] across six completed runs, compute the convergence
+score and state one limitation of the metric.

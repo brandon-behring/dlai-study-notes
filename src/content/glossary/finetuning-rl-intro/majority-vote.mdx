@@ -1,0 +1,12 @@
+---
+term: Majority Vote
+aliases: [consensus filtering, self-consistency]
+domain: data-and-grading
+see: [rejection-sampling, llm-as-judge]
+tags: [data, filtering]
+---
+
+Sample multiple answers to the same question and keep examples where the majority agree —
+agreement correlates with correctness on verifiable tasks. It fails when a *shared*
+misconception makes the wrong answer the consensus, so it is strongest where errors are
+diverse and random rather than systematic. A cheap filter when no verifier exists.

@@ -1,0 +1,31 @@
+---
+id: kgr-1-cypher-pattern
+type: mcq
+chapter: 1
+domain: kg-fundamentals
+bloom_level: apply
+objective_id: KGR-1.6
+difficulty: '1'
+tags: [cypher]
+options:
+  - id: a
+    text: "(p:Person)-[:ACTED_IN]->(m:Movie)"
+    correct: true
+  - id: b
+    text: "[p:Person]-(:ACTED_IN)->[m:Movie]"
+  - id: c
+    text: "(p:Person)=>{ACTED_IN}=>(m:Movie)"
+  - id: d
+    text: "(p:Person)-(ACTED_IN)->(m:Movie)"
+---
+import Rationale from '@brandon_m_behring/book-scaffold-astro/components/Rationale.astro';
+
+Which Cypher pattern correctly expresses "a Person `ACTED_IN` a Movie"?
+
+<Rationale title="Why">
+Cypher puts **nodes in parentheses** and **relationships in square brackets** with a typed
+arrow: `(p:Person)-[:ACTED_IN]->(m:Movie)`. The variant that swaps the brackets (nodes in `[]`,
+relationship in `()`) inverts the notation; the `=>{...}=>` form isn't Cypher syntax; and
+wrapping the relationship type in plain parentheses omits the square brackets that mark a
+relationship. The bracket convention is what makes the pattern read like the graph it matches.
+</Rationale>

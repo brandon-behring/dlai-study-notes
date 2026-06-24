@@ -1,0 +1,14 @@
+---
+term: NEXT Relationship
+aliases: [NEXT, chunk linked list]
+domain: kg-relationships
+see: [chunk-window, variable-length-path, relationship]
+tags: [schema, traversal]
+---
+
+A directed relationship connecting sequential chunks **within the same form section**, forming a
+singly-linked list that preserves document order. Built by matching chunks whose `chunkSeqId`
+differ by one *and that share `formId` and `item`* — the section filter is mandatory, or the list
+bleeds across section boundaries. Created with `MERGE` for idempotency. NEXT is what makes
+sequential traversal and chunk-window retrieval possible; the same pattern models chat threads,
+audit trails, and event streams.

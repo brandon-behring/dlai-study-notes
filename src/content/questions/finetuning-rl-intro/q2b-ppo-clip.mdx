@@ -1,0 +1,33 @@
+---
+id: fri-2b-ppo-clip
+type: mcq
+chapter: 2
+domain: sft-vs-rl
+bloom_level: understand
+objective_id: FRI-2.5
+difficulty: '2'
+tags: [rl, ppo]
+options:
+  - id: a
+    text: It caps how far an action's probability moves from the old policy
+    correct: true
+  - id: b
+    text: It clips the reward to a fixed range to prevent reward hacking
+  - id: c
+    text: It limits the gradient norm to prevent exploding gradients
+  - id: d
+    text: It truncates long sequences to fit the context window
+---
+import Rationale from '@brandon_m_behring/book-scaffold-astro/components/Rationale.astro';
+
+In PPO, what does the clipping term ($\epsilon$, typically 0.2) on the probability
+ratio $\pi_\theta/\pi_{\text{old}}$ actually do?
+
+<Rationale title="Why">
+**It soft-bounds the per-step policy change.** Clipping the ratio to
+$[1-\epsilon, 1+\epsilon]$ removes the *incentive* to move a sampled action's
+probability beyond that band — a soft trust region, not a hard cap (the policy's
+KL from the old one can still grow; clipping just zeroes the gradient past the
+edge). It is *not* reward clipping (a different mechanism), *not* gradient-norm
+clipping, and *not* sequence truncation. The "proximal" in PPO *is* this constraint.
+</Rationale>

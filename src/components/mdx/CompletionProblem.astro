@@ -1,0 +1,120 @@
+---
+/**
+ * CompletionProblem — a faded-practice stage in the worked → completion → solo
+ * sequence (PEDAGOGY.md W2-1; Renkl & Atkinson 2003 completion-problem effect).
+ * The *full* worked stage is the existing scaffold <WorkedExample>; this
+ * component carries the faded stages that follow it: a **completion** problem
+ * (the solution with one or two key steps blanked for the learner to fill) and
+ * an **independent** problem (statement only). Collapsed by default so the
+ * learner attempts before revealing.
+ *
+ * Follows the consumer-component correctness standard (COMPONENTS.md):
+ *   - `level` is a CLOSED enum, fail-loud (Astro has no runtime prop validation).
+ *   - colours come only from scaffold dark-aware tokens (--warm-*), brightened in
+ *     dark; no `var(--undefined, #hex)` footgun (lint:components enforces this).
+ *   - its own `.completion-problem` class — never a scaffold callout class.
+ *
+ * Usage:
+ *   <CompletionProblem id="ce-grad" level="completion" title="Completion: fill the blanked step">…</CompletionProblem>
+ *   <CompletionProblem id="ce-grad" level="solo" title="Independent practice">…</CompletionProblem>
+ */
+const LEVELS = ['full', 'completion', 'solo'] as const;
+type Level = (typeof LEVELS)[number];
+
+interface Props {
+  id: string;
+  title: string;
+  level: Level;
+}
+const { id, title, level } = Astro.props;
+
+// Fail-loud closed enum — an out-of-range level is an authoring error that must
+// stop the build, not render an unlabeled block.
+if (typeof level !== 'string' || !(LEVELS as readonly string[]).includes(level)) {
+  const got = level === undefined ? 'nothing' : JSON.stringify(level);
+  throw new Error(`<CompletionProblem>: level=${got} is not one of ${LEVELS.join(', ')}.`);
+}
+if (typeof id !== 'string' || !id) {
+  throw new Error('<CompletionProblem>: id is required (a string) for the deep-link anchor.');
+}
+
+const CHIPS: Record<Level, string> = {
+  full: 'Worked example',
+  completion: 'Completion problem',
+  solo: 'Independent practice',
+};
+const anchorId = `completion-${level}-${id}`;
+---
+<aside class={`completion-problem completion-problem--${level}`} id={anchorId} role="note">
+  <details>
+    <summary>
+      <strong class="completion-title">{title}</strong>
+      <span class="completion-chip">{CHIPS[level]}</span>
+    </summary>
+    <div class="completion-body"><slot /></div>
+  </details>
+</aside>
+
+<style>
+  /* Own class — never a scaffold callout class that carries global behavior. */
+  .completion-problem {
+    border: 1px solid var(--color-border, #e2e8f0);
+    border-inline-start: 3px solid var(--completion-accent, var(--color-border, #cbd5e0));
+    border-radius: 0.25rem;
+    padding: 0.65rem 1rem;
+    margin: 1.5rem 0;
+  }
+  .completion-problem summary {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-3, 0.75rem);
+    cursor: pointer;
+    list-style: none;
+  }
+  .completion-problem summary::-webkit-details-marker { display: none; }
+
+  /* Chevron affordance (matches the WorkedExample/Diagnostic ▸ idiom). */
+  .completion-problem summary::before {
+    content: '\25B8'; /* ▸ BLACK RIGHT-POINTING SMALL TRIANGLE */
+    flex: 0 0 auto;
+    color: var(--completion-accent, currentColor);
+    font-size: 0.8em;
+    line-height: 1;
+    transition: transform 0.15s ease;
+  }
+  .completion-problem details[open] summary::before { transform: rotate(90deg); }
+  @media (prefers-reduced-motion: reduce) {
+    .completion-problem summary::before { transition: none; }
+  }
+
+  .completion-title { font-size: 0.98rem; }
+  .completion-chip {
+    margin-inline-start: auto;
+    font-size: 0.68rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    /* a11y (#80): accent as small bold text failed 4.5:1 (gold 2.62); the level
+       hue is on the left border, so the chip text uses the high-contrast heading. */
+    color: var(--color-heading);
+    white-space: nowrap;
+  }
+  .completion-body { margin-top: 0.75rem; }
+  .completion-body :global(p:last-child) { margin-bottom: 0; }
+
+  /* Per-level accent (light): the hue WARMS as guidance fades —
+     full=plum (matches <WorkedExample>) → completion=gold → solo=green. */
+  .completion-problem--full       { --completion-accent: var(--warm-plum, #805ad5); }
+  .completion-problem--completion { --completion-accent: var(--warm-gold, #d69e2e); }
+  .completion-problem--solo       { --completion-accent: var(--warm-green, #38a169); }
+
+  /* Dark mode: brighten the accent for AA on dark surfaces (mirrors Aside). */
+  :root[data-theme='dark'] .completion-problem--full       { --completion-accent: color-mix(in srgb, var(--warm-plum) 60%, white); }
+  :root[data-theme='dark'] .completion-problem--completion { --completion-accent: color-mix(in srgb, var(--warm-gold) 68%, white); }
+  :root[data-theme='dark'] .completion-problem--solo       { --completion-accent: color-mix(in srgb, var(--warm-green) 62%, white); }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme='light']) .completion-problem--full       { --completion-accent: color-mix(in srgb, var(--warm-plum) 60%, white); }
+    :root:not([data-theme='light']) .completion-problem--completion { --completion-accent: color-mix(in srgb, var(--warm-gold) 68%, white); }
+    :root:not([data-theme='light']) .completion-problem--solo       { --completion-accent: color-mix(in srgb, var(--warm-green) 62%, white); }
+  }
+</style>

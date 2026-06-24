@@ -1,0 +1,32 @@
+---
+id: eaa-3-router-dimension
+type: mcq
+chapter: 3
+domain: component-evals
+bloom_level: analyze
+objective_id: EAA-3.2
+difficulty: '2'
+tags: [routing, evaluation]
+options:
+  - id: a
+    text: Tool-selection accuracy will catch this as a failure
+  - id: b
+    text: Only parameter-extraction accuracy catches it — tool selection scores it a pass
+    correct: true
+  - id: c
+    text: End-to-end output quality reliably flags parameter errors on its own
+  - id: d
+    text: This is a tool-selection failure, not a parameter failure
+---
+import Rationale from '@brandon_m_behring/book-scaffold-astro/components/Rationale.astro';
+
+An agent picks the correct tool but passes the customer's order ID into a `tracking_id`
+parameter. Which statement is true?
+
+<Rationale title="Why">
+The tool was right, so tool-selection accuracy scores a pass and misses the bug entirely; only
+parameter-extraction accuracy — checking the argument values — catches it, which is exactly why
+the two dimensions are evaluated independently. It is not a tool-selection failure (the tool was
+correct). And end-to-end output quality is an unreliable detector: a wrong parameter sometimes
+yields a plausible-looking answer, so it can pass the end-to-end check while being wrong.
+</Rationale>

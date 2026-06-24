@@ -1,0 +1,12 @@
+---
+term: Manager Node
+aliases: [Manager node, investment manager]
+domain: kg-expansion
+see: [owns-stock-in, company-node, full-text-index]
+tags: [schema, neo4j]
+---
+
+A graph node representing an institutional investment-management firm, keyed by its `managerCik`
+and carrying name and address. It connects to Company nodes via `OWNS_STOCK_IN` relationships that
+record share count, value, and reporting quarter. Manager names are also indexed with a full-text
+index, so a user can find a firm by string ("Royal Bank") even without its CIK.

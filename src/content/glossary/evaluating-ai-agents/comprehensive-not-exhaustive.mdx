@@ -1,0 +1,12 @@
+---
+term: Comprehensive, Not Exhaustive
+aliases: [comprehensive not exhaustive]
+domain: trajectory-evals
+see: [evaluation-dataset, input-output-keys]
+tags: [datasets, principle]
+---
+
+The dataset-design principle: cover every input *type* with 1–2 examples rather than piling
+100 near-duplicates per category. It keeps each experiment fast to run and cheap to maintain —
+**iteration speed beats volume** — while still catching regressions across the behaviour space.
+Resisting the urge to add bulk is what keeps the evaluation loop tight.

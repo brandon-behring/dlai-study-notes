@@ -1,0 +1,23 @@
+---
+id: fri-2b-kl-penalty
+type: free
+chapter: 2
+domain: sft-vs-rl
+bloom_level: analyze
+objective_id: FRI-2.6
+difficulty: '2'
+tags: [rl, rlhf]
+answer: >
+  The KL term −β·KL(π_θ ‖ π_ref) keeps the trained policy close to the frozen
+  reference, so RL maximizes reward *without* drifting into degenerate regions —
+  it's the main guard against reward hacking and mode collapse. If β is too small,
+  the policy is under-constrained: it drifts far from the reference and games the
+  reward (e.g. collapsing onto one high-scoring pattern). If β is too large, the
+  policy can barely move and never improves. So β trades exploration against
+  stability. Common wrong answer: "the KL term improves the reward" — it does the
+  opposite locally (it's a penalty); its job is to keep gains *honest*.
+---
+
+In the RLHF objective $r_\phi - \beta\,\mathrm{KL}(\pi_\theta \| \pi_{\text{ref}})$,
+what does the KL term do, and what failure occurs if $\beta$ is set too small? Too
+large?

@@ -1,0 +1,12 @@
+---
+term: Alert Threshold
+aliases: [monitoring threshold]
+domain: llm-judge-monitoring
+see: [production-monitoring, silent-regression]
+tags: [production, monitoring]
+---
+
+The deviation that fires a production alert — commonly about **>10% from a metric's baseline**,
+set per metric (evaluator scores, convergence, LLM-calls/query, p50/p99 latency, cost/query).
+The tuning trade-off: too tight and the alert is noisy and ignored, too loose and a silent
+regression slips past. Thresholds turn the monitored time-series into actionable signals.

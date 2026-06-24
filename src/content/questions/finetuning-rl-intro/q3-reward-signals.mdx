@@ -1,0 +1,23 @@
+---
+id: fri-3-reward-signals
+type: free
+chapter: 3
+domain: evaluation
+bloom_level: apply
+objective_id: FRI-3.3
+difficulty: '2'
+tags: [evaluation, rl]
+answer: >
+  Three signals that the reward is being gamed rather than the task improved: (1) reward
+  score rises while a held-out human/quality metric stays flat (the alignment tax grows);
+  (2) rollout diversity collapses — outputs converge on one template; (3) output length
+  (or another spurious feature the reward correlates with) grows monotonically. The single
+  confirming metric is **KL divergence** from the reference policy: a spike past ~0.5 nats
+  shows the policy has diverged far to chase the proxy. The unifying habit: always plot
+  accuracy/quality *alongside* reward — when they diverge, it's Goodhart. Common wrong
+  answer: "rising reward proves improvement" — rising reward is exactly what reward
+  hacking also produces.
+---
+
+Name three signals that distinguish genuine improvement from **reward hacking** during
+RL, and the single metric you'd watch to confirm a diagnosis.

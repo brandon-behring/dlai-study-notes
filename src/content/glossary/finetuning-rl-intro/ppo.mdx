@@ -1,0 +1,13 @@
+---
+term: PPO (Proximal Policy Optimization)
+aliases: [PPO]
+domain: sft-vs-rl
+see: [grpo, rlhf, advantage]
+tags: [rl, ppo]
+---
+
+The RL algorithm behind ChatGPT's RLHF. Uses a **clipped** surrogate objective —
+the probability ratio $\pi_\theta/\pi_{\text{old}}$ is capped near 1.0 (typically
+$\epsilon{=}0.2$) — to prevent destructively large updates, plus a learned
+**critic** for token-level credit assignment (GAE). The critic is the 4th model
+of RLHF.

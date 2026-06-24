@@ -1,0 +1,454 @@
+---
+book: knowledge-graphs-rag
+title: 'Constructing a Knowledge Graph from Text'
+chapter: 4
+part: 1
+description: >
+  Building a knowledge graph from SEC Form 10-K filings: extracting sections
+  (Item 1/1A/7/7A), chunking text with LangChain's CharacterTextSplitter,
+  designing chunk metadata, idempotent node creation with uniqueness constraints
+  and MERGE, wiring a Neo4jVector + retrieval-QA RAG chain, and preventing
+  hallucination — ending with why a pure vector store still needs the
+  relationships added in Module 5.
+learning_outcomes:
+  - id: KGR-4.1
+    verb: Explain
+    text: >
+      the structure of SEC Form 10-K filings and identify the key sections
+      (Item 1, 1A, 7, 7A) used for knowledge-graph construction.
+  - id: KGR-4.2
+    verb: Apply
+    text: >
+      text chunking with LangChain's CharacterTextSplitter, configuring chunk
+      size and overlap to preserve context across boundaries.
+  - id: KGR-4.3
+    verb: Design
+    text: >
+      chunk metadata schemas that capture text content, section identity,
+      sequence position, and source provenance.
+  - id: KGR-4.4
+    verb: Apply
+    text: >
+      uniqueness constraints and MERGE to build an idempotent
+      graph-construction pipeline.
+  - id: KGR-4.5
+    verb: Design
+    text: >
+      a RAG chain with LangChain's Neo4jVector and a retrieval-QA chain that
+      combines vector search with LLM generation.
+  - id: KGR-4.6
+    verb: Evaluate
+    text: >
+      RAG answer quality, identifying hallucination patterns and applying prompt
+      engineering and retrieval gating to prevent them.
+  - id: KGR-4.7
+    verb: Apply
+    text: >
+      Neo4jVector.from_existing_graph to connect LangChain to a Neo4j vector
+      index, specifying node label, text property, and embedding property.
+  - id: KGR-4.8
+    verb: Explain
+    text: >
+      the limitations of using Neo4j as a pure vector store without graph
+      relationships.
+tags:
+  - rag
+  - knowledge-graph
+  - chunking
+  - langchain
+  - neo4j
+  - sec-filings
+last_verified: 2026-06-19
+volatility: feature-surface
+sources:
+  - sec2024edgar
+  - lewis2020retrieval
+  - langchain2023
+---
+
+<Diagnostic skimTo="Creating graph nodes idempotently">
+Predict before reading — check each against the chapter.
+
+1. A 40-page contract (3000 chars/page) is split at chunk size 2000, overlap 200. Predict roughly how many chunks — closer to 60, 600, or 6000.
+2. Your ingestion job crashes halfway and is retried from the top. Predict what stops the re-run from creating duplicate chunk nodes.
+3. You ask a NetApp-only RAG system "Tell me about Apple" and it answers confidently about Apple. Predict what the retriever actually returned and why the LLM still produced an answer.
+4. After this chapter Neo4j holds embedded chunks but no relationships between them. Predict one question this *can't* answer that a real graph could.
+
+<Fragment slot="answers">
+1. **Closer to 60** — effective advance is `2000 − 200 = 1800` chars/chunk, so `120{,}000 / 1800 ≈ 67` chunks. Overlap shrinks the per-chunk advance to 1800, so the count comes out modestly higher than length÷size alone would give.
+2. A **uniqueness constraint + MERGE on a stable `chunkId`**: MERGE matches the existing node instead of inserting, and `ON CREATE SET` only writes properties on first creation. The pipeline is idempotent.
+3. The retriever returned **NetApp's nearest chunks** (the closest vectors available), and the LLM **filled the gap** with plausible text because nothing told it to refuse out-of-scope questions.
+4. Anything relational — e.g. "retrieve the chunk *before* this one", "which form did this chunk come from", "which company filed it". Disconnected chunks can't be traversed; Module 5 adds the relationships.
+</Fragment>
+</Diagnostic>
+
+<NarrativeBox title="Where we are">
+You can query a graph with Cypher and search it by vector similarity. Now you
+build a real knowledge graph from scratch, using SEC financial filings as the
+source. This chapter runs the full pipeline: extract text → chunk it → load
+chunks as nodes → embed them → wire a LangChain RAG chain. The result answers
+questions about the filings — but it uses Neo4j *only* as a vector store. The
+disconnected chunks become a true knowledge graph in Module 5, when
+relationships are added.
+</NarrativeBox>
+
+## SEC Form 10-K: the source data
+
+<ConceptBox>
+**Why SEC filings?** A [**Form 10-K**](../glossary#term-sec-form-10k) is the
+annual report public companies file with the U.S. Securities and Exchange
+Commission. It is long, standardised, high-quality business text — ideal raw
+material for a knowledge graph. The filings are public through the SEC's
+[**EDGAR**](../glossary#term-edgar) database. <EvidenceTag kind="verified" />
+</ConceptBox>
+
+Pre-processing extracts the useful fields from the raw XML into JSON. Two
+identifiers and four text sections do most of the work:
+
+| Field | Type | What it holds |
+| --- | --- | --- |
+| CIK | identifier | Central Index Key — the SEC's company id |
+| CUSIP | identifier | security id (first 6 digits link a company across datasets) |
+| Item 1 | text | business description |
+| Item 1A | text | risk factors |
+| Item 7 | text | management discussion & analysis |
+| Item 7A | text | market-risk disclosures |
+
+<Aside category="interview">
+Knowing the 10-K's structure signals domain knowledge in financial-ML
+interviews. **CIK** and **CUSIP** are the two identifiers that join a company
+across filings and datasets — they become the linking keys when the graph gains
+relationships in Module 5.
+</Aside>
+
+<SelfCheck q="Name four key sections of a Form 10-K and the two identifiers used to link companies across datasets." los="KGR-4.1">
+The four text sections: **Item 1** (business description), **Item 1A** (risk factors), **Item 7** (management discussion & analysis), **Item 7A** (market-risk disclosures). The two linking identifiers: **CIK** (the SEC's Central Index Key) and **CUSIP** (the security identifier; the first 6 digits, `cusip6`, identify the issuer).
+</SelfCheck>
+
+## Chunking the text
+
+Each section is far too long to embed whole, so it is split into overlapping
+[**chunks**](../glossary#term-text-chunking) with LangChain's
+`CharacterTextSplitter`:
+
+```python
+from langchain.text_splitter import CharacterTextSplitter
+
+text_splitter = CharacterTextSplitter(chunk_size=2000, chunk_overlap=200)
+chunks = text_splitter.split_text(item1_text)   # Item 1 alone -> 254 chunks
+```
+
+| Parameter | Value | Why |
+| --- | --- | --- |
+| `chunk_size` | 2000 chars | balances context richness against embedding specificity |
+| `chunk_overlap` | 200 chars | ~10% overlap so no context is lost at a boundary |
+
+The number of chunks follows from the *effective advance* — each new chunk moves
+forward by `chunk_size − overlap`, not the full size:
+
+$$\text{chunks} \approx \left\lceil \frac{L - O}{S - O} \right\rceil$$
+
+where $L$ is text length, $S$ is chunk size, and $O$ is overlap.
+
+<RedFlag title="Chunk size is a precision/recall dial">
+Too large and embeddings turn generic — they lose the specificity that makes
+retrieval precise. Too small and each chunk loses context, so answering needs
+several fragments reassembled. 2000 chars with 200 overlap is a practical
+*starting point*, not a universal default — tune it to your document structure
+and query patterns.
+</RedFlag>
+
+<WorkedExample title="Chunk-count calculation" los="KGR-4.2">
+**Problem.** You are chunking a 40-page legal contract (assume 3000 chars/page)
+at `chunk_size=2000`, `chunk_overlap=200`. Roughly how many chunks? Would you
+reuse the SEC strategy?
+
+**Reasoning.** Total text is $40 \times 3000 = 120{,}000$ chars. Each chunk
+advances by $2000 - 200 = 1800$ chars, so the count is
+$\lceil 120{,}000 / 1800 \rceil = 67$ chunks. But the *strategy* should change:
+SEC filings have large homogeneous sections that fixed-size splitting handles
+well; a contract has small, semantically distinct clauses (indemnification,
+termination) that a fixed-size splitter would cut mid-clause. Use a **recursive
+splitter** that breaks on section headers first, then paragraphs, then
+characters — preserving clause boundaries.
+
+**Answer.** ≈ 67 chunks. The chunk *size* is a tuning parameter; the splitting
+*strategy* is a design decision — make it document-structure-aware.
+</WorkedExample>
+
+<SelfCheck q="Why does chunk overlap matter, and what is the effective per-chunk advance at size 2000 with overlap 200?" los="KGR-4.2">
+Overlap carries context across boundaries, so a sentence split between two chunks still appears whole in at least one of them — without it, a fact straddling a boundary can be lost from both embeddings. The **effective advance** is `chunk_size − overlap = 2000 − 200 = 1800` chars per chunk, which is what drives the chunk count.
+</SelfCheck>
+
+## Chunk metadata
+
+A chunk is stored as a dictionary — text plus
+[**metadata**](../glossary#term-chunk-metadata) that preserves where it came
+from and where it sits in the document:
+
+```python
+chunk_record = {
+    "text": "...",          # the chunk content
+    "item": "item1",        # which section of the form
+    "chunkSeqId": 0,        # position within the section
+    "formId": "...",        # the filing this chunk belongs to
+    "chunkId": "...",       # unique id for this chunk
+    "source": "...",        # link back to the SEC filing
+    "cik": "...",           # company CIK
+    "cusip6": "..."         # company CUSIP (first 6 digits)
+}
+```
+
+<Aside category="pattern">
+`chunkSeqId` is the quietly critical field: it records document order *within a
+section*. Module 5 uses it to wire chunks into a linked list with `NEXT`
+relationships, so "give me the chunk after this one" becomes a one-hop
+traversal. Capture provenance at ingest — you cannot reconstruct order you
+didn't store.
+</Aside>
+
+<SelfCheck q="List the metadata fields stored with each chunk and explain why chunkSeqId matters for later modules." los="KGR-4.3">
+Fields: **text**, **item** (section), **chunkSeqId** (position in section), **formId**, **chunkId** (unique key), **source**, **cik**, **cusip6**. `chunkSeqId` preserves document order within a section, which Module 5 needs to build `NEXT` relationships linking each chunk to the next — enabling adjacent-context retrieval that a flat vector store can't do.
+</SelfCheck>
+
+## Creating graph nodes idempotently
+
+Before bulk loading, declare a
+[**uniqueness constraint**](../glossary#term-uniqueness-constraint). It prevents
+duplicate chunks *and* creates an implicit index that makes the next step's
+existence checks fast:
+
+```cypher
+CREATE CONSTRAINT unique_chunk IF NOT EXISTS
+FOR (c:Chunk) REQUIRE c.chunkId IS UNIQUE
+```
+
+Then load each chunk with [`MERGE`](../glossary#term-merge) on its stable
+`chunkId`, writing properties only on first creation:
+
+```cypher
+MERGE (c:Chunk {chunkId: $chunkParam.chunkId})
+ON CREATE SET
+  c.text       = $chunkParam.text,
+  c.item       = $chunkParam.item,
+  c.chunkSeqId = $chunkParam.chunkSeqId,
+  c.formId     = $chunkParam.formId
+```
+
+<KeyConcept title="Idempotent construction = exactly-once graph state" los="KGR-4.4">
+Production pipelines fail and retry, so ingestion is "at-least-once" by nature.
+An [**idempotent pipeline**](../glossary#term-idempotent-pipeline) turns that
+into **exactly-once** graph state: a uniqueness constraint blocks duplicate
+nodes, `MERGE` on a *stable* id matches instead of inserting on re-run, and
+`IF NOT EXISTS` makes index/constraint creation safe to repeat. **When it
+breaks:** MERGE on a volatile property (a timestamp, a counter) creates a new
+node every run — always MERGE on stable identifiers only. <EvidenceTag kind="verified" />
+</KeyConcept>
+
+<RedFlag title="Constraint first, then bulk load">
+Without the uniqueness constraint, each MERGE scans *every* `Chunk` node to
+check existence — quadratic in the number of chunks. The constraint's implicit
+index turns that scan into an index lookup. Create the constraint *before* bulk
+loading, not after.
+</RedFlag>
+
+<CompletionProblem id="idempotent-merge" title="Complete the idempotent load" level="completion">
+Write the constraint and MERGE that load `Company` nodes idempotently on a
+stable `cik`, setting `name` and `cusip6` only on first creation.
+
+**Your turn — fill the blanks:**
+- Constraint: `CREATE CONSTRAINT unique_company IF NOT EXISTS FOR (c:Company) REQUIRE ___ IS UNIQUE`
+- Load: `MERGE (c:Company {cik: $param.cik}) ON CREATE SET ___`
+- The values arrive as `___`, never string-interpolated.
+
+<Fragment slot="solution">
+```cypher
+CREATE CONSTRAINT unique_company IF NOT EXISTS
+FOR (c:Company) REQUIRE c.cik IS UNIQUE
+
+MERGE (c:Company {cik: $param.cik})
+ON CREATE SET c.name = $param.name, c.cusip6 = $param.cusip6
+```
+- The constraint is on **`c.cik`** — the stable identifier you MERGE on.
+- `ON CREATE SET` writes `name` and `cusip6` only when the node is first created, so a re-run won't overwrite them.
+- `$param.*` are **query parameters**, passed via `params=`, never interpolated.
+</Fragment>
+</CompletionProblem>
+
+<SelfCheck q="Why create a uniqueness constraint before bulk-loading chunks with MERGE, and what does ON CREATE SET guarantee?" los="KGR-4.4">
+The constraint guarantees no duplicate `chunkId` *and* creates an implicit index, so each MERGE does an index lookup instead of scanning all `Chunk` nodes (linear vs quadratic loading). `ON CREATE SET` writes the listed properties **only when the node is first created** — on a retry the node already exists, MERGE matches it, and the SET is skipped, so re-running the pipeline is safe.
+</SelfCheck>
+
+## Adding vector search to the chunks
+
+The embedding step is exactly the [Module 3 pattern](../glossary#term-genai-vector-encode),
+now over chunk text instead of movie taglines: create a vector index on
+`Chunk.textEmbedding`, then populate it with `genai.vector.encode` and
+`db.create.setNodeVectorProperty`. The index declares **1536** dimensions
+(OpenAI's `text-embedding-3-small`) and **cosine** similarity, and must reach
+`ONLINE` before you query it.
+
+```cypher
+CREATE VECTOR INDEX form10kChunks IF NOT EXISTS
+FOR (c:Chunk) ON (c.textEmbedding)
+OPTIONS { indexConfig: {
+  `vector.dimensions`: 1536,
+  `vector.similarity_function`: 'cosine'
+}}
+```
+
+## Building the RAG chain
+
+With chunks embedded, LangChain wraps the graph as a vector store and chains
+retrieval to an LLM:
+
+<PipelineBox title="RAG chain over Neo4j">
+1. **Connect** — `Neo4jVector` wraps Neo4j as a standard vector store, running Cypher similarity search under the hood.
+2. **Retrieve** — the question is encoded and matched against chunk embeddings; the top-K nearest chunks come back.
+3. **Generate** — the retrieved chunks are injected into the LLM prompt as context, and the LLM answers grounded in that evidence.
+</PipelineBox>
+
+[`Neo4jVector.from_existing_graph`](../glossary#term-neo4jvector) connects to the
+index you already built — you tell it the label, the text property, and the
+embedding property:
+
+```python
+from langchain_neo4j import Neo4jVector          # see currency note below
+from langchain_openai import OpenAIEmbeddings
+
+neo4j_vector = Neo4jVector.from_existing_graph(
+    OpenAIEmbeddings(),
+    url=NEO4J_URI, username=NEO4J_USERNAME, password=NEO4J_PASSWORD,
+    index_name="form10kChunks",
+    node_label="Chunk",
+    text_node_properties=["text"],
+    embedding_node_property="textEmbedding",
+)
+retriever = neo4j_vector.as_retriever()
+```
+
+The retriever feeds a [retrieval-QA](../glossary#term-retrievalqa) chain that
+stuffs the retrieved chunks into the prompt and asks an LLM (temperature 0) to
+answer. Ask "What is NetApp's primary business?" and it returns "enterprise
+storage and data management" — grounded in the filing.
+
+<Aside category="warning">
+Currency (course recorded 2024-03): the LangChain APIs moved. `Neo4jVector`,
+`Neo4jGraph`, and `GraphCypherQAChain` now live in the dedicated
+`langchain-neo4j` package (first release 2024-11), **not** `langchain_community`.
+And `RetrievalQA` has been deprecated since LangChain 0.1.17 — still importable in
+the 1.x line (removal repeatedly deferred) — with `create_retrieval_chain` +
+`create_stuff_documents_chain` the current replacement. The connect → retrieve →
+generate *concept* is unchanged; pin versions before reusing the notebooks. <EvidenceTag kind="verified" />
+</Aside>
+
+<SelfCheck q="What three things does Neo4jVector.from_existing_graph need to connect to an existing index, and what are the RAG chain's three stages?" los="KGR-4.7">
+It needs the **index name**, the **node label** (`Chunk`), and which properties hold the **text** (`text_node_properties`) and the **embedding** (`embedding_node_property`) — plus the connection URL/credentials and an embeddings object. The three stages are **connect** (wrap Neo4j as a vector store), **retrieve** (encode the question, get top-K nearest chunks), and **generate** (LLM answers using those chunks as context).
+</SelfCheck>
+
+## When RAG hallucinates
+
+Ask the same system "Tell me about Apple" — a company *not* in the data — and it
+answers confidently about Apple anyway, describing it with NetApp's business.
+That is [**hallucination**](../glossary#term-hallucination): the retriever
+returned the nearest available chunks (NetApp's), and the prompt never told the
+model it could decline, so it filled the gap with plausible-but-wrong text.
+
+<RedFlag title="Two RAG failure modes, not one">
+RAG hallucination fails in two distinct ways: (1) the LLM **invents** facts that
+aren't in the context, and (2) the LLM **mis-attributes** — applies entity A's
+retrieved context to entity B. The NetApp/Apple case is mode (2): real retrieved
+data, wrong entity. A good prompt has to guard against both.
+</RedFlag>
+
+The fix is layered — prompt engineering plus a retrieval check:
+
+1. **Instruct refusal** — "If the context doesn't contain the answer, say you don't know." 2. **Scope the context** — state that it comes from specific filings only. 3. **Gate on retrieval score** — low [similarity scores](../glossary#term-similarity-score) signal an out-of-scope question; drop the chunks before they reach the LLM.
+
+```python
+template = """Use ONLY the following context to answer.
+The context comes from SEC filings for specific companies.
+If the context does not contain information about the company
+or topic in the question, respond: "I don't have information
+about that company in my data." Do NOT use general knowledge.
+
+Context: {context}
+Question: {question}
+Answer:"""
+```
+
+<WorkedExample title="Hallucination debugging" los="KGR-4.6">
+**Problem.** A RAG system over *NetApp's* 10-K answers "What is Apple's
+revenue?" with "Apple reported revenue of 6.32 billion … from cloud storage and
+data management." Diagnose it and prevent it.
+
+**Reasoning.** The answer attributes NetApp's business ("cloud storage and data
+management") to Apple, and the revenue figure is fabricated — failure mode (2),
+entity mis-attribution, plus invented numbers. Root cause: the retriever found
+the chunks most similar to "Apple's revenue", which were NetApp's revenue
+chunks (the nearest vectors available), and the prompt never asked the model to
+verify the retrieved context actually concerns Apple. The fix is the template
+above: "use ONLY the context", refuse on missing entities, and gate on
+similarity score so out-of-scope questions return no context at all.
+
+**Answer.** Mode-2 hallucination: real NetApp context, wrong entity, invented
+figure. Cause: no entity-alignment check and no refusal instruction. Fix:
+restrict to context, instruct "say you don't know", and add a score threshold —
+prompt engineering helps but is not foolproof, so pair it with retrieval
+gating.
+</WorkedExample>
+
+<Aside category="interview">
+"How do you prevent hallucination in RAG?" is a top-tier interview question.
+The strong answer names *both* failure modes, gives the prompt-engineering fix
+**and** its limits, and adds retrieval-score gating — showing you know prompt
+instructions alone are not a guarantee.
+</Aside>
+
+<SelfCheck q="A NetApp-only RAG system answers a question about Apple using NetApp's data. Name the failure mode and two mitigations." los="KGR-4.6">
+This is **entity mis-attribution** (applying retrieved entity-A context to entity B) — the retriever returned NetApp's nearest chunks and the LLM answered anyway. Mitigations (any two): a prompt that says "use ONLY this context" and "say you don't know" for missing entities; **scoping** the context to named filings; and **retrieval-score gating** — drop low-similarity chunks so out-of-scope questions get no context to misuse.
+</SelfCheck>
+
+## The limitation: a pure vector store
+
+<KeyConcept title="Disconnected chunks are not yet a knowledge graph" los="KGR-4.8">
+At this point Neo4j holds embedded `Chunk` nodes and *nothing else* — no
+relationships. Functionally it is a vector store that happens to live in a graph
+database. That means you **cannot**: follow a chunk back to its source filing,
+retrieve the adjacent chunk for expanded context, or traverse from a chunk to
+the company that filed it. Module 5 adds `NEXT`, `PART_OF`, and `SECTION`
+relationships to turn this flat collection into a true knowledge graph. <EvidenceTag kind="verified" />
+</KeyConcept>
+
+<Aside category="pattern">
+Where practitioners disagree — *does the graph earn its complexity, or is a pure
+vector store enough?* The vector-only camp: if your questions are answered by
+semantic similarity alone (FAQ lookup, "find me similar passages"), the graph
+adds operational overhead you never cash in. The graph camp: the moment
+retrieval needs *connection* — adjacent chunks, the parent document, the
+filing company, multi-hop context — a flat vector store can't express it, and
+bolting relationships on later is the whole point of Modules 5–7. The honest
+rule mirrors the vector-DB question from Module 3: add graph structure when your
+*queries* combine similarity with traversal, not merely because the data has
+relationships latent in it.
+</Aside>
+
+<SelfCheck q="Name three things a pure vector store of chunks cannot do that adding relationships would enable." los="KGR-4.8">
+Without relationships you cannot: (1) follow a chunk back to its **source document/filing**; (2) retrieve the **adjacent chunk** (the `NEXT` one) for expanded context; (3) **traverse** from a chunk to related entities — the company that filed it, other filings, investors. All three require the `NEXT`/`PART_OF`/`SECTION` relationships added in Module 5.
+</SelfCheck>
+
+## Summary
+
+SEC Form 10-K filings are rich, standardised documents — ideal source text. The
+construction pipeline is: extract sections (Item 1/1A/7/7A) → chunk with overlap
+so no context is lost → store each chunk with provenance metadata → MERGE into
+the graph behind a uniqueness constraint for idempotent, exactly-once loading →
+embed and index for vector search → wrap with `Neo4jVector` and a retrieval-QA
+chain. Prompt engineering ("use only this context; say you don't know") plus
+retrieval-score gating is what keeps the system from hallucinating on
+out-of-scope questions. But at this stage Neo4j is *only* a vector store: the
+chunks are disconnected.
+
+- **Chapter 5** — *adding relationships*: `NEXT`, `PART_OF`, and `SECTION` turn the chunk collection into a real knowledge graph.
+- **Chapter 6** — expanding the SEC graph with companies and investors (Form 13 data).
+- **Chapter 7** — answering questions by having an LLM generate Cypher against the connected graph.

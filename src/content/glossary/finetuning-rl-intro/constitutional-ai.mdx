@@ -1,0 +1,13 @@
+---
+term: Constitutional AI
+aliases: [CAI]
+domain: reasoning-and-safety
+see: [reward-model, chain-of-thought, rlaif]
+tags: [safety]
+---
+
+Anthropic's alignment method: define behavioral principles (a "constitution"),
+use the model's self-critique against them to generate SFT data, then train a
+reward model on **AI-generated** preference pairs for RL (RLAIF). Scales
+harmlessness with far fewer human labels — but inherits the critic model's blind
+spots, so human spot-checks remain essential.

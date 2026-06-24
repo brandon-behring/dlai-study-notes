@@ -1,0 +1,13 @@
+---
+term: Teacher Forcing
+aliases: []
+domain: sft-vs-rl
+see: [cross-entropy, loss-mask]
+tags: [sft]
+---
+
+During training the model receives the **ground-truth** previous tokens as input
+at each step — not its own predictions. Because every position then has a known
+context, loss can be computed for **all positions in a single parallel forward
+pass**, instead of sequentially. This is why SFT is orders of magnitude faster
+than autoregressive RL rollouts.

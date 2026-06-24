@@ -1,0 +1,22 @@
+---
+id: fri-3-pass-at-k
+type: free
+chapter: 3
+domain: evaluation
+bloom_level: apply
+objective_id: FRI-3.1
+difficulty: '2'
+tags: [evaluation, metrics]
+answer: >
+  Pass@1 = c/n = 30/100 = 0.30. Pass@10 = 1 − C(70,10)/C(100,10)
+  = 1 − ∏_{i=0}^{9}(70−i)/(100−i) ≈ 1 − 0.022 ≈ 0.97. So the model produces a correct
+  answer ~30% of the time single-shot but ~97% within ten tries. A large Pass@1↔Pass@10
+  gap means the capability is *there* but sampling/decoding is unreliable — the fix is
+  best-of-N or majority voting (or temperature tuning), NOT more training. If Pass@1 ≈
+  Pass@10 instead, the model genuinely doesn't know the answer and needs training. Common
+  wrong answer: treating a low Pass@1 as "needs more data" without checking Pass@k first.
+---
+
+You sample **100** completions for a hard problem; **30** are correct. Estimate Pass@1
+and Pass@10 (show the method), and explain what a large gap between them tells you about
+where to invest — more training, or better decoding?

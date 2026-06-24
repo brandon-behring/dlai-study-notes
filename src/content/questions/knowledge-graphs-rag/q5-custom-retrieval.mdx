@@ -1,0 +1,21 @@
+---
+id: kgr-5-custom-retrieval
+type: free
+chapter: 5
+domain: kg-relationships
+bloom_level: understand
+objective_id: KGR-5.5
+difficulty: '2'
+tags: [custom-retrieval-query, langchain]
+answer: >
+  A custom retrieval query is Cypher you pass to Neo4jVector through the `retrieval_query`
+  argument. By default the retriever returns the matched chunk's text verbatim; the custom query
+  runs after the vector match and can traverse the graph first — here following NEXT both
+  directions to assemble a chunk window — before returning text to the LLM. That is exactly how
+  vector search and graph traversal fuse into one retrieval step: the index finds the entry chunk,
+  the Cypher tail expands it. Common wrong answer: thinking it replaces the vector search — it
+  extends it, receiving the vector hit as input.
+---
+
+What is a custom retrieval query in Neo4jVector, and how does it let one retrieval step combine
+vector search with graph traversal?

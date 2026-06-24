@@ -1,0 +1,24 @@
+---
+id: fri-5-pipeline-purpose
+type: free
+chapter: 5
+domain: production-pipelines
+bloom_level: apply
+objective_id: FRI-5.1
+difficulty: '2'
+tags: [production, sft, rl]
+answer: >
+  Cold-start SFT fixes formatting and language instability (pure-RL R1 Zero mixed languages and
+  formats) — it gives RL a clean starting point. Rejection sampling plus filtering fixes quality
+  variance — it keeps only verifier-passing traces so the next SFT learns from correct reasoning.
+  Combining with ~200K non-reasoning data fixes capability narrowness — pure RL stayed stuck in
+  verifiable math/code, so general helpfulness and safety data broaden it. The pipeline needs
+  both RL and SFT because RL explores (discovers new strategies but is unstable and
+  verifier-limited) while SFT consolidates (stabilizes and broadens but cannot discover);
+  alternating captures the strengths of each. Common wrong answer: "just run RL longer" — more RL
+  does not fix language-mixing or extend capability beyond verifiable domains; those need SFT
+  consolidation and non-reasoning data.
+---
+
+Pick three stages of the R1 full pipeline and name the specific failure mode each one fixes.
+Why does the pipeline need both RL and SFT stages rather than just one long RL run?

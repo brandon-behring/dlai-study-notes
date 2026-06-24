@@ -1,0 +1,23 @@
+---
+id: kgr-6-entity-resolution
+type: free
+chapter: 6
+domain: kg-expansion
+bloom_level: analyze
+objective_id: KGR-6.7
+difficulty: '3'
+tags: [entity-resolution, integration]
+answer: >
+  CUSIP linking works because it is a universal identifier shared by both datasets. When two
+  sources use *different* schemes — one CUSIP, another ISIN or ticker, or only company-name strings
+  — there is no common value to MERGE on, and automatic linking silently produces missed matches
+  (false negatives) and wrong matches (false positives). The fix is an entity-resolution layer:
+  prefer a canonical id where one exists (DUNS, SEC CIK); otherwise fuzzy-match names, verify with
+  secondary attributes (address, industry), and store a canonical node with an `aliases` property
+  for the variants. Entity resolution is usually the hardest part of KG integration — the join is
+  easy once the keys agree. Common wrong answer: "just match on name" — that is precisely what
+  fails.
+---
+
+CUSIP-based linking is automatic here. What breaks when you integrate two datasets that identify
+companies differently, and how do you handle it?

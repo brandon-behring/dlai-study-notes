@@ -1,0 +1,33 @@
+---
+id: eaa-1-routing-coverage
+type: mcq
+chapter: 1
+domain: eval-foundations
+bloom_level: analyze
+objective_id: EAA-1.6
+difficulty: '2'
+tags: [routing, architecture, evaluation]
+options:
+  - id: a
+    text: Distributed routing reduces flexibility, so you must test more rigid paths
+  - id: b
+    text: Routing decisions occur at many nodes, so coverage must reach every one
+    correct: true
+  - id: c
+    text: Distributed routing removes the need for a routing dataset, shifting all effort to skills
+  - id: d
+    text: Distributed graphs are deterministic, so end-to-end tests alone suffice
+---
+import Rationale from '@brandon_m_behring/book-scaffold-astro/components/Rationale.astro';
+
+Your agent uses distributed routing across a LangGraph graph. Compared with a single
+centralised router, what most directly raises your evaluation burden?
+
+<Rationale title="Why">
+With routing spread across the graph, a wrong turn can originate at any node, so you must
+build coverage for *every* decision point instead of one — that is the core cost. Distributed
+routing increases flexibility, not decreases it, so the "more rigid paths" claim inverts the
+trade-off. It does not eliminate the routing dataset; if anything you need routing checks at
+several nodes. And distributing the routing does not make it deterministic, so end-to-end
+tests alone still miss where a misroute happened.
+</Rationale>

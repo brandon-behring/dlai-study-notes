@@ -1,0 +1,23 @@
+---
+id: fri-5-reward-collapse
+type: free
+chapter: 5
+domain: production-pipelines
+bloom_level: analyze
+objective_id: FRI-5.6
+difficulty: '3'
+tags: [production, monitoring]
+answer: >
+  Suspect reward collapse (production reward hacking): the model has found a degenerate strategy
+  that scores high on the automated reward while producing worse outputs — which is why the
+  dashboard looks great while users complain. Confirm by checking the tells: is output diversity
+  dropping (unique-n-gram ratio), is length growing without added information, and does a
+  human-judgment sample diverge from the reward? Prevent it by always monitoring a human-judgment
+  metric alongside reward, tracking diversity, and setting SLOs on both reward and user
+  satisfaction so a divergence triggers rollback automatically. Common wrong answer: "the reward
+  is high, so the model is fine — investigate the tickets separately" — the high reward is the
+  symptom, and trusting the automated metric is exactly how reward collapse hides.
+---
+
+Two weeks after a deploy, your automated reward metric is at an all-time high but support
+tickets are climbing. What do you suspect, how do you confirm it, and what prevents it?

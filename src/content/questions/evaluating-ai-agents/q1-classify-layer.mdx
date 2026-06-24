@@ -1,0 +1,33 @@
+---
+id: eaa-1-classify-layer
+type: mcq
+chapter: 1
+domain: eval-foundations
+bloom_level: apply
+objective_id: EAA-1.7
+difficulty: '2'
+tags: [evaluation, layers, routing]
+options:
+  - id: a
+    text: Model layer — it tests the LLM's raw capability
+  - id: b
+    text: Agent layer — tool selection is a routing decision specific to multi-step agents
+    correct: true
+  - id: c
+    text: Application layer — it tests your domain-specific prompts end to end
+  - id: d
+    text: It belongs to no single layer, because routing sits outside the layer model
+---
+import Rationale from '@brandon_m_behring/book-scaffold-astro/components/Rationale.astro';
+
+You measure whether your agent selects the correct tool for different query types. In the
+model / application / agent layer model, which layer does this activity belong to?
+
+<Rationale title="Why">
+Measuring tool selection is **routing accuracy**, and routing is the defining behaviour of
+the agent layer (Layer 3) — multi-step systems that choose what to do next. It is not the
+model layer, which tests the isolated LLM on fixed benchmarks regardless of your tools. It
+is not the application layer, which evaluates domain prompts and retrieval end to end without
+a routing decision. And routing is squarely inside the layer model, not outside it — the
+agent layer exists precisely to capture decisions like this one.
+</Rationale>

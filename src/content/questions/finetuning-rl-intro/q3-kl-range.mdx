@@ -1,0 +1,33 @@
+---
+id: fri-3-kl-range
+type: mcq
+chapter: 3
+domain: evaluation
+bloom_level: apply
+objective_id: FRI-3.2
+difficulty: '2'
+tags: [evaluation, rl]
+options:
+  - id: a
+    text: Reward hacking or mode collapse — the policy is drifting to game the reward
+    correct: true
+  - id: b
+    text: Healthy exploration — a high KL means the model is learning quickly
+  - id: c
+    text: The KL penalty β is too large and should be reduced
+  - id: d
+    text: Underfitting — the model needs many more training steps
+---
+import Rationale from '@brandon_m_behring/book-scaffold-astro/components/Rationale.astro';
+
+During RL you monitor KL divergence from the reference policy. It has climbed past
+**0.6 nats** and rollouts are converging on one phrasing. What does this most likely
+indicate?
+
+<Rationale title="Why">
+**Reward hacking / mode collapse.** The safe KL band is ~0.1–0.2 nats; above ~0.5 the
+policy has strayed far from the reference, and collapsing rollout diversity is the
+tell-tale signature of gaming the reward. Reading high KL as "healthy exploration" has
+it backwards. *Lowering* β would loosen the leash and let it drift further. Underfitting
+is the opposite regime — KL near or below 0.1, where RL is barely moving the model.
+</Rationale>

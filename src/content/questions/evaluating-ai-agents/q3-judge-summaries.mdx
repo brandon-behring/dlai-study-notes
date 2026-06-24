@@ -1,0 +1,23 @@
+---
+id: eaa-3-judge-summaries
+type: free
+chapter: 3
+domain: component-evals
+bloom_level: apply
+objective_id: EAA-3.3
+difficulty: '2'
+tags: [evaluation, llm-as-judge]
+answer: >
+  Use LLM-as-a-judge constrained to discrete rails — e.g. faithful/unfaithful, or
+  complete/incomplete — never a numeric score. Write a judge template that states the criterion
+  and asks for one rail label given the source and the summary; run it over the summary spans
+  with llm_classify(rails=[...]); wrap the run in suppress_tracing() so the judge's own LLM calls
+  don't pollute the agent's traces; then log_evaluations() to attach the labels back to the
+  spans. Validate the judge against a small human-labelled sample to estimate its agreement
+  before trusting it. Common wrong answer: "have the judge rate each summary 1–10 and average" —
+  uncalibrated numeric scores are noise; rails are what make the judge reliable.
+---
+
+You need to evaluate a summarisation skill's output quality at scale. Describe how you would
+apply LLM-as-a-judge, including the output format and how you keep the judge out of the agent's
+traces.

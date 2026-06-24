@@ -10,6 +10,7 @@ import Chapter from '@brandon_m_behring/book-scaffold-astro/layouts/Chapter.astr
 import Provenance from '@brandon_m_behring/book-scaffold-astro/components/Provenance.astro';
 import { getCollection, render } from 'astro:content';
 import { mdxComponents } from '../../components/mdx';
+import '../../styles/consumer-overrides.css';
 
 export async function getStaticPaths() {
   const allChapters = (await getCollection('chapters')).filter((c) => !c.data.draft);
@@ -50,5 +51,5 @@ const parentBook = allBooks.find((b) => b.data.book === chapter.data.book);
 </Chapter>
 
 <style>
-  .breadcrumb { color: var(--color-meta, #555); font-size: 0.92em; }
+  .breadcrumb { color: var(--color-text-muted); font-size: 0.92em; }
 </style>

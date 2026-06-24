@@ -1,0 +1,30 @@
+---
+id: kgr-5-star-notation
+type: mcq
+chapter: 5
+domain: kg-relationships
+bloom_level: apply
+objective_id: KGR-5.3
+difficulty: '2'
+tags: [variable-length-path, cypher]
+options:
+  - id: a
+    text: It repeats the NEXT hop exactly once on each side of the target
+  - id: b
+    text: It matches between 0 and 10 NEXT hops to build a wide window
+  - id: c
+    text: It filters chunks whose similarity score falls between 0 and 1
+  - id: d
+    text: It matches zero or one NEXT hop, so the window still works at list boundaries
+    correct: true
+---
+import Rationale from '@brandon_m_behring/book-scaffold-astro/components/Rationale.astro';
+
+In a chunk-window query, what does `*0..1` in `-[:NEXT*0..1]->` do?
+
+<Rationale title="Why">
+`*0..1` is a variable-length path matching **zero or one** NEXT hop. The "zero" is the point: at
+the first or last chunk the missing side matches no hop, so the pattern still returns the
+available neighbours instead of failing. It is not a fixed single hop (that is the pattern that
+breaks at boundaries), not a 0–10 range, and not a score filter.
+</Rationale>

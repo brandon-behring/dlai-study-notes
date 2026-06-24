@@ -1,0 +1,14 @@
+---
+term: Knowledge Distillation
+aliases: [distillation, teacher-student]
+domain: production-pipelines
+see: [rejection-sampling, quantization, cold-start-sft]
+tags: [infrastructure, serving]
+---
+
+Training a small **student** model to mimic a large **teacher** — the R1 recipe generates
+~800K teacher chain-of-thought traces, keeps only the verified-correct ~10–15%, and SFT's small
+students (often with LoRA) on them. Distilled students beat same-size models trained with
+*direct RL*, so you run expensive RL once on the teacher and serve a cheap student. But
+distillation transfers *style*, not capacity: a too-small student (671B → 1.5B) degrades on
+hard problems — the sweet spot is **7–14B**.

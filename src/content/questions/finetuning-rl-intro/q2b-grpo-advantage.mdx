@@ -1,0 +1,23 @@
+---
+id: fri-2b-grpo-advantage
+type: free
+chapter: 2
+domain: sft-vs-rl
+bloom_level: apply
+objective_id: FRI-2.5
+difficulty: '2'
+tags: [rl, grpo]
+answer: >
+  Group baseline = mean = (1+1+0+0)/4 = 0.5. Advantages = r − baseline =
+  [+0.5, +0.5, −0.5, −0.5]: the two correct rollouts get a positive push (more
+  likely), the two wrong ones negative. The zero-gradient case: if all G rollouts
+  score the *same* (all 1s or all 0s), the baseline equals every reward, so every
+  advantage is 0 and the prompt contributes no gradient — which is why GRPO wants
+  prompts of intermediate difficulty (some pass, some fail). Common wrong answer:
+  using a fixed 0.5 baseline regardless of the group, or forgetting that uniform
+  groups vanish.
+---
+
+A prompt is rolled out $G=4$ times against a verifier with rewards $[1, 1, 0, 0]$.
+Using GRPO's group-relative baseline, compute the advantage of each rollout, and
+state the condition under which a prompt produces **zero** gradient signal.

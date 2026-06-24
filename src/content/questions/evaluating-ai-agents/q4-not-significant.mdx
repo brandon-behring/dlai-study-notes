@@ -1,0 +1,22 @@
+---
+id: eaa-4-not-significant
+type: free
+chapter: 4
+domain: trajectory-evals
+bloom_level: analyze
+objective_id: EAA-4.7
+difficulty: '3'
+tags: [shipping, statistics]
+answer: >
+  Don't ship on the score alone. A higher mean with no statistical significance may be sampling
+  noise — likely on the small "comprehensive, not exhaustive" dataset — so first reduce the
+  uncertainty: enlarge the eval set or run a proper A/B in production to test whether the gain
+  is real. Meanwhile weigh the *cost*: the variant is more expensive, so even a real gain has to
+  clear that cost to be worth it. Decision: if a larger sample / A/B confirms a significant gain
+  that justifies the added cost (and no dimension regressed), ship; otherwise keep the cheaper
+  incumbent. Common wrong answer: "it scored higher, so ship it" — an insignificant difference
+  isn't evidence of improvement, and the extra cost makes a non-gain a net loss.
+---
+
+Variant B scores higher on correctness than the incumbent but costs more, and the difference is
+not statistically significant. Walk through how you decide whether to ship it.

@@ -1,0 +1,13 @@
+---
+term: Agreement Rate
+aliases: [judge agreement]
+domain: llm-judge-monitoring
+see: [meta-evaluation, false-positive-rate]
+tags: [evaluation, metrics]
+---
+
+The fraction of cases where an LLM judge produces the **same label as the ground-truth
+evaluator**. It is the headline meta-evaluation metric — target ≥ 0.90, and below about 0.85
+don't ship the judge. Its blind spot: it hides *which way* the judge errs, so a high agreement
+rate can still sit on top of a dangerous false-positive (leniency) rate. Always report it
+alongside FPR.

@@ -1,0 +1,25 @@
+---
+id: fri-1-sql-sft-rl
+type: free
+chapter: 1
+domain: sft-vs-rl
+bloom_level: analyze
+objective_id: FRI-1.2
+difficulty: '3'
+tags: [sft, rl]
+answer: >
+  SFT first, then RL. Phase 1 (SFT on the 800 examples) is stable and quickly
+  teaches valid SQL syntax/structure — expect reliable formatting in 1–2 epochs.
+  Phase 2 (RL with the execution checker as a deterministic verifier) pushes past
+  the demonstration ceiling, discovering correct handling of joins, NULLs, and
+  edge cases the 800 examples never covered. Justification via the tradeoff: SFT
+  alone is bounded by demonstration coverage; RL alone is unstable for
+  format-heavy tasks early on. The common wrong answer is "RL only, since we have
+  a verifier" — it wastes the cheap stability SFT provides and risks slow,
+  unstable convergence on syntax.
+---
+
+You have a 7B base model and want reliable text-to-SQL generation. You have
+(a) 800 hand-written (question, correct-SQL) pairs and (b) a database that
+executes candidate SQL and returns pass/fail. Should you use SFT, RL, or both —
+and in what order? Justify with the stability-vs-ceiling tradeoff.

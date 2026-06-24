@@ -1,0 +1,146 @@
+/* consumer-overrides.css — DLAI corpus global overrides on top of the scaffold.
+ *
+ * Imported once per content page (chapter + apparatus routes). Three jobs:
+ *   1. Load KaTeX's stylesheet (the scaffold gates it on the academic profile;
+ *      course-notes never loads it, so math double-renders — native MathML PLUS
+ *      unstyled .katex-html. katex.css hides .katex-mathml and styles the HTML).
+ *   2. Define --color-accent (undefined in tokens.css → islands fall back to
+ *      indigo #4f46e5). Point it at the site's warm-blue, brightened in dark.
+ *   3. Give <WorkedExample> a visible expand affordance — the scaffold hides the
+ *      native <details> marker without a replacement, so it doesn't read as
+ *      clickable. Add a rotating chevron matching the ▸ idiom that Diagnostic
+ *      and SectionMap already show. (Dogfood: upstream should ship this.)
+ */
+@import 'katex/dist/katex.min.css';
+
+/* ── Island accent → warm-blue (was indigo #4f46e5) ───────────────────────── */
+:root {
+  --color-accent: var(--warm-blue, #3b6fa0);
+}
+/* Brighten in dark for AA on dark surfaces (mirrors tokens.css link/heading). */
+:root[data-theme='dark'] {
+  --color-accent: color-mix(in srgb, var(--warm-blue) 58%, white);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --color-accent: color-mix(in srgb, var(--warm-blue) 58%, white);
+  }
+}
+
+/* ── Consumer component semantic tokens (COMPONENTS.md rule 1) ────────────────
+ * Several consumer MDX components reference --color-* tokens that the scaffold
+ * never defined, so they pinned to a hardcoded light hex in every theme
+ * (unreadable in dark — the exact footgun the lint guards). Define them here,
+ * mapped to scaffold dark-aware tokens, so they flip. Accent-text tokens are
+ * brightened in dark (rule 5); muted/link tokens reuse tokens that already flip.
+ */
+:root {
+  --color-meta: var(--color-text-muted, #718096);
+  --color-text-secondary: var(--color-text-muted, #4a5568);
+  --color-citation: var(--color-link, #2b6cb0); /* citations are links */
+  --color-term: var(--color-link, #4299e1);     /* glossary terms are links */
+  --color-decision: var(--warm-blue, #3182ce);
+  --color-interview: var(--warm-plum, #805ad5);
+  --color-problem: var(--warm-crimson, #c53030);
+  --color-solution: var(--warm-green, #38a169);
+  --color-vignette: color-mix(in srgb, var(--warm-blue) 55%, var(--warm-green)); /* teal */
+}
+:root[data-theme='dark'] {
+  --color-decision: color-mix(in srgb, var(--warm-blue) 58%, white);
+  --color-interview: color-mix(in srgb, var(--warm-plum) 60%, white);
+  --color-problem: color-mix(in srgb, var(--warm-crimson) 62%, white);
+  --color-solution: color-mix(in srgb, var(--warm-green) 62%, white);
+  --color-vignette: color-mix(in srgb, color-mix(in srgb, var(--warm-blue) 55%, var(--warm-green)) 62%, white);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --color-decision: color-mix(in srgb, var(--warm-blue) 58%, white);
+    --color-interview: color-mix(in srgb, var(--warm-plum) 60%, white);
+    --color-problem: color-mix(in srgb, var(--warm-crimson) 62%, white);
+    --color-solution: color-mix(in srgb, var(--warm-green) 62%, white);
+    --color-vignette: color-mix(in srgb, color-mix(in srgb, var(--warm-blue) 55%, var(--warm-green)) 62%, white);
+  }
+}
+
+/* ── Diagram categorical series palette (Q3 "warm-Tol diagram palette") ───────
+ * Data-series colors for figures (pgfplots \addplot) + future demo islands.
+ * STATIC across themes by design: a data series must keep its identity when the
+ * reader flips theme (web.dev research — never invert/flip data colors), so
+ * unlike the accent tokens above these do NOT brighten in dark. The values are
+ * mid-tones tuned to clear contrast on BOTH warm-paper (light) and the dark
+ * surface; redundant glyph marks (□ △ ○ in the figure) carry the distinction for
+ * colorblind readers. Mirrors figures/_shared/preamble.tex DiagSeries1..3 — one
+ * palette feeds figures AND demos. build-figures remaps only neutral ink/paper,
+ * so the figure bakes these same hexes and matches the tokens exactly. */
+:root {
+  --diagram-series-1: #4e86c2; /* blue  — series 1 (e.g. SFT) */
+  --diagram-series-2: #a65da0; /* plum  — series 2 */
+  --diagram-series-3: #b5862e; /* amber — series 3 */
+}
+
+/* ── Practice-exam: make the scored verdict unmistakable ──────────────────────
+ * The scaffold marks a scored card with only a faint border (QuestionCard
+ * data-exam-result), while every card's reveal shows an answer-key line labeled
+ * "Correct: <answer>" — which reads as a verdict, so a wrong answer looks the
+ * same as a right one ("says correct no matter what"). Add a tinted background +
+ * a bold ✓/✗ "Your answer" badge so right vs wrong is obvious and clearly
+ * distinct from the answer key. (DOGFOOD #13: upstream stronger result styling +
+ * relabel the key to "Answer:".) */
+[data-exam-result]::before {
+  display: inline-block;
+  font-weight: 700;
+  font-size: 0.78rem;
+  letter-spacing: 0.02em;
+  margin-block-end: 0.5rem;
+  padding: 0.1rem 0.5rem;
+  border-radius: 0.25rem;
+}
+[data-exam-result='correct'] { background: var(--warm-green-tint); }
+[data-exam-result='correct']::before {
+  content: '✓ Your answer — correct';
+  color: var(--warm-green);
+}
+[data-exam-result='incorrect'] { background: var(--warm-crimson-tint); }
+[data-exam-result='incorrect']::before {
+  content: '✗ Your answer — incorrect';
+  color: var(--warm-crimson);
+}
+:root[data-theme='dark'] [data-exam-result='correct']::before { color: color-mix(in srgb, var(--warm-green) 62%, white); }
+:root[data-theme='dark'] [data-exam-result='incorrect']::before { color: color-mix(in srgb, var(--warm-crimson) 62%, white); }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) [data-exam-result='correct']::before { color: color-mix(in srgb, var(--warm-green) 62%, white); }
+  :root:not([data-theme='light']) [data-exam-result='incorrect']::before { color: color-mix(in srgb, var(--warm-crimson) 62%, white); }
+}
+
+/* ── WorkedExample expand affordance ──────────────────────────────────────── */
+/* summary is display:flex; align-items:baseline; gap:var(--space-3). The chevron
+   is the first flex item; currentColor (= the title's --color-text) keeps it
+   clearly visible in both themes. */
+.callout-worked summary::before {
+  content: '\25B8'; /* ▸ BLACK RIGHT-POINTING SMALL TRIANGLE */
+  flex: 0 0 auto;
+  color: currentColor;
+  font-size: 0.8em;
+  line-height: 1;
+  transition: transform 0.15s ease;
+}
+.callout-worked details[open] summary::before {
+  transform: rotate(90deg);
+}
+@media (prefers-reduced-motion: reduce) {
+  .callout-worked summary::before {
+    transition: none;
+  }
+}
+
+/* ── Hide tools-profile chrome controls for course-notes ──────────────────── */
+/* The scaffold mounts ToolFilter (flag) + VersionSelector ("v") for any
+   non-academic profile. v4.26.0 #163 added a `showChrome` Base prop, now used on
+   the standalone pages (index/about/404) so the islands aren't mounted at all.
+   But Chapter.astro does not yet forward showChrome, so chapter + apparatus pages
+   still need this CSS hide. (DOGFOOD: forward showChrome through Chapter.astro to
+   fully retire this rule.) */
+.chrome-buttons .tool-filter,
+.chrome-buttons .version-selector {
+  display: none;
+}

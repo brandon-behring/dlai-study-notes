@@ -1,0 +1,31 @@
+---
+id: kgr-4-chunk-size-tradeoff
+type: mcq
+chapter: 4
+domain: kg-construction
+bloom_level: analyze
+objective_id: KGR-4.2
+difficulty: '2'
+tags: [chunking, retrieval]
+options:
+  - id: a
+    text: Retrieval precision improves because each chunk now carries far more context
+  - id: b
+    text: The chunk count rises sharply, which mainly raises embedding cost
+  - id: c
+    text: Embeddings get more generic, so retrieval loses precision on specific queries
+    correct: true
+  - id: d
+    text: Cosine similarity scores become uniformly higher for every query
+---
+import Rationale from '@brandon_m_behring/book-scaffold-astro/components/Rationale.astro';
+
+You raise the chunk size from 2,000 to 8,000 characters. What is the most likely effect on
+retrieval quality?
+
+<Rationale title="Why">
+A larger chunk blends more topics into one vector, so the embedding becomes generic and matches
+specific queries less precisely — the classic size/precision tradeoff. Bigger chunks *reduce* the
+count (fewer, larger pieces), so embedding cost falls rather than rises; more context does not
+reliably improve precision here; and chunk size does not push all cosine scores uniformly higher.
+</Rationale>

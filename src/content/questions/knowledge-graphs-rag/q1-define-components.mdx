@@ -1,0 +1,22 @@
+---
+id: kgr-1-define-components
+type: free
+chapter: 1
+domain: kg-fundamentals
+bloom_level: understand
+objective_id: KGR-1.1
+difficulty: '1'
+tags: [graph-data-model]
+answer: >
+  Node — a data record representing an entity, e.g. a `Movie` node (graph-theory: vertex).
+  Relationship — a directed, typed connection between two nodes, e.g. `ACTED_IN` from a Person
+  to a Movie (graph-theory: edge, but richer). Property — a key-value pair on a node or
+  relationship, e.g. a Movie's `title` or `released` year, or a relationship's `since`. Label —
+  a tag grouping similar nodes, e.g. `Person` or `Movie`. Together: labelled nodes carry
+  properties and are joined by typed, directed relationships that also carry properties. Common
+  wrong answer: "a relationship is just an edge with no extra information" — relationships carry
+  a type, direction, and their own properties, which is the whole reason the term is preferred.
+---
+
+Define the four core components of a knowledge graph (node, relationship, property, label) and
+give one example of each from a movie dataset.

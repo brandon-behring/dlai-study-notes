@@ -1,0 +1,22 @@
+---
+id: kgr-3-encode-search-flow
+type: free
+chapter: 3
+domain: text-for-rag
+bloom_level: analyze
+objective_id: KGR-3.3
+difficulty: '2'
+tags: [vector-search, rag]
+answer: >
+  Four stages: encode — turn the user's question into a vector with the same embedding model
+  that produced the stored vectors; search — `db.index.vector.queryNodes` finds the top-K nodes
+  whose vectors are nearest the query vector; score — each result carries a cosine similarity
+  (0–1), higher = closer; return — the matched nodes' text and metadata become the LLM's context.
+  The one consistency rule that makes it work: query and corpus must be embedded by the *same*
+  model into the *same* space. Parameterise the question, key, and topK so the plan caches and
+  secrets stay out of the string. Common wrong answer: embedding the query with a different model
+  than the stored text — the vectors then live in different spaces and the scores are noise.
+---
+
+Describe the four stages of a Neo4j vector similarity search (encode → search → score → return)
+and the one consistency rule that makes the results meaningful.

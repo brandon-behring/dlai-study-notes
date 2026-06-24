@@ -1,0 +1,12 @@
+---
+term: Alignment Tax
+aliases: [reward-preference gap, alignment gap]
+domain: evaluation
+see: [reward-hacking, kl-divergence]
+tags: [evaluation, rl]
+---
+
+The gap between a model's automated **reward score** and its actual **human-preference**
+quality. A *growing* alignment tax during RL is the key Goodhart's-Law diagnostic: the
+model is optimizing the proxy (reward) without improving the true objective. Tracked
+alongside KL divergence and rollout diversity as an RL health signal.

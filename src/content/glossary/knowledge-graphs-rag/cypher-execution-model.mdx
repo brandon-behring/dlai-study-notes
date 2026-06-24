@@ -1,0 +1,13 @@
+---
+term: Cypher Execution Model
+aliases: [query execution, EXPLAIN PROFILE]
+domain: cypher-querying
+see: [match-clause, return-clause]
+tags: [cypher, performance]
+---
+
+The four stages a Cypher query passes through: **parse** (string → abstract syntax tree),
+**plan** (the optimiser chooses indexes, scan order, join strategy), **execute** (traverse the
+graph hop by hop, binding variables), and **project** (the `RETURN` clause extracts only the
+requested properties/aggregations). `EXPLAIN` shows the plan without running; `PROFILE` runs it
+and reports actual per-step row counts — the tools for tuning a slow query.

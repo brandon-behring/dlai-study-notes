@@ -1,0 +1,12 @@
+---
+term: CI Shipping Gate
+aliases: [CI gate, shipping gate]
+domain: llm-judge-monitoring
+see: [golden-dataset, golden-dataset-evolution]
+tags: [evaluation, shipping, ci]
+---
+
+A golden dataset **wired into CI** so every PR touching agent code triggers a run, and any
+regression blocks the merge. It encodes institutional knowledge that new engineers inherit
+automatically through the gate. Because agent runs are probabilistic, the gate runs the dataset
+multiple times with tolerance bands rather than demanding a single deterministic pass.

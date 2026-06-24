@@ -1,0 +1,22 @@
+---
+id: eaa-3-runnability-eval
+type: free
+chapter: 3
+domain: component-evals
+bloom_level: apply
+objective_id: EAA-3.5
+difficulty: '2'
+tags: [evaluation, code-based]
+answer: >
+  Execute the generated visualisation code in a sandboxed subprocess with a timeout and no
+  filesystem/network access; if it exits without an exception, mark it "runnable," else capture
+  the error as the failure reason. That is a code-based check and catches syntax errors, bad API
+  calls, and missing columns. But runnability is necessary, not sufficient: code that runs can
+  still plot the wrong data or the wrong chart type. Layer a semantic check on top — compare the
+  rendered output (or the data it plotted) against expectations, or use an LLM judge on a
+  description of the chart — to catch "runs but wrong." Common wrong answer: "if it runs, it's
+  correct" — runnability and correctness are different gates.
+---
+
+Design a code-based evaluation for a visualisation skill that generates chart code. What does
+it check, and why is "it runs" not enough?

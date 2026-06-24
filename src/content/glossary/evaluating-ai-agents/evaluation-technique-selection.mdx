@@ -1,0 +1,13 @@
+---
+term: Evaluation Technique Selection
+aliases: [technique selection framework]
+domain: component-evals
+see: [code-based-evaluation, llm-as-a-judge, human-annotation]
+tags: [evaluation, decision-framework]
+---
+
+The decision framework for picking an evaluation technique by **output type**: code-based for
+quantitative/codifiable outputs (SQL, dollar amounts, runnability), LLM-as-a-judge for
+qualitative/subjective ones (prose, tone), and human annotation for safety-critical calls. It
+prevents over-spending on LLM judges where a deterministic `assert` would do — and
+under-evaluating prose where an `assert` can't.

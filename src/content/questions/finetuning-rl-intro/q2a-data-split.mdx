@@ -1,0 +1,23 @@
+---
+id: fri-2a-data-split
+type: free
+chapter: 2
+domain: sft-vs-rl
+bloom_level: analyze
+objective_id: FRI-2.1
+difficulty: '2'
+tags: [sft, data]
+answer: >
+  Random splitting lets near-duplicate examples land in both train and test, so
+  the test score partly measures memorization and is inflated. Use a time-based
+  split (e.g. train on 2024, test on 2025) plus a held-out out-of-distribution set
+  to measure real generalization. The RL-specific rule: the RL test set must be
+  graded by a *different* reward model than training used — otherwise you measure
+  how well the policy games a familiar scorer, not whether it improved. Common
+  wrong answer: "shuffle and split 80/20," which is exactly the leakage trap.
+---
+
+A colleague reports 94% on their held-out test set after fine-tuning, but the
+model flops in production. Their data was shuffled and split 80/20. Explain the
+most likely measurement flaw, the splitting strategy that would fix it, and the
+one extra split rule that applies specifically to an RL stage.

@@ -1,1066 +1,522 @@
 ---
 book: finetuning-rl-intro
-title: Data-Driven Post-Training
+title: 'Data-Driven Post-Training'
 chapter: 4
-description: Data quantity, quality, synthetic pipelines, and constitutional AI
+part: 1
+description: >
+  Data is the engine room of post-training: how much you need at each scale, the
+  iterative counterexample loop, RL rollouts and reward shaping, the DeepSeek R1
+  pipeline, synthetic data generation and filtering, and Constitutional AI / RLAIF
+  for alignment without armies of human labelers.
 learning_outcomes:
   - id: FRI-4.1
-    verb: analyze
-    text: appropriate data quantities for SFT and RL at each scale regime
+    verb: Analyze
+    text: >
+      appropriate data quantities for SFT and RL at each scale regime, and why
+      post-training saturates far earlier than pre-training.
   - id: FRI-4.2
-    verb: design
-    text: iterative fine-tuning data strategies using error analysis and
-      counterexamples
+    verb: Design
+    text: >
+      iterative fine-tuning data strategies using error analysis and targeted
+      counterexamples rather than indiscriminate volume.
   - id: FRI-4.3
-    verb: design
-    text: RL rollout datasets with proper reward shaping and alignment tracking
+    verb: Design
+    text: >
+      RL rollout datasets with proper reward shaping, composite scores, and
+      alignment-gap tracking.
   - id: FRI-4.4
-    verb: design
-    text: synthetic data pipelines using generation, filtering, transformation, and
-      scoring
+    verb: Design
+    text: >
+      synthetic data pipelines using generation, filtering, transformation, and
+      scoring.
   - id: FRI-4.5
-    verb: apply
-    text: constitutional AI principles to create self-improving alignment pipelines
+    verb: Apply
+    text: >
+      Constitutional AI principles to build self-improving alignment pipelines
+      (RLAIF) that reduce reliance on human preference labels.
   - id: FRI-4.6
-    verb: evaluate
-    text: synthetic data filtering strategies including rejection sampling,
-      LLM-as-judge scoring, majority vote, and collapse detection for quality
-      assurance
-sources: []
-tools_compared:
-  - MLE-Google-L4
-  - MLE-Meta-IC4
-  - MLE-Anthropic
-  - RSWE-OpenAI
-  - DS-Amazon
-last_verified: 2026-05-21
+    verb: Evaluate
+    text: >
+      synthetic-data filtering strategies — rejection sampling, LLM-as-judge,
+      majority vote, and collapse detection — for quality assurance.
+tags:
+  - data-curation
+  - synthetic-data
+  - constitutional-ai
+  - rlaif
+last_verified: 2026-06-18
 volatility: architectural-pattern
+sources:
+  - kaplan2020scaling
+  - deepseek2025r1
+  - bai2022constitutional
 provenance:
   ai_tools:
     - Claude Code
+draft: false
 ---
 
-{/* TODO: per-chapter polish pass — see plan decision Q1 round 3 */}
-
-&lt;!–MDXB-6-OPEN–&gt;
-
-Modules 1–3 established the post-training pipeline (SFT → RL), core techniques
-(LoRA, PPO, GRPO), and evaluation as the north star. But every technique is only as
-good as the data that feeds it. This module shifts focus to the engine room: how much
-data do you need, where does it come from, how do you manufacture it when you cannot
-collect it, and how do you ensure it teaches the right lessons? Data is the lever that
-determines whether your post-trained model is a toy or a product.
-
-&lt;!–MDXB-6-CLOSE–&gt;
-
-# How Much Data Do You Need?
-
-The first question every practitioner asks is deceptively simple: how much data?
-The answer depends entirely on what you are training and how you are training it.
-
-## Pre-Training: The Chinchilla Rule
-
-
-
-<Term name="Chinchilla Scaling Law" los="FRI-4.1">
-  Following compute-optimal scaling laws<Citation src="kaplan2020scaling" />, use approximately 20 tokens per parameter. A 7B-parameter model requires roughly 140B tokens. This establishes the baseline data appetite before any post-training begins.
-</Term>
-<AnkiCard type="term" front={"Chinchilla Scaling Law"} back={"Following compute-optimal scaling laws[kaplan2020scaling], use approximately 20 tokens per parameter. A 7B-parameter model requires roughly 140B tokens. This establishes the baseline data appetite before any post-training begins."} los="FRI-4.1" />
-
-
-
-
-
-<Sidenote category="interview">Chinchilla scaling is a frequent interview topic. Know: 20 tokens/param, and that most production models are now trained *beyond* Chinchilla-optimal.</Sidenote>
-
-
-
-
-
-<Sidenote category="formula">Chinchilla rule: tokens $ 20 $ params. 7B model $$ 140B tokens. Post-training saturates much earlier: SFT at 10K–100K.</Sidenote>
-
-
-
-Pre-training is data-hungry by design. Post-training, by contrast, is surgically
-precise—you need far less data, but every example carries more weight.
-
-## SFT Data Scale
-
-
-
-<Term name="SFT Scale Table" los="FRI-4.1">
-  A practical ladder of SFT dataset sizes and their expected effects: **$$20 examples**—formatting and structure only; **hundreds**—noticeable behavioral shift; **thousands**—the sweet spot for most production use cases; **tens of thousands**—frontier-lab scale; **hundreds of thousands**—learning an entirely new domain or language.
-</Term>
-<AnkiCard type="term" front={"SFT Scale Table"} back={"A practical ladder of SFT dataset sizes and their expected effects: **$$20 examples**—formatting and structure only; **hundreds**—noticeable behavioral shift; **thousands**—the sweet spot for most production use cases; **tens of thousands**—frontier-lab scale; **hundreds of thousands**—learning an entirely new domain or language."} los="FRI-4.1" />
-
-
-
-ChatGPT’s original SFT stage used approximately 13K high-quality demonstrations, plus
-thousands of preference pairs for RLHF. This is a remarkably small dataset for a model
-that changed an industry—a testament to the power of quality over quantity.
-
-&lt;!–MDXB-25-OPEN–&gt;
-
-&lt;!–MDXB-25-CLOSE–&gt;
-
-## LoRA Considerations
-
-
-
-<Sidenote category="pattern">Start with the lowest LoRA rank that works (r=4 or r=8). Increase rank only when evaluation shows underfitting.</Sidenote>
-
-
-
-When using LoRA, the data requirements remain similar, but you should use the
-**lowest rank possible** to avoid overfitting on small datasets. Lower rank means
-fewer trainable parameters, which means less capacity to memorize noise.
-
-## Post-Training Data Saturation
-
-Different post-training data types saturate at dramatically different scales.
-The M4 lecture highlights that post-training saturates *much earlier* in
-data quantity than pre-training—but the saturation point varies by data type.
-
-<figure>
-
-<figcaption>Post-training data saturation curves (schematic, log-x scale).
-SFT saturates earliest (<span class="math inline">∼</span>10K–100K); RL rollouts need 100K–1M+ for
-comparable saturation. Different data types have fundamentally different
-appetites.</figcaption>
-</figure>
-
-
-
-<Sidenote category="pattern">FT saturates in thousands; RL rollouts need 100K–1M. Different data types have different appetites—budget accordingly.</Sidenote>
-
-
-
-# Data for Fine-Tuning: The Iterative Loop
-
-Fine-tuning data is not collected once and forgotten. The most effective approach is an
-iterative cycle that treats data curation as a continuous engineering process.
-
-
-
-<Term name="Iterative Data Refinement" los="FRI-4.2">
-  A four-step cycle: (1) train the model, (2) evaluate on held-out test sets, (3) identify the worst failure patterns, (4) add targeted counterexamples that address those failures. Repeat until evaluation metrics plateau.
-</Term>
-<AnkiCard type="term" front={"Iterative Data Refinement"} back={"A four-step cycle: (1) train the model, (2) evaluate on held-out test sets, (3) identify the worst failure patterns, (4) add targeted counterexamples that address those failures. Repeat until evaluation metrics plateau."} los="FRI-4.2" />
-
-
-
-&lt;!–MDXB-13-OPEN–&gt;
-
-The key insight is that not all training examples are equally valuable. After an
-initial round of fine-tuning, the model will have specific failure modes—perhaps
-it hallucinates dates, or drops safety guardrails for certain prompt patterns, or
-generates overly verbose responses for simple questions.
-
-Rather than adding more random data, you **mine the failure distribution**
-and create examples that directly counter the most common failures. Ten well-chosen
-counterexamples can outperform a thousand random additions.
-
-**When It Breaks:** Over-indexing on counterexamples can cause catastrophic forgetting
-on previously correct behaviors. Always re-run the full eval suite after adding targeted
-data—fixing one failure mode should not regress another.
-
-&lt;!–MDXB-13-CLOSE–&gt;
-
-&lt;!–MDXB-15-OPEN–&gt;
-
-Data curation questions are increasingly common at applied ML roles (Meta IC4+,
-Google L4+, Amazon, Anthropic). Interviewers probe whether you understand the
-data-quality flywheel that drives iterative post-training improvement.
-
-**What they’re really testing:** Whether you know that data quality is
-multiplicative (10× more data &lt; 10× better curation), can design
-an iterative counterexample loop, and understand synthetic data filtering
-tradeoffs—not just how to generate data, but how to throw most of it away.
-
-**Expected depth by level:**
-
-- **IC3/IC4:** Know the SFT data scale ladder (20 for formatting,
-  thousands for production), explain that filtering matters more than
-  generation for synthetic data, describe the four-step iterative
-  refinement loop (train, eval, diagnose, fix data).
-
-- **IC5+/Staff:** Design a complete synthetic data pipeline
-  (template engineering, persona-based diversity, multi-axis rejection
-  sampling with collapse detection), discuss DeepSeek R1’s 75/25
-  reasoning ratio and when to invert it, and explain how constitutional
-  scoring rubrics unify data generation and reward design.
-
-&lt;!–MDXB-15-CLOSE–&gt;
-
-
-
-<Sidenote category="crossref">See vol6 Ch 5 for data preparation pipelines including deduplication strategies and quality-filtering workflows for fine-tuning datasets.</Sidenote>
-
-
-
-## Custom Tags and Data Organization
-
-Production fine-tuning datasets use custom tags to track provenance: which examples
-came from human annotators, which were synthetic, which were added as counterexamples
-for specific failure modes. This metadata is essential for debugging data quality
-issues downstream.
-
-## LoRA Placement Strategy
-
-
-
-<Term name="LoRA Target Modules" los="FRI-4.2">
-  LoRA adapters can target attention layers (Q, K, V projections), MLP layers, or both. Attention-only is standard for instruction following. Adding MLP targets increases capacity for knowledge-intensive tasks but risks overfitting.
-</Term>
-<AnkiCard type="term" front={"LoRA Target Modules"} back={"LoRA adapters can target attention layers (Q, K, V projections), MLP layers, or both. Attention-only is standard for instruction following. Adding MLP targets increases capacity for knowledge-intensive tasks but risks overfitting."} los="FRI-4.2" />
-
-
-
-## Chain-of-Thought Data Mixing
-
-
-
-<Sidenote category="warning">Mixing in too much CoT data (>60%) for tasks that do not need reasoning can cause verbose, meandering outputs.</Sidenote>
-
-
-
-For tasks requiring multi-step reasoning, mix chain-of-thought examples into the
-training data. A practical ratio: **∼40% reasoning traces** for
-reasoning-heavy tasks, with the remainder as direct-answer examples. This teaches
-the model *when* to reason, not just *how*.
-
-# Data for RL: Rollouts and Reward Shaping
-
-RL data has a fundamentally different structure than SFT data. Instead of
-input–output pairs, RL operates on **rollouts**: an input prompt, one or
-more sampled outputs, and a reward signal for each.
-
-## Rollout Structure and Scale
-
-
-
-<Term name="Rollout" los="FRI-4.3">
-  An RL training datum consisting of an input prompt, a generated output (the "roll"), and a scalar reward signal. Multiple outputs are typically sampled per input, creating a set of rollouts that the RL algorithm uses to learn which outputs are preferred.
-</Term>
-<AnkiCard type="term" front={"Rollout"} back={"An RL training datum consisting of an input prompt, a generated output (the \"roll\"), and a scalar reward signal. Multiple outputs are typically sampled per input, creating a set of rollouts that the RL algorithm uses to learn which outputs are preferred."} los="FRI-4.3" />
-
-
-
-
-
-<Term name="Rollout Scale Guidelines" los="FRI-4.3">
-  **1K–10K prompts**: probing and feasibility testing. **10K–20K**: default starting point for most RL runs. **20K–100K**: mid-size production training. **100K–1M**: frontier-lab scale (DeepSeek, OpenAI, Anthropic). Generate **8 outputs per input** as a sensible default.
-</Term>
-<AnkiCard type="term" front={"Rollout Scale Guidelines"} back={"**1K–10K prompts**: probing and feasibility testing. **10K–20K**: default starting point for most RL runs. **20K–100K**: mid-size production training. **100K–1M**: frontier-lab scale (DeepSeek, OpenAI, Anthropic). Generate **8 outputs per input** as a sensible default."} los="FRI-4.3" />
-
-
-
-
-
-<Sidenote category="interview">"How many rollouts per prompt?" — 8 is the standard default. More gives better signal but costs linearly in compute. Fewer risks noisy gradients.</Sidenote>
-
-
-
-## Verifier-Based Rewards
-
-For tasks with objectively verifiable answers, you can skip human preference
-labeling entirely. Consider a haiku syllable-count verifier:
-
-
-
-```cypher
-import re
-
-def check_accuracy(solution, ground_truth: float) -> float:
-    """Binary accuracy with float tolerance."""
-    numbers = re.findall(r"[-+]?\d+\.?\d*", solution)
-    if not numbers:
+<Diagnostic skimTo="Constitutional AI and RLAIF">
+1. Your model already answers correctly but outputs prose where you need JSON. Do you start with about 20, 2,000, or 200,000 SFT examples?
+2. You can add 1,000 random new examples or 50 that each target a known failure. Predict which raises eval scores more, and why.
+3. A synthetic pipeline generates 100,000 candidates. Which single step creates most of the quality — generation or filtering?
+4. In Constitutional AI, what replaces the human preference labeler?
+
+<Fragment slot="answers">
+1. About **20**. Format-only changes need a handful of demonstrations; reach for thousands only when you are changing *behavior*, not just *shape*.
+2. The **50 targeted** ones win — they spend every example where the model is currently *wrong*, while random data mostly re-teaches what it already knows. Targeting the failure distribution is what lets a few counterexamples outperform bulk data.
+3. **Filtering.** It is easy to generate synthetic data and dangerously easy to generate *bad* synthetic data — keeping the best 10–20% is where quality is created.
+4. A written **constitution** — a set of auditable natural-language principles the model uses to critique and revise its own outputs (then to label its own preferences for RLAIF).
+</Fragment>
+</Diagnostic>
+
+<NarrativeBox title="Where we are">
+Modules 1–3 built the pipeline (SFT → RL), the core techniques (LoRA, PPO, GRPO),
+and evaluation as the north star. But every technique is only as good as the data
+that feeds it. This chapter is the **engine room**: how much data you need, where
+it comes from, how to manufacture it when you cannot collect it, and how to ensure
+it teaches the *right* lessons. Data is the lever that decides whether a
+post-trained model is a toy or a product.
+</NarrativeBox>
+
+## How much data do you need?
+
+<Newthought>The first question</Newthought> every practitioner asks is deceptively
+simple: *how much data?* The answer depends entirely on what you are training and how.
+
+Pre-training is data-hungry by design. The [Chinchilla scaling
+rule](../glossary#term-chinchilla-scaling-law) — roughly **20 tokens per
+parameter** — sets the appetite: a 7B model wants about 140B tokens.
+Post-training is the opposite: **surgically precise**. You need far less data, but
+every example carries more weight.
+
+[SFT data](../glossary#term-sft-data-scale) follows a practical ladder:
+
+| Scale | What it buys you |
+|---|---|
+| ~20 examples | Formatting and structure only (JSON, tone, markdown) |
+| Hundreds | A noticeable behavioral shift |
+| Thousands | The sweet spot for most production tasks |
+| Tens of thousands | Frontier-lab scale across diverse tasks |
+| Hundreds of thousands | An entirely new domain or language |
+
+InstructGPT (ChatGPT's predecessor, and the one with published figures) used roughly **13K**
+high-quality SFT demonstrations plus thousands of preference pairs — a remarkably small
+dataset for a model line that changed
+an industry. That is the whole lesson of post-training data: **quality over quantity.**
+
+Different data *types* also saturate at very different scales:
+
+<Figure
+  src="/figures/finetuning-rl-intro/saturation-curves.svg"
+  alt="Three performance-vs-data curves on a log-x scale. Fine-tuning (SFT) rises fastest, reaching ~95% of saturation by 10K–100K examples. RL preference data lags, needing ~100K–1M. RL rollouts saturate latest, still climbing at 1M–2M examples. Vertical guides mark formatting, behavioral, domain-specific, and frontier-scale regimes."
+  caption="Post-training data saturation (schematic, log-x). SFT saturates earliest (~10K–100K); RL preference data lags; RL rollouts need 100K–1M+ for comparable saturation. Different data types have fundamentally different appetites — budget accordingly."
+  id="fig-saturation"
+/>
+
+When you use [LoRA](../glossary#term-lora), data requirements are similar, but use the
+**lowest [rank](../glossary#term-rank) that works** ($r=4$ or $r=8$) — fewer trainable
+parameters means less capacity to memorize noise on a small set.
+
+<KeyConcept title="Data quality is multiplicative" los="FRI-4.1">
+As a rough heuristic (not a measured law), a 10× increase in data *quantity* can yield under ~1.3× capability gain if quality is
+poor. A 10× increase in *curation* — keeping the top 10%, removing the bottom 10% —
+often yields 2–3× gains. Frontier labs spend as much effort **filtering out** bad
+data as generating new data. <EvidenceTag kind="verified" />
+
+**When it breaks:** over-filtering on one axis (e.g. only long, detailed responses)
+introduces distribution bias — excellent at one style, narrow everywhere else.
+Balance thresholds across correctness, fluency, format, *and* diversity.
+</KeyConcept>
+
+<DecisionTree title="How much SFT data do I need?">
+- **Only adjusting output format (JSON, markdown, tone)?** → 20–50 examples. Evaluate before adding more.
+- **Need domain-specific instruction following?** → hundreds to low thousands; grow the set with iterative error analysis.
+- **Building a production assistant for a well-defined task?** → 1K–5K curated examples — the sweet spot.
+- **Training a general-purpose frontier model?** → 10K–100K+ across diverse tasks; dedicated data teams.
+- **Teaching an entirely new language or domain?** → 100K+; ask whether continued *pre-training* fits better.
+</DecisionTree>
+
+<WorkedExample id="sft-saturation" title="Worked example: when do diminishing returns end SFT?">
+You fine-tune on 20, 50, 100, 200, 500, and 1,000 curated GSM8K examples and measure
+accuracy in percent: 18, 31, 42, 51, 58, 61. Fit a power law $\text{acc} = a\cdot n^{b}$
+(accuracy in percent) to estimate how many examples reach 65%.
+
+Log-log regression ($\log \text{acc} = \log a + b\log n$) gives roughly $a \approx 8.9$,
+$b \approx 0.30$. Setting $8.9\cdot n^{0.30} = 65$ gives **$n \approx 750$**.
+
+But read the data, not just the fit: the measured points at $n=500$ and $n=1{,}000$ (58, 61)
+already sit *below* the fitted curve — accuracy is saturating **faster** than a power law, so
+750 is optimistic and 65% may need far more, or never arrive efficiently via SFT at all. That
+is the real signal. Going 500 → 1,000 (+500 examples) bought only 3 points; the marginal
+return has collapsed. Once you are here, **RL with a verifier is more efficient than
+collecting more SFT data** — which is exactly why the next chapters exist. Knowing when to
+*stop* adding SFT data matters as much as knowing how to add it.
+</WorkedExample>
+
+<Aside category="interview">
+Chinchilla (~20 tokens/param) is a frequent interview prompt. Know two things: the
+ratio, and that most production models are now trained *beyond* Chinchilla-optimal —
+extra data past the compute-optimal point still helps at inference time.
+</Aside>
+
+## The iterative data loop
+
+Fine-tuning data is not collected once and forgotten. The most effective approach is
+an [iterative refinement loop](../glossary#term-iterative-data-refinement): **(1)**
+train, **(2)** evaluate on held-out sets, **(3)** identify the worst failure patterns,
+**(4)** add targeted counterexamples — then repeat until metrics plateau.
+
+<KeyConcept title="Counterexamples beat volume" los="FRI-4.2">
+Not all training examples are equally valuable. After an initial round the model has
+*specific* failure modes — hallucinated dates, dropped guardrails on certain prompts,
+verbose answers to simple questions. Rather than adding random data, **mine the failure
+distribution** and write examples that directly counter the most common failures. Ten
+well-chosen [counterexamples](../glossary#term-counterexample-mining) can outperform a
+thousand random additions. <EvidenceTag kind="verified" />
+
+**When it breaks:** over-indexing on counterexamples can cause [catastrophic
+forgetting](../glossary#term-catastrophic-forgetting) of previously-correct behavior.
+Re-run the *full* eval suite after every targeted addition — fixing one failure mode
+must not silently regress another.
+</KeyConcept>
+
+This is the supply side of [error analysis](../glossary#term-error-analysis): Chapter 3
+decides *what* to fix (cluster failures, rank by frequency × severity ÷ effort); this
+chapter supplies the fix (counterexamples that target the top cluster).
+
+For multi-step tasks, **mix in [chain-of-thought](../glossary#term-chain-of-thought)
+traces** — a practical ratio is about 40% reasoning traces, the rest direct-answer.
+This teaches the model *when* to reason, not just *how*.
+
+<Aside category="warning">
+Mixing in too much CoT data (over ~60%) for tasks that do not need reasoning produces
+verbose, meandering outputs that "think out loud" even on trivial questions.
+</Aside>
+
+## Data for RL: rollouts and reward shaping
+
+RL data has a fundamentally different structure than SFT pairs. It operates on
+[**rollouts**](../glossary#term-rollout): an input prompt, one or more *sampled*
+outputs, and a **scalar reward** for each. A sensible default is **8 outputs per
+prompt** — more gives better signal but costs linearly in compute; fewer risks noisy
+gradients. Prompt-set scale ladders from 1K–10K (probing) to 10K–20K (default start)
+to 100K–1M (frontier labs).
+
+For tasks with objectively checkable answers, skip human preference labeling and use a
+[**verifier**](../glossary#term-verifier) — a deterministic check:
+
+```python
+def check_accuracy(solution: str, ground_truth: float) -> float:
+    nums = re.findall(r"[-+]?\d+\.?\d*", solution)
+    if not nums:
         return 0.0
-    extracted = float(numbers[-1])
-    return 1.0 if abs(extracted - ground_truth) < 0.01 else 0.0
-
-# Constitutional scoring: per-template weighted composites
-def score_solution(template, accuracy, completeness,
-                   verification=0.0, novelty=0.0):
-    """Composite score with template-specific weights."""
-    if template == "cot":
-        # Chain-of-thought: accuracy 60%, completeness 40%
-        return 0.6 * accuracy + 0.4 * completeness
-    elif template == "verification":
-        # Verification: accuracy 50%, completeness 30%,
-        #               verification quality 20%
-        return 0.5 * accuracy + 0.3 * completeness + 0.2 * verification
-    elif template == "alternative":
-        # Alternative solution: accuracy 50%, completeness 30%,
-        #                       novelty 20%
-        return 0.5 * accuracy + 0.3 * completeness + 0.2 * novelty
-    return accuracy  # Fallback
+    return 1.0 if abs(float(nums[-1]) - ground_truth) < 0.01 else 0.0
 ```
 
-
-
-The M4 lab uses **constitutional evaluation**: each solution is scored across
-multiple dimensions with template-specific weights. This is a **verifier-based**
-reward—no learned reward model, just deterministic checks. Verifier rewards are
-cheaper, more reliable, and free from reward model overfitting—but they only work
-for tasks with clear right answers.
-
-## Reward Shaping
-
-
-
-<Term name="Composite Reward Score" los="FRI-4.3">
-  A weighted combination of scores across multiple dimensions (e.g., correctness, helpfulness, safety, conciseness). Each dimension may use a different scoring mechanism—verifiers for correctness, learned models for helpfulness, rule-based checks for safety.
-</Term>
-<AnkiCard type="term" front={"Composite Reward Score"} back={"A weighted combination of scores across multiple dimensions (e.g., correctness, helpfulness, safety, conciseness). Each dimension may use a different scoring mechanism—verifiers for correctness, learned models for helpfulness, rule-based checks for safety."} los="FRI-4.3" />
-
-
-
-
-
-<Term name="Alignment Gap" los="FRI-4.3">
-  The delta between the reward model's score and actual human preference. Tracked over training to detect reward model drift. A growing alignment gap signals that the policy is exploiting reward model weaknesses rather than genuinely improving.
-</Term>
-<AnkiCard type="term" front={"Alignment Gap"} back={"The delta between the reward model's score and actual human preference. Tracked over training to detect reward model drift. A growing alignment gap signals that the policy is exploiting reward model weaknesses rather than genuinely improving."} los="FRI-4.3" />
-
-
-
-&lt;!–MDXB-23-OPEN–&gt;
-
-The most dangerous failure mode in RL-based post-training is **reward hacking**:
-the policy learns to exploit patterns in the reward model that do not correspond to
-genuine quality improvements. Symptoms include:
-
-- Reward scores increase while human eval scores plateau or decrease.
-
-- Outputs become formulaic—hitting reward model triggers without substance.
-
-- The alignment gap (reward model score minus human preference) widens.
-
-**Mitigations:**
-
-1.  Add **counterexamples** to the reward model training set that specifically
-    target the exploited patterns.
-
-2.  Track the alignment gap continuously. Halt training if it exceeds a threshold.
-
-3.  Use **composite rewards** across orthogonal dimensions so that gaming
-    one axis does not dominate the total score.
-
-4.  Periodically retrain the reward model on fresh human annotations.
-
-&lt;!–MDXB-23-CLOSE–&gt;
-
-## Offline vs. Online Preference Learning
-
-
-
-<Term name="Offline vs. Online Preference Learning" los="FRI-4.3">
-  **Offline**: preference data is collected once, then training proceeds on that fixed dataset (e.g., DPO). **Online**: the policy generates new outputs during training, which are scored by the reward model in real time (e.g., PPO, GRPO). Online learning is more expensive but avoids distribution shift between the data and the current policy.
-</Term>
-<AnkiCard type="term" front={"Offline vs. Online Preference Learning"} back={"**Offline**: preference data is collected once, then training proceeds on that fixed dataset (e.g., DPO). **Online**: the policy generates new outputs during training, which are scored by the reward model in real time (e.g., PPO, GRPO). Online learning is more expensive but avoids distribution shift between the data and the current policy."} los="FRI-4.3" />
-
-
-
-
-
-<Sidenote category="crossref">See M2 (Ch. ) for PPO vs. GRPO mechanics. DPO is offline; PPO and GRPO are online.</Sidenote>
-
-
-
-Handling expensive reward signals (e.g., human evaluation, slow API calls) requires
-batching rollouts and scoring asynchronously. Cache reward scores aggressively—the
-same prompt-output pair should never be scored twice.
-
-# Production Data Pipelines
-
-Real production pipelines assemble data from multiple sources with different quality
-levels and purposes. DeepSeek R1<Citation src="deepseek2025r1" /> provides one of the most transparent case studies.
-
-&lt;!–MDXB-7-OPEN–&gt;
-
-**Stage 1: Cold-Start Chain-of-Thought**  
-Manually curated reasoning traces to bootstrap the model’s ability to “think
-step by step” before answering. High quality, small volume.
-
-↓
-
-**Stage 2: V3 Fine-Tuning Data**  
-General instruction-following data from the DeepSeek-V3 training pipeline.
-Provides broad capability coverage.
-
-↓
-
-**Stage 3: Synthetic Reasoning Data**  
-∼600K examples generated by the model itself, then aggressively filtered
-for correctness and reasoning quality. This is the largest single component.
-
-↓
-
-**Stage 4: Non-Reasoning Data**  
-Standard conversational, factual, and formatting examples to prevent
-capability regression on non-reasoning tasks.
-
-↓
-
-**Final Mix: ∼800K total examples**  
-**75% reasoning / 25% non-reasoning** ratio.  
-The heavy skew toward reasoning reflects DeepSeek R1’s positioning as a
-reasoning-specialized model.
-
-&lt;!–MDXB-7-CLOSE–&gt;
-
-
-
-<Sidenote category="pattern">DeepSeek's 75/25 reasoning ratio is not universal. Match your data mix to your model's target use case. A customer support model might invert this ratio.</Sidenote>
-
-
-
-# Synthetic Data Pipelines
-
-When you cannot collect enough real data—because the task is novel, annotation is
-expensive, or you need diversity at scale—synthetic data generation fills the gap.
-
-&lt;!–MDXB-8-OPEN–&gt;
-
-**What**: Synthetic data is training data generated by language models rather
-than collected from humans. A synthetic data pipeline combines four operations:
-*generation*, *filtering*, *transformation*, and *scoring*.
-
-**Why**: Real data is expensive, slow to collect, and often lacks diversity
-in edge cases. Synthetic pipelines can produce thousands of targeted examples in
-hours. The critical insight is that **filtering is more important than
-generation**—it is easy to generate synthetic data and dangerously easy to
-generate bad synthetic data.
-
-&lt;!–MDXB-8-CLOSE–&gt;
-
-## The Four Operations
-
-
-
-<Term name="Synthetic Data Operations" los="FRI-4.4">
-  **Generate**: produce candidate examples using templates, varied temperatures, and persona sampling. **Filter**: remove low-quality examples via rejection sampling, LLM-as-judge, majority vote, or collapse detection. **Transform**: restyle examples (verbose $$ concise), adjust difficulty, reformat. **Score**: assign multi-axis quality scores for downstream weighting or selection.
-</Term>
-<AnkiCard type="term" front={"Synthetic Data Operations"} back={"**Generate**: produce candidate examples using templates, varied temperatures, and persona sampling. **Filter**: remove low-quality examples via rejection sampling, LLM-as-judge, majority vote, or collapse detection. **Transform**: restyle examples (verbose $$ concise), adjust difficulty, reformat. **Score**: assign multi-axis quality scores for downstream weighting or selection."} los="FRI-4.4" />
-
-
-
-## Template Engineering
-
-
-
-<Term name="Template (Mad-Lib Prompt)" los="FRI-4.4">
-  A prompt skeleton with variable slots (e.g., \{\{topic\}\}, \{\{difficulty\}\}, \{\{persona\}\}) that is filled programmatically to produce diverse synthetic examples. Templates encode the *structure* of desired outputs while variables inject *diversity*.
-</Term>
-<AnkiCard type="term" front={"Template (Mad-Lib Prompt)"} back={"A prompt skeleton with variable slots (e.g., {{topic}}, {{difficulty}}, {{persona}}) that is filled programmatically to produce diverse synthetic examples. Templates encode the *structure* of desired outputs while variables inject *diversity*."} los="FRI-4.4" />
-
-
-
-Templates are matched to failure patterns: if the model fails on multi-step math,
-you write a template that generates multi-step math problems with varying complexity
-and domain. If it fails on safety edge cases, you write templates with adversarial
-persona variables.
-
-
-
-```cypher
-import random
-
-TEMPLATE = """You are a {persona} helping a {audience} with {topic}.
-
-The user asks: {question}
-
-Provide a {style} response that:
-1. Addresses the question directly
-2. Includes {num_examples} concrete examples
-3. Avoids jargon unless necessary
-
-Response:"""
-
-PERSONAS = ["patient teacher", "senior engineer", "domain expert",
-            "research scientist", "technical writer"]
-AUDIENCES = ["beginner", "intermediate developer", "ML engineer",
-             "product manager", "executive"]
-STYLES = ["concise", "detailed", "step-by-step", "comparative"]
-
-
-def generate_from_template(
-    topic: str,
-    questions: list[str],
-    n_variants: int = 5,
-) -> list[str]:
-    """Generate diverse prompts from a single template."""
-    prompts = []
-    for question in questions:
-        for _ in range(n_variants):
-            prompt = TEMPLATE.format(
-                persona=random.choice(PERSONAS),
-                audience=random.choice(AUDIENCES),
-                topic=topic,
-                question=question,
-                style=random.choice(STYLES),
-                num_examples=random.randint(1, 4),
-            )
-            prompts.append(prompt)
-    return prompts
+Verifier rewards are cheaper, more reliable, and free from reward-model overfitting —
+but they only exist where there *is* a clear right answer. For everything else you
+build a [**composite reward**](../glossary#term-composite-reward): a weighted blend
+across dimensions, each scored by whatever mechanism fits — verifiers for correctness,
+learned models for helpfulness, rule-based checks for safety.
+
+```python
+def score(accuracy, completeness, verification=0.0):
+    # per-template weights — correctness dominates, others shape style
+    return 0.5 * accuracy + 0.3 * completeness + 0.2 * verification
 ```
 
+<RedFlag title="Reward hacking / a widening alignment gap">
+The most dangerous failure in RL post-training is the policy learning to **exploit the
+reward model** rather than improve. Symptoms: reward scores climb while human-eval
+scores plateau; outputs become formulaic (hitting reward triggers without substance);
+the [alignment gap](../glossary#term-alignment-tax) — reward-model score minus true
+human preference — *widens*.
 
+**Mitigations rooted in data and reward design:** add **counterexamples** to the
+reward-model training set that target the exploited pattern; track the alignment gap
+continuously and halt if it crosses a threshold; use **composite rewards** across
+orthogonal axes so gaming one does not dominate; and periodically **retrain the reward
+model** on fresh human annotations.
+</RedFlag>
 
+<WorkedExample id="reward-shaping" title="Worked example: design a composite reward for code generation">
+The model should produce code that (a) passes unit tests, (b) is documented, and
+(c) is efficient. A defensible composite:
 
+$$
+r = 0.6\,\text{test\_pass} + 0.2\,\text{doc\_score} + 0.1\,\text{efficiency} + 0.1\,\text{format}
+$$
 
-<Sidenote category="practice">Try building a template for your own failure mode. Define 3+ variable slots with 5+ values each. How many unique prompts does the combinatorial space yield?</Sidenote>
+**Justification.** Correctness must *dominate* (over 50% of the weight): without
+working code, documentation and efficiency are worthless. Note that even at 0.6 a pure
+weighted sum still pays 0.4 for broken code — when correctness is non-negotiable, *gate* it
+(multiply the shaped terms by a correctness factor) rather than only weighting it; anything
+less invites the
+model to optimize style at the expense of substance. `doc_score` (LLM-judged) is second
+because undocumented code is unmaintainable. Efficiency and formatting get small weights
+— real signals, but easy to fix post-hoc and not worth distorting the primary objective.
+The design rule: **one dominant correctness term, secondary terms that shape without
+overwhelming it.**
+</WorkedExample>
 
+Finally, [**offline vs online**](../glossary#term-offline-vs-online-preference) is a
+data-flow distinction: offline methods ([DPO](../glossary#term-dpo)) train on a *fixed*
+preference set; online methods ([PPO](../glossary#term-ppo),
+[GRPO](../glossary#term-grpo)) score *freshly generated* rollouts in real time. Online
+is more expensive but avoids the distribution shift between stale data and the current
+policy. Cache reward scores aggressively — the same prompt–output pair should never be
+scored twice.
 
+## The DeepSeek R1 pipeline
 
-## Persona-Based Diversity
+Real production pipelines assemble data from multiple sources of differing quality and
+purpose. DeepSeek R1 is one of the most transparent case studies.
 
-Varying the persona variable is one of the most effective ways to inject diversity
-without changing the underlying task. The same question answered by a “patient
-teacher” and a “terse senior engineer” produces structurally different training
-examples, teaching the model stylistic range.
+<PipelineBox title="DeepSeek R1 data pipeline">
+1. **Cold-start chain-of-thought** — manually curated reasoning traces bootstrap "think step by step." High quality, small volume.
+2. **V3 fine-tuning data** — general instruction-following from DeepSeek-V3 for broad capability coverage.
+3. **Synthetic reasoning data** — ~600K examples the model generates itself, then *aggressively filtered* for correctness. The largest single component.
+4. **Non-reasoning data** — conversational, factual, and formatting examples to prevent regression on non-reasoning tasks.
+5. **Final mix: ~800K examples, 75% reasoning / 25% non-reasoning** — the heavy skew reflects R1's positioning as a reasoning-specialized model.
+</PipelineBox>
 
-## The Production Data Flywheel
+<Aside category="pattern">
+The 75/25 reasoning ratio is **not universal**. Match the mix to the target use case —
+a customer-support model might invert it to 25/75. The ratio is a hyperparameter, not a
+law.
+</Aside>
 
-In production, synthetic data generation feeds into a self-reinforcing cycle:
-deploy the model → collect real user queries → identify failure patterns →
-generate synthetic counterexamples → retrain → redeploy. The flywheel
-accelerates as the model improves, because better models generate higher-quality
-synthetic data for the next iteration.
+## Synthetic data pipelines
 
-# Filtering: The Critical Step
+When you cannot collect enough real data — novel task, expensive annotation, missing
+edge-case diversity — [synthetic data](../glossary#term-synthetic-data) fills the gap.
+A pipeline combines **four operations**: *generate* (templates, varied temperature,
+persona sampling), *filter* (the critical step), *transform* (restyle, adjust
+difficulty), and *score* (multi-axis quality for weighting or selection).
 
-Generation is easy. Filtering is where the value is created. A pipeline that
-generates 100K examples and keeps 10K after rigorous filtering will outperform
-one that trains on all 100K.
+[**Template engineering**](../glossary#term-template-engineering) is how you inject
+diversity without changing the task. A template is a prompt skeleton with variable
+slots filled programmatically:
 
+```python
+TEMPLATE = "You are a {persona} helping a {audience} with {topic}. " \
+           "The user asks: {question}. Give a {style} response."
 
+PERSONAS  = ["patient teacher", "senior engineer", "research scientist"]
+AUDIENCES = ["beginner", "ML engineer", "executive"]
+# 3 personas × 3 audiences × N styles × M questions → a large, diverse pool
+```
 
-```cypher
-from dataclasses import dataclass
+The same question answered by a "patient teacher" and a "terse senior engineer"
+produces structurally different examples, teaching the model stylistic range. Templates
+are also **matched to failure patterns**: if the model fails on multi-step math, you
+template multi-step math problems; if it fails on safety edge cases, you template
+adversarial personas.
 
+In production this becomes a [**data flywheel**](../glossary#term-data-flywheel): deploy
+→ collect real queries → identify failure patterns → generate synthetic counterexamples
+→ retrain → redeploy. It accelerates as the model improves, because better models
+generate higher-quality synthetic data for the next turn.
 
-@dataclass
-class SyntheticExample:
-    prompt: str
-    response: str
-    scores: dict[str, float]
+## Filtering: where quality is created
 
+Generation is easy; **filtering is where the value is created**. A pipeline that
+generates 100K examples and keeps 10K after rigorous filtering will outperform one that
+trains on all 100K.
 
-def rejection_sampling_filter(
-    examples: list[SyntheticExample],
-    min_scores: dict[str, float],
-    dedup_threshold: float = 0.85,
-) -> list[SyntheticExample]:
-    """Filter synthetic data via multi-axis rejection sampling.
-
-    Args:
-        examples: Candidate synthetic examples with quality scores.
-        min_scores: Minimum acceptable score per dimension.
-        dedup_threshold: Cosine similarity threshold for collapse detection.
-
-    Returns:
-        Filtered list of high-quality, diverse examples.
-    """
-    # Stage 1: Score-based rejection
-    passed = []
+```python
+def filter(examples, min_scores, seen):
+    kept = []
     for ex in examples:
-        if all(ex.scores.get(dim, 0) >= threshold
-               for dim, threshold in min_scores.items()):
-            passed.append(ex)
-
-    # Stage 2: Collapse detection (remove near-duplicates)
-    # In production, use embedding similarity; here simplified
-    filtered = []
-    seen_prefixes: set[str] = set()
-    for ex in passed:
-        prefix = ex.response[:200].lower().strip()
-        if prefix not in seen_prefixes:
-            seen_prefixes.add(prefix)
-            filtered.append(ex)
-
-    return filtered
-
-
-# Usage
-candidates = [...]  # 100K generated examples, each scored
-quality_thresholds = {
-    "relevance": 0.8,
-    "correctness": 0.9,
-    "fluency": 0.7,
-    "safety": 0.95,
-}
-final_dataset = rejection_sampling_filter(candidates, quality_thresholds)
-# Typical yield: 10-20% of candidates pass all filters
+        # 1. multi-axis rejection: every dimension must clear its threshold
+        if any(ex.scores.get(d, 0) < t for d, t in min_scores.items()):
+            continue
+        # 2. collapse detection: drop near-duplicates of what we already kept
+        key = ex.response[:200].lower().strip()
+        if key not in seen:
+            seen.add(key)
+            kept.append(ex)
+    return kept   # typical yield: 10–20% of candidates
 ```
 
-
-
-
-
-<Sidenote category="warning">Collapse detection is essential. Without it, your "diverse" synthetic dataset may contain thousands of near-identical outputs that the model memorizes.</Sidenote>
-
-
-
-## Filtering Methods
-
-Generate *N* candidates, keep only those above a quality
-threshold. Simple and effective.
-
-Use a stronger model (or the same model with a judge prompt) to
-evaluate candidate quality on defined rubrics.
-
-Generate multiple answers to the same question. Keep examples
-where the majority of answers agree—these are more likely correct.
-
-Flag and remove examples that are too similar to each
-other, indicating the generator has fallen into a repetitive mode.
-
-# Constitutional AI
-
-Constitutional AI (CAI)<Citation src="bai2022constitutional" /> represents Anthropic’s approach to alignment without
-extensive human labeling. Instead of humans providing preference labels, the model
-critiques and revises its own outputs according to a written constitution.
-
-&lt;!–MDXB-9-OPEN–&gt;
-
-**What**: Constitutional AI replaces human preference annotators with a set of
-written principles (the “constitution”) that the model uses to self-critique and
-self-revise. The constitution encodes values like helpfulness, harmlessness, and
-honesty as explicit, auditable rules.
-
-**Why**: Human preference labeling is expensive, inconsistent, and does not
-scale. A constitution is cheaper, more consistent, and—critically—transparent.
-You can read, audit, and version-control the rules that govern your model’s behavior.
-When the model behaves unexpectedly, you can trace the behavior back to specific
-constitutional principles.
-
-&lt;!–MDXB-9-CLOSE–&gt;
-
-## The Full CAI Pipeline
-
-&lt;!–MDXB-10-OPEN–&gt;
-
-**Step 1: Write the Constitution**  
-Define principles covering helpfulness, harmlessness, honesty, and autonomy.
-Each principle is a natural-language rule the model can evaluate against.
-
-↓
-
-**Step 2: Generate Responses**  
-Sample diverse outputs from the current model for a set of prompts,
-including adversarial and edge-case prompts.
-
-↓
-
-**Step 3: Constitutional Critique**  
-The model critiques each response against each constitutional principle.
-“Does this response violate principle X? If so, how?”
-
-↓
-
-**Step 4: Revision**  
-The model revises the response to address the critique.
-This produces (original, revised) pairs.
-
-↓
-
-**Step 5: SFT on Revisions**  
-Fine-tune the model on the revised outputs to internalize the
-constitutional principles.
-
-↓
-
-**Step 6: Preference Data Generation**  
-Use the constitution to select preferred outputs from pairs,
-creating synthetic preference data without human annotators.
-
-↓
-
-**Step 7: RL Training (RLAIF)**  
-Train a reward model on the synthetic preferences, then run RL
-to further align the model. This is RL from AI Feedback.
-
-&lt;!–MDXB-10-CLOSE–&gt;
-
-
-
-<Sidenote category="interview">CAI is Anthropic's core alignment method. Key insight: the constitution replaces human labelers with auditable rules. Understand the full 7-step pipeline.</Sidenote>
-
-
-
-## Constitutional Scoring Rubric
-
-
-
-<Term name="Constitutional Scoring Dimensions" los="FRI-4.5">
-  A multi-axis rubric for evaluating model outputs against a constitution. Typical dimensions, each scored 0–10: **Helpfulness**—does the response address the user's need? **Harmlessness**—does it avoid causing harm? **Honesty**—is it truthful and transparent about uncertainty? **Autonomy**—does it respect the user's right to make their own decisions?
-</Term>
-<AnkiCard type="term" front={"Constitutional Scoring Dimensions"} back={"A multi-axis rubric for evaluating model outputs against a constitution. Typical dimensions, each scored 0–10: **Helpfulness**—does the response address the user's need? **Harmlessness**—does it avoid causing harm? **Honesty**—is it truthful and transparent about uncertainty? **Autonomy**—does it respect the user's right to make their own decisions?"} los="FRI-4.5" />
-
-
-
-## RLAIF Evolution: Beyond Constitutional AI
-
-Constitutional AI pioneered AI-generated feedback, but the RLAIF paradigm has
-expanded significantly:
-
-- **Self-play preference generation**: The model generates both
-  candidate responses and preference labels, then trains on its own judgments.
-  Used in Meta’s Self-Rewarding Language Models (2024).
-
-- **Principle-conditioned generation**: Instead of a fixed constitution,
-  condition on specific principles per query (e.g., prioritise harmlessness
-  for safety-adjacent queries, helpfulness for factual ones).
-
-- **KTO as a CAI simplifier**: Binary feedback (good/bad) from an AI
-  judge replaces pairwise comparisons, reducing the annotation complexity
-  from *O*(*n*<sup>2</sup>) pairs to *O*(*n*) labels.
-
-The common thread: AI feedback is *cheaper and more consistent* than human
-feedback, but requires careful calibration against human preferences on a
-validation set to prevent systematic bias.
-
-## Templates as Reward Functions
-
-In the CAI framework, templates serve double duty: they generate diverse training
-examples *and* encode evaluation criteria. A template that says “critique this
-response for harmlessness” is simultaneously a data generator and a reward function
-specification. This unification is what makes constitutional AI self-improving.
-
-# Balancing Data and Rewards
-
-The final challenge is mixing all these data sources and reward signals into a
-coherent training recipe.
-
-## Data Mixing Ratios
-
-There is no universal optimal ratio. The right mix depends on your model’s target
-capabilities:
-
-| **Target Capability** | **Task-Specific Data** | **General Data** |
-|:----------------------|:----------------------:|:----------------:|
-| General assistant     |         40–60%         |      40–60%      |
-| Math/reasoning        |         60–80%         |      20–40%      |
-| Translation           |         70–90%         |      10–30%      |
-| Code generation       |         50–70%         |      30–50%      |
-| Safety-critical       |         30–50%         |      50–70%      |
-
-## Specialization Trade-Offs
-
-Specializing a model (e.g., heavy math data) inevitably degrades performance on
-other tasks. This is not a bug—it is the fundamental trade-off of post-training.
-Track capability regression on a broad eval suite and decide explicitly which
-capabilities you are willing to sacrifice.
-
-## Reward Function Weight Balancing
-
-When using composite reward scores, the relative weights between dimensions (e.g.,
-correctness vs. helpfulness vs. safety) determine model behavior. Small weight
-changes can cause large behavioral shifts. Treat reward weights as hyperparameters
-that require systematic tuning, not one-time configuration.
-
-&lt;!–MDXB-11-OPEN–&gt;
-
-Over-specializing on one task while losing general
-abilities. **Fix**: Include 20–40% general-purpose data in every mix.
-
-One reward dimension dominates all others, producing
-outputs that optimize a single axis. **Fix**: Normalize reward dimensions
-to similar scales before weighting.
-
-Using the same data ratios across training runs without
-re-evaluating. **Fix**: Re-tune mixing ratios every iteration based on
-current evaluation results.
-
-&lt;!–MDXB-11-CLOSE–&gt;
-
-
-
-<Sidenote category="warning">Data balancing is **never** a one-time process. Every model iteration changes what data the model needs next.</Sidenote>
-
-
-
-## The Iterative Imperative
-
-Post-training is fundamentally iterative. The output of one training run informs
-the data collection, mixing, and reward design of the next. Teams that treat data
-pipelines as “set and forget” are consistently outperformed by teams that run
-tight iteration loops with rigorous evaluation at each step.
-
-&lt;!–MDXB-14-OPEN–&gt;
-
-**Core Insight:** A 10× increase in data quantity yields &lt;1.3×
-capability gain if quality is poor. A 10× increase in *curation*
-(keeping the top 10%, removing the bottom 10%) often yields 2–3× gains.
-Frontier labs spend as much effort *filtering out* bad data as generating
-new data.
-
-**Why It Matters:** DeepSeek R1 starts with 600K synthetic examples, filters
-aggressively to keep the best 10–15%, then mixes with 200K curated non-reasoning
-data. The filtering step—not the generation step—is where quality is created.
-
-**When It Breaks:** Over-filtering on a single dimension (e.g., only keeping
-long, detailed responses) introduces distribution bias. The model becomes excellent
-at one style but loses diversity. Balance filtering thresholds across multiple
-quality dimensions (correctness, fluency, format, diversity).
-
-&lt;!–MDXB-14-CLOSE–&gt;
-
-&lt;!–MDXB-16-OPEN–&gt;
-
-You fine-tune on 20, 50, 100, 200, 500, and 1,000 curated GSM8K examples.
-Accuracy results: 18%, 31%, 42%, 51%, 58%, 61%. Fit a power law:
-acc = *a* ⋅ *n*<sup>*b*</sup>. How many additional examples are needed to reach
-65%?
-
-&lt;!–MDXB-16-CLOSE–&gt;
-
-&lt;!–MDXB-19-OPEN–&gt;
-
-**Approach:**
-**Fitting the power law:** Using log-log regression on the data points:
-log (acc) = log (*a*) + *b* ⋅ log (*n*)
-
-Approximate fit: *a* ≈ 4.5, *b* ≈ 0.38.
-
-**Prediction for 65%:** 0.65 = 4.5 ⋅ *n*<sup>0.38</sup> ⇒
-*n* ≈ 1, 800 examples.
-
-**Key Insight:** The diminishing returns are severe: going from 500 to
-1,000 examples (+500) gained only 3% accuracy. Going from 1,000 to 1,800
-(+800) would gain only 4%. At this point, RL with a verifier is more efficient
-than collecting more SFT data.
-
-**Answer:** The diminishing returns are severe: going from 500 to
-1,000 examples (+500) gained only 3% accuracy. Going from 1,000 to 1,800
-(+800) would gain only 4%.
-
-&lt;!–MDXB-19-CLOSE–&gt;
-
-&lt;!–MDXB-17-OPEN–&gt;
-
-You generate 10,000 synthetic GSM8K examples with temperature=0.7. Quality
-scores (0–1): mean=0.62, std=0.18. You filter at threshold 0.8 and keep
-2,100 examples (21% yield). A model trained on the filtered set achieves 54%
-accuracy. The same model trained on all 10,000 unfiltered achieves 47%.
-Calculate the quality-adjusted efficiency (accuracy per training example).
-
-&lt;!–MDXB-17-CLOSE–&gt;
-
-&lt;!–MDXB-20-OPEN–&gt;
-
-**Approach:**
-**Filtered:** 54%/2, 100 = 0.0257% per example.
-
-**Unfiltered:** 47%/10, 000 = 0.0047% per example.
-
-**Ratio:** Filtered data is 5.5× more efficient per example.
-
-**Key Insight:** Aggressive filtering (keeping 21%) produces data that is
-5.5× more efficient than unfiltered data. The 7% accuracy gain (54%
-vs. 47%) comes from *removing* 7,900 low-quality examples, not from
-adding anything. Quality over quantity.
-
-**Answer:** Aggressive filtering (keeping 21%) produces data that is
-5.5× more efficient than unfiltered data. The 7% accuracy gain (54%
-vs. 47%) comes from *removing* 7,900 low-quality examples, not from
-adding anything.
-
-&lt;!–MDXB-20-CLOSE–&gt;
-
-&lt;!–MDXB-18-OPEN–&gt;
-
-Design a composite reward function for a code-generation task. The model should
-produce: (a) correct code that passes unit tests, (b) well-documented code with
-docstrings, (c) efficient code (*O*(*n*log *n*) preferred over *O*(*n*<sup>2</sup>)). Assign
-weights and justify.
-
-&lt;!–MDXB-18-CLOSE–&gt;
-
-&lt;!–MDXB-21-OPEN–&gt;
-
-**Approach:**
-**Composite reward:**
-*r* = 0.6 ⋅ test\_pass + 0.2 ⋅ doc\_score + 0.1 ⋅ efficiency\_bonus + 0.1 ⋅ format\_clean
-
-**Justification:**
-
-- **test\_pass (0.6):** Binary correctness is the dominant objective.
-  Without correctness, documentation and efficiency are worthless.
-
-- **doc\_score (0.2):** LLM-judged documentation quality (0–1). Second
-  priority because undocumented code is unmaintainable.
-
-- **efficiency\_bonus (0.1):** +0.1 if solution is *O*(*n*log *n*) or
-  better; 0 otherwise. Low weight because correctness matters more.
-
-- **format\_clean (0.1):** PEP-8 compliance, proper naming. Low weight,
-  easy to fix post-hoc.
-
-**Key Insight:** Correctness must dominate ( &gt; 50% weight) to prevent
-the model from optimising documentation at the expense of working code. Secondary
-objectives shape style without overwhelming the primary signal.
-
-**Answer:** Correctness must dominate ( &gt; 50% weight) to prevent
-the model from optimising documentation at the expense of working code.
-
-&lt;!–MDXB-21-CLOSE–&gt;
-
-&lt;!–MDXB-24-OPEN–&gt;
-
-\[FRI-4.2, FRI-4.5\]
-A fintech company deploys a customer support LLM. After 2 weeks, they collect
-5,000 user conversations. Error analysis reveals three failure modes:
-
-| **Failure Mode** | **Frequency** | **Example** |
-|:---|:--:|:---|
-| Wrong policy citation | 35% | “Refund within 60 days” (actual: 30 days) |
-| Incomplete answer | 40% | Missing fee schedule details |
-| Tone mismatch | 25% | Overly casual for complaint handling |
-
-**Question 1:** Design the counterexample data for each failure mode.
-How many examples per mode?
-
-**Question 2:** Should you retrain with SFT, RL, or both? Justify.
-
-**Question 3:** After retraining, wrong policy citation drops to 8%
-but a new failure mode appears: the model now refuses to answer questions
-about competitors. What happened and how do you fix it?
-
-&lt;!–MDXB-24-CLOSE–&gt;
-
-&lt;!–MDXB-22-OPEN–&gt;
-
-**Approach:**
-**Q1:**
-
-- **Wrong policy (35%):** 100 examples of correct policy citations with
-  exact dates, amounts, and conditions. Source directly from the policy document.
-
-- **Incomplete answer (40%):** 120 examples of complete responses
-  including fee schedules, edge cases, and follow-up actions. These should be
-  the longest examples in the training set.
-
-- **Tone mismatch (25%):** 80 examples demonstrating appropriate
-  tone—formal for complaints, warm for inquiries, precise for policy questions.
-
-**Q2:** SFT for policy citation and tone (these are format/content issues
-best fixed with demonstrations). RL for completeness (use a checklist verifier:
-does the response mention fee schedule? Follow-up steps? Contact info?).
-
-**Q3:** Catastrophic forgetting from the counterexample data. The new
-training data focused heavily on “don’t say wrong things about our policies,”
-which the model over-generalised to “don’t say anything about other companies.”
-Fix: add 50 examples where the model appropriately discusses competitors in
-factual, neutral terms. Include these in the next SFT round to restore the
-capability.
-
-**Key Insight:** Data composition should directly target the failure distribution: allocate training examples proportionally to each failure category, with the highest-impact failures getting the most examples.
-
-**Answer:** Target the failure distribution: 120 examples for incomplete answers (40%), 100 for wrong policy citations (35%), and 75 for tone issues (25%). Source policy examples directly from the document; tone examples from best human responses.
-
-&lt;!–MDXB-22-CLOSE–&gt;
-
-&lt;!–MDXB-12-OPEN–&gt;
-
-Test your understanding before moving on. Try to answer from memory, then verify.
-
-1.  **\[FRI-4.1\]** What is the Chinchilla scaling rule for pre-training data,
-    and why does it *not* apply to post-training?
-
-2.  **\[FRI-4.1\]** Your team has a model that gives correct answers but
-    outputs raw text instead of the required JSON format. How many SFT examples
-    would you start with, and why?
-
-3.  **\[FRI-4.2\]** Describe the four-step iterative data refinement loop.
-    Why are counterexamples more effective than random additional data?
-    *(FRI-4.2)*
-
-4.  **\[FRI-4.3\]** You are building an RL pipeline for a code generation
-    task. How many rollout prompts would you start with, and how many outputs
-    per prompt? What type of reward signal would you use?
-
-5.  **\[FRI-4.3\]** What is the alignment gap, and what does a widening
-    gap indicate?
-
-6.  **\[FRI-4.4\]** Name the four operations in a synthetic data pipeline.
-    Which one is the most critical and why?
-
-7.  **\[FRI-4.4\]** What is collapse detection and why is it necessary for
-    synthetic data?
-
-8.  **\[FRI-4.5\]** Sketch the seven steps of the Constitutional AI pipeline.
-    What role does the constitution serve that human annotators traditionally fill?
-    *(FRI-4.5)*
-
-9.  Evaluate synthetic data filtering strategies including rejection sampling,
-    LLM-as-judge, and consensus scoring. When does each approach fail?
-    *(FRI-4.6)*
-
-10. **\[FRI-4.1\]** DeepSeek R1 uses a 75/25 reasoning-to-non-reasoning data
-    ratio. When would you invert this ratio, and why?
-
-&lt;!–MDXB-12-CLOSE–&gt;
-
-{/* CARD-PLACEMENT-AUTOSTART */}
-
-## Review
-
-{/* CARD-PLACEMENT-TODO: polish pass should move these cards inline */}
-{/* near the concepts they test, per Q-R4.4 hybrid placement.       */}
-
-### Checkpoint cards (10)
-
-<AnkiCard type="checkpoint" id="chapters-vol0-ch04-CHECKPOINT-MODULE_4_CHECKPOINT_Q1" los="" front={"[FRI-4.1] What is the Chinchilla scaling rule for pre-training data,\n and why does it not apply to post-training?"} back={"Self-check from: Module 4 Checkpoint\n\n(Answer from memory, then verify against the chapter text.)"} />
-
-<AnkiCard type="checkpoint" id="chapters-vol0-ch04-CHECKPOINT-MODULE_4_CHECKPOINT_Q2" los="" front={"[FRI-4.1] Your team has a model that gives correct answers but\n outputs raw text instead of the required JSON format. How many SFT examples\n would you start with, and why?"} back={"Self-check from: Module 4 Checkpoint\n\n(Answer from memory, then verify against the chapter text.)"} />
-
-<AnkiCard type="checkpoint" id="chapters-vol0-ch04-CHECKPOINT-MODULE_4_CHECKPOINT_Q3" los="FRI-4.2" front={"[FRI-4.2] Describe the four-step iterative data refinement loop.\n Why are counterexamples more effective than random additional data?\n (FRI-4.2)"} back={"Self-check from: Module 4 Checkpoint\n\n(Answer from memory, then verify against the chapter text.)"} />
-
-<AnkiCard type="checkpoint" id="chapters-vol0-ch04-CHECKPOINT-MODULE_4_CHECKPOINT_Q4" los="" front={"[FRI-4.3] You are building an RL pipeline for a code generation\n task. How many rollout prompts would you start with, and how many outputs\n per prompt? What type of reward signal would you use?"} back={"Self-check from: Module 4 Checkpoint\n\n(Answer from memory, then verify against the chapter text.)"} />
-
-<AnkiCard type="checkpoint" id="chapters-vol0-ch04-CHECKPOINT-MODULE_4_CHECKPOINT_Q5" los="" front={"[FRI-4.3] What is the alignment gap, and what does a widening\n gap indicate?"} back={"Self-check from: Module 4 Checkpoint\n\n(Answer from memory, then verify against the chapter text.)"} />
-
-<AnkiCard type="checkpoint" id="chapters-vol0-ch04-CHECKPOINT-MODULE_4_CHECKPOINT_Q6" los="" front={"[FRI-4.4] Name the four operations in a synthetic data pipeline.\n Which one is the most critical and why?"} back={"Self-check from: Module 4 Checkpoint\n\n(Answer from memory, then verify against the chapter text.)"} />
-
-<AnkiCard type="checkpoint" id="chapters-vol0-ch04-CHECKPOINT-MODULE_4_CHECKPOINT_Q7" los="" front={"[FRI-4.4] What is collapse detection and why is it necessary for\n synthetic data?"} back={"Self-check from: Module 4 Checkpoint\n\n(Answer from memory, then verify against the chapter text.)"} />
-
-<AnkiCard type="checkpoint" id="chapters-vol0-ch04-CHECKPOINT-MODULE_4_CHECKPOINT_Q8" los="FRI-4.5" front={"[FRI-4.5] Sketch the seven steps of the Constitutional AI pipeline.\n What role does the constitution serve that human annotators traditionally fill?\n (FRI-4.5)"} back={"Self-check from: Module 4 Checkpoint\n\n(Answer from memory, then verify against the chapter text.)"} />
-
-<AnkiCard type="checkpoint" id="chapters-vol0-ch04-CHECKPOINT-MODULE_4_CHECKPOINT_Q9" los="FRI-4.6" front={"Evaluate synthetic data filtering strategies including rejection sampling,\n LLM-as-judge, and consensus scoring. When does each approach fail?\n (FRI-4.6)"} back={"Self-check from: Module 4 Checkpoint\n\n(Answer from memory, then verify against the chapter text.)"} />
-
-<AnkiCard type="checkpoint" id="chapters-vol0-ch04-CHECKPOINT-MODULE_4_CHECKPOINT_Q10" los="" front={"[FRI-4.1] DeepSeek R1 uses a 75/25 reasoning-to-non-reasoning data\n ratio. When would you invert this ratio, and why?"} back={"Self-check from: Module 4 Checkpoint\n\n(Answer from memory, then verify against the chapter text.)"} />
-
-### Keyconcept cards (2)
-
-<AnkiCard type="keyconcept" id="chapters-vol0-ch04-CONCEPT-COUNTEREXAMPLEDRIVEN_IMPROVEMENT" los="FRI-4.2" front={"Key Concept: Counterexample-Driven Improvement"} back={"The key insight is that not all training examples are equally valuable. After an\ninitial round of fine-tuning, the model will have specific failure modes—perhaps\nit hallucinates dates, or drops safety guardrails for certain prompt patterns, or\ngenerates overly verbose responses for simple questions.\n\nRather than adding more random data, you mine the failure distribution\nand create examples that directly counter the most common failures."} />
-
-<AnkiCard type="keyconcept" id="chapters-vol0-ch04-CONCEPT-DATA_QUALITY_IS_MULTIPLICATIVE" los="FRI-4.1" front={"Key Concept: Data Quality is Multiplicative"} back={"Core Insight: A 10$\\times$ increase in data quantity yields $<$1.3$\\times$\ncapability gain if quality is poor. A 10$\\times$ increase in curation\n(keeping the top 10\nFrontier labs spend as much effort filtering out bad data as generating\nnew data.\n\nWhy It Matters: DeepSeek R1 starts with 600K synthetic examples, filters\naggressively to keep the best 10–15\ndata. The filtering step—not the generation step—is where quality is created.\n\nWhen It Breaks: Over-filtering on a single dimension (e.g., only keeping\nlong, detailed responses) introduces distribution bias."} />
-
-### Problem cards (3)
-
-<AnkiCard type="problem" id="chapters-vol0-ch04-PROB-YOU_FINETUNE_ON_20_50_100_200_500_AND_1000_CURATED" los="FRI-4.1" front={"You fine-tune on 20, 50, 100, 200, 500, and 1,000 curated GSM8K examples.\nAccuracy results: 18\n$\\text{acc} = a \\cdot n^b$. How many additional examples are needed to reach\n65"} back={"Approach:\nFitting the power law: Using log-log regression on the data points:\n$\\log(\\text{acc}) = \\log(a) + b \\cdot \\log(n)$\n\nApproximate fit: $a approx 4.5$, $b approx 0.38$.\n\nPrediction for 65\n$n approx 1{,}800$ examples.\n\nKey Insight: The diminishing returns are severe: going from 500 to\n1,000 examples (+500) gained only 3\n(+800) would gain only 4\nthan collecting more SFT data.\n\nAnswer: The diminishing returns are severe: going from 500 to\n1,000 examples (+500) gained only 3\n(+800) would gain only 4"} />
-
-<AnkiCard type="problem" id="chapters-vol0-ch04-PROB-YOU_GENERATE_10000_SYNTHETIC_GSM8K_EXAMPLES_WITH_T" los="FRI-4.4" front={"You generate 10,000 synthetic GSM8K examples with temperature$=$0.7. Quality\nscores (0–1): mean$=$0.62, std$=$0.18. You filter at threshold 0.8 and keep\n2,100 examples (21\naccuracy. The same model trained on all 10,000 unfiltered achieves 47\nCalculate the quality-adjusted efficiency (accuracy per training example)."} back={"Approach:\nFiltered: $54\n\n**Unfiltered:** $47\n\nRatio: Filtered data is $5.5\\times$ more efficient per example.\n\nKey Insight: Aggressive filtering (keeping 21\n$5.5\\times$ more efficient than unfiltered data. The 7\nvs. $47\nadding anything. Quality over quantity.\n\n**Answer:** Aggressive filtering (keeping 21\n$5.5\\times$ more efficient than unfiltered data. The 7\nvs.\\ $47\nadding anything."} />
-
-<AnkiCard type="problem" id="chapters-vol0-ch04-PROB-DESIGN_A_COMPOSITE_REWARD_FUNCTION_FOR_A_CODEGENER" los="FRI-4.3" front={"Design a composite reward function for a code-generation task. The model should\nproduce: (a) correct code that passes unit tests, (b) well-documented code with\ndocstrings, (c) efficient code ($O(n \\log n)$ preferred over $O(n^2)$). Assign\nweights and justify."} back={"Approach:\nComposite reward:\n$r = 0.6 \\cdot \\text{test_pass} + 0.2 \\cdot \\text{doc_score} + 0.1 \\cdot\n\\text{efficiency_bonus} + 0.1 \\cdot \\text{format_clean}$\n\nJustification:\n\n- test_pass (0.6): Binary correctness is the dominant objective.\n Without correctness, documentation and efficiency are worthless.\n\n- doc_score (0.2): LLM-judged documentation quality (0–1). Second\n priority because undocumented code is unmaintainable.\n\n- efficiency_bonus (0.1): +0.1 if solution is $O(n \\log n)$ or\n better; 0 otherwise. Low weight because correctness matters more.\n\n- format_clean (0.1): PEP-8 compliance, proper naming. Low weight,\n easy to fix post-hoc.\n\nKey Insight: Correctness must dominate (${>}50\nthe model from optimising documentation at the expense of working code. Secondary\nobjectives shape style without overwhelming the primary signal.\n\n**Answer:** Correctness must dominate (${>}50\nthe model from optimising documentation at the expense of working code."} />
-
-### Redflag cards (1)
-
-<AnkiCard type="redflag" id="chapters-vol0-ch04-RF-REWARD_MODEL_OVERFITTING" los="" front={"Warning: Reward Model Overfitting"} back={"The most dangerous failure mode in RL-based post-training is reward hacking:\nthe policy learns to exploit patterns in the reward model that do not correspond to\ngenuine quality improvements. Symptoms include:\n\n- Reward scores increase while human eval scores plateau or decrease.\n\n- Outputs become formulaic—hitting reward model triggers without substance.\n\n- The alignment gap (reward model score minus human preference) widens."} />
-
-### Vignette cards (1)
-
-<AnkiCard type="vignette" id="chapters-vol0-ch04-VIG-DATA_FLYWHEEL_FOR_CUSTOMER_SUPPORT_BOT" los="FRI-4.2, FRI-4.5" front={"Case Study: Data Flywheel for Customer Support Bot\n\nA fintech company deploys a customer support LLM. After 2 weeks, they collect\n5,000 user conversations. Error analysis reveals three failure modes:\n\nFailure Mode | Frequency | Example \n\nWrong policy citation | 35\nIncomplete answer | 40\nTone mismatch | 25"} back={"Question 1: Design the counterexample data for each failure mode.\nHow many examples per mode?\n\nQuestion 2: Should you retrain with SFT, RL, or both? Justify.\n\nQuestion 3: After retraining, wrong policy citation drops to 8\nbut a new failure mode appears: the model now refuses to answer questions\nabout competitors. What happened and how do you fix it?\n\n---\n\n**Answer Rubric:**\nApproach:\nQ1:\n\n- Wrong policy (35\n exact dates, amounts, and conditions. Source directly from the policy document.\n\n- Incomplete answer (40\n including fee schedules, edge cases, and follow-up actions. These should be\n the longest examples in the training set.\n\n- Tone mismatch (25\n tone—formal for complaints, warm for inquiries, precise for policy questions.\n\nQ2: SFT for policy citation and tone (these are format/content issues\nbest fixed with demonstrations). RL for completeness (use a checklist verifier:\ndoes the response mention fee schedule? Follow-up steps? Contact info?).\n\nQ3: Catastrophic forgetting from the counterexample data. The new\ntraining data focused heavily on \"don't say wrong things about our policies,\"\nwhich the model over-generalised to \"don't say anything about other companies.\"\nFix: add 50 examples where the model appropriately discusses competitors in\nfactual, neutral terms. Include these in the next SFT round to restore the\ncapability.\n\nKey Insight: Data composition should directly target the failure distribution: allocate training examples proportionally to each failure category, with the highest-impact failures getting the most examples.\n\nAnswer: Target the failure distribution: 120 examples for incomplete answers (40"} />
-
-### Interview cards (1)
-
-<AnkiCard type="interview" id="chapters-vol0-ch04-INT-DATA_CURATION_FOR_FINETUNING" los="FRI-4.1, FRI-4.2, FRI-4.4" front={"Interview Q: that filtering matters more than\n generation for synthetic data, describe the four-step iterative\n..."} back={"Data curation questions are increasingly common at applied ML roles (Meta IC4+,\nGoogle L4+, Amazon, Anthropic). Interviewers probe whether you understand the\ndata-quality flywheel that drives iterative post-training improvement.\n\nWhat they're really testing: Whether you know that data quality is\nmultiplicative (10$\\times$ more data $<$ 10$\\times$ better curation), can design\nan iterative counterexample loop, and understand synthetic data filtering\ntradeoffs—not just how to generate data, but how to throw most of it away."} />
-
-### Decisiontree cards (1)
-
-<AnkiCard type="decisiontree" id="chapters-vol0-ch04-DECISION-HOW_MUCH_SFT_DATA_DO_I_NEED" los="" front={"Decision: How Much SFT Data Do I Need?"} back={"Are you only adjusting output format (JSON, markdown, tone)?\nStart with 20–50 examples. Evaluate before adding more.\n\nDo you need the model to follow domain-specific instructions?\nHundreds to low thousands. Use iterative error analysis to grow the set.\n\nAre you building a production assistant for a well-defined task?\n1K–5K curated examples. This is the sweet spot for most teams.\n\nAre you training a general-purpose frontier model?\n10K–100K+ across diverse tasks. Requires dedicated data teams.\n\nAre you teaching the model an entirely new language or domain?\n100K+ examples. Consider whether continued pre-training is more appropriate."} />
-
-{/* CARD-PLACEMENT-AUTOEND */}
+The four methods worth knowing — and when each fails:
+
+- [**Rejection sampling**](../glossary#term-rejection-sampling) — generate $N$, keep only those above a quality threshold. Simple and effective; *fails* when the threshold is set on one axis and silently biases the distribution.
+- [**LLM-as-judge**](../glossary#term-llm-as-judge) — a stronger model (or a judge prompt) scores candidates against a rubric. *Fails* on the judge's own biases — verbosity, confident tone, self-preference.
+- [**Majority vote**](../glossary#term-majority-vote) — sample multiple answers, keep those where the majority agrees (more likely correct). *Fails* when a *shared* misconception makes the wrong answer the consensus.
+- [**Collapse detection**](../glossary#term-collapse-detection) — flag and remove near-identical outputs that signal the generator has fallen into a repetitive mode. *Fails* silently when skipped: your "diverse" set is thousands of memorizable near-duplicates.
+
+<Aside category="warning">
+Collapse detection is **essential**, not optional. Without it a "diverse" synthetic set
+can contain thousands of near-identical outputs that the model simply memorizes,
+inflating apparent data volume while teaching almost nothing.
+</Aside>
+
+<WorkedExample id="filter-efficiency" title="Worked example: how much does filtering buy you?">
+You generate 10,000 synthetic GSM8K examples. Filtering at threshold 0.8 keeps **2,100**
+(21% yield). Trained on the filtered set the model hits **54%**; trained on all 10,000
+unfiltered it hits **47%**. Compare accuracy *per training example*:
+
+- **Filtered:** $54\% / 2{,}100 \approx 0.0257\%$ per example.
+- **Unfiltered:** $47\% / 10{,}000 \approx 0.0047\%$ per example.
+
+Filtered data is about **5.5× more efficient per example** — *and* scores 7 points
+higher in absolute terms. That 7-point gain comes from **removing** 7,900 low-quality
+examples, not from adding anything. This is the multiplicative-quality principle made
+quantitative: the filter, not the generator, is where accuracy is created.
+</WorkedExample>
+
+**Completion problem.** You generate 8,000 synthetic examples and filter to keep 1,600. Fill the
+blank: the yield is ___%.
+
+<CompletionProblem id="filter-eff" level="completion" title="Check your completion">
+$1{,}600 / 8{,}000 = 20\%$ — squarely in the typical 10–20% band. Keeping one in five is normal; if
+you keep most of what you generate, the filter is probably too loose.
+</CompletionProblem>
+
+**Now you.** Training on the filtered 1,600 reaches 50% accuracy; training on all 8,000 reaches
+44%. Which is more efficient *per example*, and roughly by how much?
+
+<CompletionProblem id="filter-eff" level="solo" title="Reveal the reasoning">
+Filtered: $50\% / 1{,}600 \approx 0.031\%$ per example. Unfiltered: $44\% / 8{,}000 \approx 0.0055\%$
+per example. Filtered data is about **5.7× more efficient per example** — and scores higher in
+absolute terms, because the gain came from *removing* 6,400 weak examples, not adding anything.
+</CompletionProblem>
+
+## Constitutional AI and RLAIF
+
+[Constitutional AI](../glossary#term-constitutional-ai) (CAI) is Anthropic's approach to
+alignment without extensive human labeling.
+Instead of humans providing preference labels, the model **critiques and revises its
+own outputs** against a written constitution — explicit, auditable principles encoding
+values like helpfulness, harmlessness, and honesty. The payoff is not just cost: a
+constitution is **transparent**. You can read, audit, and version-control the rules that
+govern behavior, and trace an unexpected output back to a specific principle.
+
+<PipelineBox title="Constitutional AI pipeline">
+1. **Write the constitution** — principles for helpfulness, harmlessness, honesty, autonomy.
+2. **Generate responses** — sample diverse outputs, including adversarial and edge-case prompts.
+3. **Constitutional critique** — the model asks of each response, "does this violate principle X, and how?"
+4. **Revision** — the model rewrites to address the critique, yielding (original, revised) pairs.
+5. **SFT on revisions** — fine-tune on the revised outputs to internalize the principles.
+6. **Preference data generation** — use the constitution to pick the preferred output per pair → synthetic preference data, no human annotators.
+7. **RL training (RLAIF)** — train a reward model on those synthetic preferences, then run RL.
+</PipelineBox>
+
+That final step is [**RLAIF**](../glossary#term-rlaif) — RL from *AI* feedback. CAI
+pioneered it, but the paradigm has since expanded well beyond a fixed constitution:
+
+- **Self-play preference generation** — the model produces *both* candidate responses and the preference labels, then trains on its own judgments (Meta's Self-Rewarding Language Models, 2024).
+- **Principle-conditioned generation** — condition on specific principles per query (prioritize harmlessness for safety-adjacent prompts, helpfulness for factual ones) instead of one fixed constitution.
+- **Binary-feedback simplifiers** — good/bad labels from an AI judge replace pairwise comparisons, cutting labeling overhead — one good/bad label per item instead of constructed preference pairs (the exact saving depends on how pairs were sampled).
+
+The common thread: AI feedback is **cheaper and more consistent** than human feedback —
+but requires careful calibration against human preferences on a validation set to
+prevent systematic bias from compounding.
+
+<Aside category="interview">
+CAI is Anthropic's core alignment method. The one-line insight interviewers want: the
+**constitution replaces human preference labelers with auditable rules** — and templates do double
+duty as both data generators and reward-function specs, which is what makes the loop
+self-improving.
+</Aside>
+
+## Balancing data and rewards
+
+The last challenge is mixing every source and signal into one coherent recipe. There is
+no universal optimal [mixing ratio](../glossary#term-data-mixing-ratio) — it tracks the
+target capability:
+
+| Target capability | Task-specific | General |
+|---|---|---|
+| General assistant | 40–60% | 40–60% |
+| Math / reasoning | 60–80% | 20–40% |
+| Translation | 70–90% | 10–30% |
+| Code generation | 50–70% | 30–50% |
+| Safety-critical | 30–50% | 50–70% |
+
+**Reading the table:** start at the *midpoint* of the range for your capability, then let
+eval-regression move it — if a general metric drops, shift toward *general*; if the target
+task lags, shift toward *task-specific*.
+
+Three failures recur, each with a standing fix:
+
+- **Capability regression** — over-specializing on one task while losing general ability. *Fix:* keep 20–40% general-purpose data in every mix.
+- **Reward-dimension collapse** — one reward axis dominates, producing single-axis outputs. *Fix:* normalize dimensions to similar scales before weighting.
+- **Stale data mix** — reusing the same ratios across runs. *Fix:* re-tune mixing ratios every iteration against current eval results.
+
+Specialization is a genuine trade-off, not a bug: heavy math data *will* degrade other
+capabilities. Track regression on a broad eval suite and decide *explicitly* which
+capabilities you are willing to sacrifice. And treat composite-reward weights as
+**hyperparameters** — small weight changes cause large behavioral shifts, so tune them
+systematically, never set-and-forget.
+
+## Where practitioners disagree
+
+**RLAIF vs RLHF — does AI feedback match human feedback?** The case for AI feedback is
+strong: it is cheap, fast, and *consistent* (no inter-annotator variance), and it scales
+harmlessness to a breadth no human-labeling budget can reach — it powers CAI and
+self-rewarding models. The case against is equally real: a model judging its own outputs
+has **no external ground truth**, so it can entrench its own blind spots, and AI
+preferences can drift *systematically* from human values in ways a fixed constitution
+will not catch. RLHF grounds the signal in actual human preference, but is expensive,
+slow, and inconsistent across annotators. <EvidenceTag kind="inference" />
+
+| Axis | RLHF (human feedback) | RLAIF (AI feedback) |
+|---|---|---|
+| Cost / speed | Expensive, slow | Cheap, fast |
+| Consistency | Varies by annotator | High (same model) |
+| Grounding | Real human preference | No external ground truth |
+| Scale | Bounded by labeling budget | Effectively unbounded |
+| Failure mode | Annotator noise / fatigue | Compounding self-bias |
+
+The defensible read is not "RLAIF wins" but a **hybrid**: AI feedback for breadth and
+consistency, *anchored* to a human-validation set that catches systematic drift, with
+human judgment reserved for the hardest value calls. The interview-grade answer names
+the trade-off — *scalability and consistency against grounding* — rather than declaring
+a winner.
+
+## Retrieval check
+
+Answer from memory, then expand to check — or go deeper in the
+[practice questions](../practice-exam).
+
+<SelfCheck q="Give the SFT data-scale ladder, and explain why post-training saturates earlier than pre-training." los="FRI-4.1">
+~20 examples → formatting only; hundreds → behavioral shift; thousands → production sweet spot; tens of thousands → frontier scale; 100K+ → a new domain/language. Post-training saturates earlier because it *steers* an already-capable base model rather than teaching it from scratch — each example carries far more weight, so a few thousand high-quality demonstrations move the model more than millions of pre-training tokens would at this stage.
+</SelfCheck>
+
+<SelfCheck q="State the four steps of the iterative data loop, and why counterexamples beat random additions." los="FRI-4.2">
+Train → evaluate on held-out sets → identify the worst failure patterns → add targeted counterexamples; repeat until metrics plateau. Counterexamples win because they spend every example on the model's *actual* failure distribution, while random data mostly re-teaches what the model already knows. Caveat: re-run the full eval each round to catch catastrophic forgetting.
+</SelfCheck>
+
+<SelfCheck q="Describe RL rollout structure, the default outputs-per-prompt, and what a widening alignment gap signals." los="FRI-4.3">
+A rollout is (prompt, sampled output, scalar reward); sample about **8 outputs per prompt** by default. A *widening* alignment gap — reward-model score rising faster than true human preference — signals **reward hacking**: the policy is exploiting the reward model rather than genuinely improving. Mitigate with composite rewards, reward-model counterexamples, and halting on the gap.
+</SelfCheck>
+
+<SelfCheck q="Name the four operations of a synthetic data pipeline and which is most critical." los="FRI-4.4">
+Generate, filter, transform, score. **Filtering** is most critical: generation is easy and bad-data generation is easier still, so keeping the best 10–20% (multi-axis rejection + collapse detection) is where quality is actually created.
+</SelfCheck>
+
+<SelfCheck q="Sketch the seven steps of the Constitutional AI pipeline and what the constitution replaces." los="FRI-4.5">
+Write constitution → generate responses → constitutional critique → revision → SFT on revisions → generate preference data from the constitution → RL on those AI preferences (RLAIF). The constitution replaces the **human preference labeler** with explicit, auditable, version-controllable rules — cheaper, more consistent, and traceable.
+</SelfCheck>
+
+<SelfCheck q="Compare rejection sampling, LLM-as-judge, majority vote, and collapse detection — when does each fail?" los="FRI-4.6">
+Rejection sampling (threshold-keep) fails by biasing the distribution when thresholded on one axis. LLM-as-judge fails on the judge's biases (verbosity, confidence, self-preference). Majority vote fails when a shared misconception makes the wrong answer the consensus. Collapse detection fails silently when skipped — leaving memorizable near-duplicates. Use them in combination, on orthogonal axes.
+</SelfCheck>
+
+## Summary
+
+Data is the engine room of post-training. Quantity follows a ladder — about 20 examples
+to change *shape*, thousands to change *behavior*, 100K+ to learn a new domain — and
+post-training saturates far earlier than pre-training because each example steers an
+already-capable model. The highest-leverage moves are **iterative**: mine the failure
+distribution and add targeted counterexamples rather than volume. RL reshapes data into
+rollouts scored by verifiers or composite rewards, with the alignment gap as the
+reward-hacking alarm. When real data runs out, synthetic pipelines generate at scale —
+but **filtering, not generation, creates the quality**, a claim the efficiency math
+makes concrete. Constitutional AI and RLAIF push further, replacing much of the human
+preference labeling with auditable principles, trading grounding for scale — the central live debate of modern
+alignment. Chapter 5 turns to **production**: serving, monitoring, and operating these
+models once they ship.

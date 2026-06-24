@@ -1,0 +1,24 @@
+---
+id: fri-1-pipeline-compare
+type: free
+chapter: 1
+domain: production-pipelines
+bloom_level: analyze
+objective_id: FRI-1.5
+difficulty: '3'
+tags: [rl]
+answer: >
+  Both start from a pre-trained base and use SFT, but their RL differs. DeepSeek
+  R1 leans on RL with **deterministic verifiers** (GRPO on math/code correctness)
+  and even demonstrated RL-only reasoning emergence (R1 Zero), then used
+  rejection-sampling SFT to re-stabilize. LLaMA 3 uses **RLHF with PPO** against a
+  human-preference reward model for general alignment, with iterative human eval
+  and data refresh. One key difference: R1's reward is largely machine-checkable
+  correctness (low reward-hacking surface); LLaMA's is a learned preference model
+  (more subjective, more hacking surface). The common mistake is calling both
+  "RLHF" — R1's reasoning RL is reward-from-verifier, not from human preferences.
+---
+
+Compare the post-training pipelines of DeepSeek R1 and LLaMA 3, focusing on their
+RL stage. Name one concrete difference in *where the reward signal comes from*
+and what that implies for reward-hacking risk.

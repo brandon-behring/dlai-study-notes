@@ -1,0 +1,22 @@
+---
+id: eaa-4-ship-decision
+type: free
+chapter: 4
+domain: trajectory-evals
+bloom_level: analyze
+objective_id: EAA-4.7
+difficulty: '2'
+tags: [shipping, decision]
+answer: >
+  Combine the per-evaluator scores with context, never an aggregate alone. Steps: (1) read each
+  evaluator dimension for gains and regressions, not the mean; (2) check statistical
+  significance — on small datasets a 2-point gain may be noise; (3) factor cost per query and
+  latency against any SLO; (4) get a per-category breakdown to catch a hidden regression on an
+  important segment; (5) if it still looks good, confirm with a small A/B on real user
+  satisfaction. Ship only if a real, significant gain justifies the cost/latency and carries no
+  unacceptable regression. Common wrong answer: "the aggregate score rose, so ship" — aggregates
+  hide dimension-level regressions and say nothing about significance or cost.
+---
+
+Describe how you decide whether to ship a candidate agent variant, combining per-evaluator
+scores with cost, latency, and statistical significance.

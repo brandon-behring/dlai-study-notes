@@ -1,0 +1,24 @@
+---
+id: fri-5-drift-diagnose
+type: free
+chapter: 5
+domain: production-pipelines
+bloom_level: analyze
+objective_id: FRI-5.4
+difficulty: '3'
+tags: [production, monitoring]
+answer: >
+  No model change plus an accuracy drop means the world changed, not the model — diagnose the
+  environment before retraining. Hypothesis 1 (most likely): data drift — user queries shifted
+  (new topics, phrasing, seasonality). Test: compare embedding distributions of month-1 vs
+  month-3 production queries; a large centroid distance confirms drift. Hypothesis 2: evaluation
+  drift — the held-out set has gone stale relative to live traffic. Test: sample ~100 recent
+  production queries, grade them by hand, and compare to the test-set accuracy; a gap means the
+  test set needs refreshing. (A third candidate: an upstream infra/tokenizer change — diff
+  configs and replay month-1 inputs.) Common wrong answer: "retrain immediately on fresh data" —
+  that may help, but without diagnosing why it dropped you might be papering over a stale test
+  set or an infra bug, wasting a training cycle.
+---
+
+A deployed model's held-out accuracy falls from 82% to 74% over three months with no model or
+config change. Give your top two hypotheses, ordered, and a diagnostic test for each.

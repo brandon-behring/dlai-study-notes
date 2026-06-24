@@ -1,0 +1,22 @@
+---
+id: kgr-2-naming
+type: free
+chapter: 2
+domain: cypher-querying
+bloom_level: understand
+objective_id: KGR-2.5
+difficulty: '1'
+tags: [cypher, readability]
+answer: >
+  The engine ignores variable names — it runs `(n1)-[:ACTED_IN]->(n2)` exactly as it runs
+  `(tom)-[:ACTED_IN]->(movie)` — so meaningful names cost nothing at runtime. Their entire value
+  is for humans: a pattern named for what each variable holds (`tom`, `coActor`, `m` for Movie)
+  reads as its own documentation, while `n1/n2/n3` force the reader to reconstruct the intent,
+  and the cost compounds in multi-hop queries. Readable Cypher is a maintainability investment
+  paid back every time someone (often you, months later) revisits the query. Common wrong
+  answer: "meaningful names make the query run faster" — names have no effect on execution; the
+  benefit is purely readability.
+---
+
+Why should Cypher variable names be meaningful, given the engine runs the query identically
+regardless of the names?

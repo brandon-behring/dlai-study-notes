@@ -1,0 +1,13 @@
+---
+term: Judge Improvement
+aliases: [improving LLM judge accuracy]
+domain: llm-judge-monitoring
+see: [meta-evaluation, few-shot-examples, cosine-similarity]
+tags: [evaluation, llm-as-judge]
+---
+
+The four levers for raising a failing judge's agreement rate, each targeting a different
+failure mode: **prompt engineering** (misunderstood criteria — ~80% of judge failures),
+**few-shot examples** (calibration on boundary cases), **model selection** (capability gaps),
+and **semantic similarity** (false negatives on paraphrases). Apply one at a time and re-run
+meta-evaluation after each — the agreement rate is the single metric that says whether it worked.

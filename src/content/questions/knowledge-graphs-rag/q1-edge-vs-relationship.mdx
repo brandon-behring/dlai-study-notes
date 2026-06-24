@@ -1,0 +1,31 @@
+---
+id: kgr-1-edge-vs-relationship
+type: mcq
+chapter: 1
+domain: kg-fundamentals
+bloom_level: understand
+objective_id: KGR-1.1
+difficulty: '1'
+tags: [graph-data-model]
+options:
+  - id: a
+    text: A relationship is a rich record with a type, direction, and its own properties
+    correct: true
+  - id: b
+    text: A relationship can only connect nodes that share the same label
+  - id: c
+    text: An edge is directed, whereas a relationship is undirected
+  - id: d
+    text: They are identical; "relationship" is only a rebranding of "edge"
+---
+import Rationale from '@brandon_m_behring/book-scaffold-astro/components/Rationale.astro';
+
+What distinguishes a knowledge-graph "relationship" from a graph-theory "edge"?
+
+<Rationale title="Why">
+A relationship carries a **type**, a **direction**, and its own **properties** — it's a data
+record, not a bare connection, which is exactly why the KG vocabulary prefers the term. It does
+not require both endpoints to share a label (relationships routinely connect different labels,
+like `Person`→`Movie`). Relationships are *directed* (not undirected), and the difference is
+substantive, not just a rebrand — the richness is what enables traversal-based retrieval.
+</Rationale>

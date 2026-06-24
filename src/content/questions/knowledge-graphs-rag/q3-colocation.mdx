@@ -1,0 +1,32 @@
+---
+id: kgr-3-colocation
+type: mcq
+chapter: 3
+domain: text-for-rag
+bloom_level: analyze
+objective_id: KGR-3.6
+difficulty: '2'
+tags: [vector-search, architecture]
+options:
+  - id: a
+    text: Neo4j computes embeddings faster than the OpenAI API
+  - id: b
+    text: It removes the need for an embedding model entirely
+  - id: c
+    text: Vector similarity search is inherently more accurate inside Neo4j
+  - id: d
+    text: One query can combine vector similarity with graph traversal in a single round trip
+    correct: true
+---
+import Rationale from '@brandon_m_behring/book-scaffold-astro/components/Rationale.astro';
+
+What is the defining advantage of storing embeddings inside Neo4j rather than in a separate
+vector database?
+
+<Rationale title="Why">
+Co-location means embeddings live as node properties in the *same* store as the graph, so a
+single Cypher query can do vector search **and** traverse relationships — retrieve a chunk, then
+follow its connections — in one round trip, with one system to run. It doesn't make embedding
+*computation* faster (that's still the API), doesn't remove the need for an embedding model, and
+doesn't make the similarity math more accurate — the win is the *combined* query.
+</Rationale>

@@ -1,0 +1,22 @@
+---
+id: fri-2a-lora-alpha
+type: free
+chapter: 2
+domain: sft-vs-rl
+bloom_level: analyze
+objective_id: FRI-2.4
+difficulty: '3'
+tags: [sft, lora]
+answer: >
+  The LoRA update is scaled by α/r, so it is the *ratio* that sets adaptation
+  magnitude. Going r=8→16 while holding α=16 changes the ratio from 16/8=2 to
+  16/16=1 — you've silently *halved* the effective update strength, so the more
+  expressive higher-rank adapter may actually adapt *less*, confounding your
+  experiment. Fix: scale α with r (set α=32 to keep α/r=2), or use a
+  rank-stabilized variant. Common wrong answer: "higher rank always means stronger
+  adaptation" — true for capacity, false for magnitude once α/r drops.
+---
+
+You raise LoRA rank from $r{=}8$ to $r{=}16$ to get a more expressive adapter but
+leave $\alpha{=}16$ unchanged, and the model adapts *less* than before. Explain
+why, using the LoRA scaling term, and state the fix.

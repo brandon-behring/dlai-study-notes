@@ -1,0 +1,14 @@
+---
+term: Pass@k
+aliases: [pass@k, pass at k]
+domain: evaluation
+see: [ece, verifier]
+tags: [evaluation, metrics]
+---
+
+The probability that at least one of $k$ sampled completions is correct, with the
+unbiased estimator $\text{Pass@}k = 1 - \binom{n-c}{k}/\binom{n}{k}$ ($n$ samples, $c$
+correct). **Pass@1** = single-shot accuracy (user-facing); **Pass@10** = whether the
+model *can* get there with retries (code generation, agents that self-verify). A large
+Pass@1↔Pass@10 gap means the model knows the answer but can't reliably surface it —
+a sampling problem, not a knowledge gap.

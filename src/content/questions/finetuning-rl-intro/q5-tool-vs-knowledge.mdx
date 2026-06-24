@@ -1,0 +1,24 @@
+---
+id: fri-5-tool-vs-knowledge
+type: free
+chapter: 5
+domain: production-pipelines
+bloom_level: apply
+objective_id: FRI-5.2
+difficulty: '2'
+tags: [agents]
+answer: >
+  Parametric memory is stale and unauditable: a price, date, or order status the model
+  "remembers" from training is likely wrong and cannot be traced, whereas a tool result is
+  current and checkable. The principle is to prefer tools over internal knowledge for factual
+  lookups. Train the preference with SFT on tool-use transcripts that demonstrate when to call
+  the tool, then RL that rewards correct tool invocation plus final-answer accuracy — so calling
+  the tool and using its result is the higher-reward path. Common wrong answer: "add more facts
+  to the training data so its memory is accurate" — facts go stale immediately and you cannot
+  retrain for every price change; the fix is to route factual lookups to tools, not to memorize
+  more.
+---
+
+Your agent sometimes answers factual lookups (current stock prices, today's date, a customer's
+order status) from its parametric memory instead of calling the available tool. Why is that a
+problem, and how do you train the preference for tools?

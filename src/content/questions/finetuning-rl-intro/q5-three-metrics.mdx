@@ -1,0 +1,22 @@
+---
+id: fri-5-three-metrics
+type: free
+chapter: 5
+domain: production-pipelines
+bloom_level: understand
+objective_id: FRI-5.6
+difficulty: '1'
+tags: [production, monitoring]
+answer: >
+  Performance (task accuracy, response-quality score, safety-violation rate), Cost (tokens per
+  request, GPU utilization, cost per query), and Reliability (latency p50/p95/p99, error rate,
+  timeout rate). Accuracy alone is insufficient because a model can be accurate yet too slow, too
+  expensive, or too unreliable to ship — one that scores well but runs 3x slower or doubles
+  serving cost can be unusable, and accuracy says nothing about latency tails or error rates that
+  users actually feel. Monitoring all three means a regression in any dimension can trigger an
+  alert or rollback. Common wrong answer: "just track accuracy and safety" — that misses cost and
+  reliability, the dimensions that most often block a technically-good model from deploying.
+---
+
+Name the three metric families to monitor for a production model, give one metric in each, and
+explain why accuracy alone is insufficient.

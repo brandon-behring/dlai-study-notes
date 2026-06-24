@@ -1,0 +1,13 @@
+---
+term: Trajectory
+aliases: [agent trajectory, step sequence]
+domain: trajectory-evals
+see: [convergence-score, wasted-work-cost]
+tags: [trajectory, evaluation]
+---
+
+The **ordered sequence of all steps** — router decisions, tool calls, LLM completions — from
+input to final response. It captures not just *what* the agent produced but *how* it got
+there. Two agents can reach the same correct answer by very different paths, so the trajectory
+carries the cost, latency, and failure-variance that the final answer alone hides — at scale,
+the path decides viability.

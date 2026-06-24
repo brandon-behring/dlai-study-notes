@@ -1,0 +1,33 @@
+---
+id: fri-5-r1-pipeline
+type: mcq
+chapter: 5
+domain: production-pipelines
+bloom_level: analyze
+objective_id: FRI-5.1
+difficulty: '2'
+tags: [production, rl, sft]
+options:
+  - id: a
+    text: RL explores and expands the capability frontier; SFT consolidates and stabilizes what works
+    correct: true
+  - id: b
+    text: SFT is cheaper than RL, so alternating spreads compute cost evenly across the run
+  - id: c
+    text: RL can only run on verifiable tasks, so SFT stages exist to cover everything else
+  - id: d
+    text: The stages must alternate because GRPO requires a fresh SFT checkpoint before each update
+---
+import Rationale from '@brandon_m_behring/book-scaffold-astro/components/Rationale.astro';
+
+The DeepSeek R1 pipeline alternates RL and SFT stages. The clearest reason for the
+alternation is that…
+
+<Rationale title="Why">
+The pipeline's rhythm is **explore ↔ consolidate**: each RL stage discovers and pushes the
+frontier (new reasoning strategies), and each SFT stage locks in and stabilizes those gains —
+complementary roles. Cost-spreading isn't the motive (RL is run *because* it explores, not to
+balance a budget). RL being verifier-limited is true, but it explains why R1 Zero *alone* is
+insufficient, not why the stages alternate. And GRPO does not require a fresh SFT checkpoint
+between updates.
+</Rationale>

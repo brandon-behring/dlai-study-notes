@@ -1,0 +1,24 @@
+---
+id: eaa-3-compare-techniques
+type: free
+chapter: 3
+domain: component-evals
+bloom_level: understand
+objective_id: EAA-3.1
+difficulty: '1'
+tags: [evaluation, techniques]
+answer: >
+  Code-based evaluation: programmatic checks (exact match, JSON validation, SQL result-set
+  diff, cosine similarity) — 100% reproducible, free, fast, but only for codifiable criteria.
+  LLM-as-a-judge: a separate LLM classifies the output into discrete rails — scales to
+  subjective/qualitative output and handles nuance, but is never fully accurate. Human
+  annotation: human labellers or end-user feedback — the most accurate, the standard for
+  safety-critical or ambiguous judgments, but slowest to scale and prone to selection bias. Use
+  code-based when you can write an assert, an LLM judge for prose/judgment, and humans where a
+  wrong answer is dangerous. Common wrong answer: "LLM-as-a-judge is strictly best because it
+  scales and is accurate" — it scales but is never fully accurate, and it's wasteful where a
+  deterministic check would do.
+---
+
+Compare the three evaluation techniques on accuracy and scalability, and state when you would
+use each.

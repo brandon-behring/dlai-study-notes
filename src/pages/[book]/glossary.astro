@@ -1,0 +1,83 @@
+---
+/**
+ * Per-book glossary — /<book>/glossary.
+ *
+ * Filters the glossary collection by book (path prefix) and anchors each term at
+ * `#term-<slug>` where <slug> is the filename (book prefix stripped) — matching
+ * the inline relative links from chapters (`../glossary#term-<slug>`).
+ */
+import Base from '@brandon_m_behring/book-scaffold-astro/layouts/Base.astro';
+import { getCollection, render } from 'astro:content';
+import '../../styles/consumer-overrides.css';
+
+export async function getStaticPaths() {
+  const books = (await getCollection('books')).filter((b) => !b.data.draft);
+  return books.map((book) => ({ params: { book: book.data.book }, props: { book } }));
+}
+
+const { book } = Astro.props;
+const slug = book.data.book;
+
+const bare = (id: string) => id.split('/').pop()!.replace(/\.mdx?$/, '');
+
+const entries = (await getCollection('glossary', (e) => !e.data.draft))
+  .filter((e) => e.id.startsWith(`${slug}/`))
+  .sort((a, b) => a.data.term.localeCompare(b.data.term));
+
+const rendered = await Promise.all(
+  entries.map(async (e) => ({ slug: bare(e.id), data: e.data, Content: (await render(e)).Content })),
+);
+const total = rendered.length;
+const termBySlug = new Map(rendered.map((t) => [t.slug, t.data.term]));
+---
+<Base title={`Glossary — ${book.data.title}`} description={`Key-terms glossary for ${book.data.title}.`}>
+  <article class="prose glossary">
+    <p class="breadcrumb">
+      <a href="/">DLAI Study Notes</a> / <a href={`/${slug}/`}>{book.data.title}</a> / <strong>Glossary</strong>
+    </p>
+    <h1>Glossary</h1>
+
+    {total === 0 && <p class="glossary-empty">No terms defined yet.</p>}
+    {total > 0 && <p class="glossary-summary">{total} term{total === 1 ? '' : 's'}.</p>}
+
+    {total > 0 && (
+      <dl class="glossary-list">
+        {rendered.map((t) => {
+          const Content = t.Content;
+          return (
+            <div class="glossary-entry" id={`term-${t.slug}`}>
+              <dt class="glossary-term">
+                {t.data.term}
+                {t.data.aliases.length > 0 && (
+                  <span class="glossary-aliases"> ({t.data.aliases.join(', ')})</span>
+                )}
+              </dt>
+              <dd class="glossary-def">
+                <Content />
+                {t.data.see.length > 0 && (
+                  <p class="glossary-see">
+                    See also: {t.data.see.map((s, i) => (
+                      <Fragment>{i > 0 ? ', ' : ''}<a href={`#term-${s}`}>{termBySlug.get(s) ?? s}</a></Fragment>
+                    ))}
+                  </p>
+                )}
+              </dd>
+            </div>
+          );
+        })}
+      </dl>
+    )}
+  </article>
+
+  <style>
+    .breadcrumb { color: var(--color-text-muted); font-size: 0.92em; margin-bottom: 1rem; }
+    .glossary { max-width: 48rem; }
+    .glossary-summary, .glossary-empty { color: var(--color-text-muted, #6b7280); }
+    .glossary-list { margin-block: 1.5rem; }
+    .glossary-entry { padding-block: 0.75rem; border-block-end: 1px solid var(--color-border, #e5e7eb); }
+    .glossary-term { font-weight: 600; }
+    .glossary-aliases { font-weight: 400; color: var(--color-text-muted, #6b7280); }
+    .glossary-def { margin-inline-start: 0; margin-block-start: 0.35rem; }
+    .glossary-see { font-size: 0.9rem; color: var(--color-text-muted, #6b7280); margin-block-start: 0.4rem; }
+  </style>
+</Base>

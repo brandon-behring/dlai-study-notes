@@ -1,0 +1,13 @@
+---
+term: Rejection Sampling
+aliases: [score-based filtering]
+domain: data-and-grading
+see: [synthetic-data, collapse-detection, llm-as-judge]
+tags: [data, filtering]
+---
+
+Generate $N$ candidates, keep only those above a quality threshold — often on multiple
+axes at once. Simple and effective, with a typical yield of 10–20%. The trap is
+thresholding on a *single* dimension, which silently biases the surviving distribution
+(e.g. keeping only long, detailed answers), so balance thresholds across correctness,
+fluency, format, and diversity.

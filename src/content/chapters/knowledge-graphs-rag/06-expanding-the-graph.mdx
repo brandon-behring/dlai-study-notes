@@ -1,0 +1,307 @@
+---
+book: knowledge-graphs-rag
+title: 'Expanding the Knowledge Graph'
+chapter: 6
+part: 1
+description: >
+  Widening the graph's scope with a second dataset — SEC Form 13 investment
+  holdings: Company and Manager nodes, the CUSIP bridge that links them to
+  existing forms, FILED and OWNS_STOCK_IN relationships, full-text indexes
+  alongside vector search, multi-hop traversal from chunk to manager,
+  graph-to-text context, and when investment-enhanced RAG actually helps.
+learning_outcomes:
+  - id: KGR-6.1
+    verb: Design
+    text: >
+      Company and Manager node schemas with appropriate identifier properties
+      (CIK, CUSIP) for cross-dataset linking.
+  - id: KGR-6.2
+    verb: Apply
+    text: >
+      FILED and OWNS_STOCK_IN relationships that bridge Form 10-K document data
+      with Form 13 investment data.
+  - id: KGR-6.3
+    verb: Design
+    text: >
+      full-text indexes on node properties for keyword and string-based search,
+      complementing vector similarity search.
+  - id: KGR-6.4
+    verb: Design
+    text: >
+      multi-hop traversal queries that navigate from text chunks through forms
+      to companies to investment managers.
+  - id: KGR-6.5
+    verb: Apply
+    text: >
+      graph pattern results to generate natural-language context sentences for
+      LLM consumption.
+  - id: KGR-6.6
+    verb: Compare
+    text: >
+      plain vector-search RAG with investment-enhanced RAG, identifying when
+      graph-augmented context improves answers.
+  - id: KGR-6.7
+    verb: Explain
+    text: >
+      how CUSIP identifiers serve as linking keys between independently created
+      node sets (Company and Form).
+  - id: KGR-6.8
+    verb: Evaluate
+    text: >
+      the complete graph schema after expansion, tracing all node types and
+      relationship types end to end.
+tags:
+  - knowledge-graph
+  - entity-resolution
+  - full-text-search
+  - rag
+  - neo4j
+last_verified: 2026-06-19
+volatility: architectural-pattern
+sources:
+  - sec2024edgar
+  - hogan2021knowledge
+  - gao2024retrieval
+---
+
+<Diagnostic skimTo="Linking the datasets with CUSIP">
+Predict before reading — check each against the chapter.
+
+1. Form 13 (investment) data was created completely separately from the Form 10-K graph. Predict the single property that lets you connect a new Company node to the right existing Form *without* manual matching.
+2. You want to find managers named like "Royal Bank" by string match, not by meaning. Predict which index type Neo4j uses — vector or full-text.
+3. You add investor context to *every* RAG answer. Asked "Tell me about NetApp's business," predict whether the investor data improves the answer.
+4. Starting from a text chunk, predict the hop sequence that reaches the investment managers who own the filing company.
+
+<Fragment slot="answers">
+1. **CUSIP 6** — both datasets carry it, so `MATCH (com:Company), (f:Form) WHERE com.cusip6 = f.cusip6` links them automatically. Shared identifiers are the cross-dataset bridge.
+2. **Full-text index** — string/keyword matching (partial, fuzzy, relevance-scored). Vector search matches *meaning*, not spelling.
+3. **No** — the question doesn't ask about investors, so the extra context is ignored as noise. Graph context helps only when the question needs it.
+4. `Chunk → Form` (PART_OF), `Form ← Company` (FILED), `Company ← Manager` (OWNS_STOCK_IN) — a four-hop path from chunk to manager.
+</Fragment>
+</Diagnostic>
+
+<NarrativeBox title="Where we are">
+Module 5 added internal structure — chunks linked by NEXT, PART_OF, SECTION.
+Now we expand the graph's *scope* by bringing in a second dataset: SEC Form 13
+filings, which report institutional investment holdings. Connecting that data to
+the existing filings lets the graph answer questions no amount of vector search
+could — "Who are NetApp's investors?" — by linking documents to the real-world
+entities that own the companies.
+</NarrativeBox>
+
+## A second dataset: SEC Form 13
+
+[**Form 13**](../glossary#term-sec-form-13) is filed quarterly by institutional
+investment firms to report their public-company holdings. Each row carries a
+manager (name, CIK, address), a company (name, `cusip6`), and the position
+(`shares`, `value`, quarter). The course dataset has **561 rows — all
+investments in NetApp**.
+
+<ConceptBox>
+**Two node types, built from the CSV.** A [**Company**](../glossary#term-company-node)
+node (keyed by `cusip6`) and a [**Manager**](../glossary#term-manager-node) node
+(keyed by `managerCik`), each created idempotently with `MERGE` on its stable
+identifier — the same exactly-once pattern from Module 4.
+</ConceptBox>
+
+```cypher
+MERGE (com:Company {cusip6: $p.cusip6})
+ON CREATE SET com.companyName = $p.companyName, com.cusip = $p.cusip
+
+MERGE (mgr:Manager {managerCik: $p.managerCik})
+ON CREATE SET mgr.managerName = $p.managerName, mgr.managerAddress = $p.managerAddress
+```
+
+## Linking the datasets with CUSIP
+
+The Form 10-K graph (Module 4) and this Form 13 data were built independently —
+yet they connect with no manual matching, because both carry a
+[**CUSIP**](../glossary#term-cusip). Match on the shared `cusip6` and create a
+[**FILED**](../glossary#term-filed-relationship) edge:
+
+```cypher
+MATCH (com:Company), (f:Form) WHERE com.cusip6 = f.cusip6
+MERGE (com)-[:FILED]->(f)
+```
+
+<KeyConcept title="Shared identifiers are the cross-dataset bridge" los="KGR-6.7">
+CUSIP 6 is a *universal* identifier present in both datasets, so MERGE matches
+Company to Form automatically — the standard pattern for expanding a knowledge
+graph with new sources. **When it breaks:** if the two datasets use *different*
+identifier schemes (CUSIP here, ISIN or ticker there), automatic linking fails
+and you need an **entity-resolution** layer to reconcile identifiers before MERGE
+can match. The hard part of integration is rarely the join — it's agreeing on
+the key. <EvidenceTag kind="verified" />
+</KeyConcept>
+
+<WorkedExample title="When the linking key isn't universal" los="KGR-6.7">
+**Problem.** You integrate patent filings (assignee = *company name*) with an
+employee database (employer = *company name*). Why is company name a poor linking
+key, and what's better?
+
+**Reasoning.** Names aren't standardised: "Google LLC", "Alphabet Inc.", and
+"Google" may be one entity, producing missed matches (false negatives) and wrong
+matches (false positives). CUSIP worked in this chapter precisely because it's a
+canonical id. Without one, build entity resolution: a canonical id where it
+exists (DUNS, SEC CIK), else fuzzy-match names, verify with secondary attributes
+(address, industry), and store a canonical node with an `aliases` property.
+
+**Answer.** Raw name strings are unreliable keys. Prefer a canonical identifier;
+where none exists, an entity-resolution pipeline — fuzzy match plus
+attribute verification — is the (often hardest) integration step.
+</WorkedExample>
+
+<SelfCheck q="Why can Company and Form nodes be linked automatically here, and what is needed when two datasets use different identifier schemes?" los="KGR-6.7">
+Both datasets carry the **CUSIP 6** identifier, so `MATCH ... WHERE com.cusip6 = f.cusip6 MERGE (com)-[:FILED]->(f)` connects them with no manual matching — a shared universal key is the bridge. When datasets use *different* schemes (CUSIP vs ISIN vs ticker), there's no common key to MERGE on, so you need an **entity-resolution** layer that maps identifiers (or fuzzy-matches names + verifies with secondary attributes) before linking.
+</SelfCheck>
+
+## Full-text search alongside vectors
+
+Vector search matches *meaning*; to match *strings* — find a manager named like
+"Royal Bank" — you need a [**full-text index**](../glossary#term-full-text-index):
+
+```cypher
+CREATE FULLTEXT INDEX fullTextManagerNames IF NOT EXISTS
+FOR (m:Manager) ON EACH [m.managerName]
+```
+
+```cypher
+CALL db.index.fulltext.queryNodes('fullTextManagerNames', 'Royal Bank')
+  YIELD node, score
+RETURN node.managerName, score
+```
+
+Neo4j now offers **three search paradigms in one engine** — pick by what you're
+matching:
+
+| Search | Index | Matches on |
+| --- | --- | --- |
+| Semantic similarity | vector | meaning (conceptually similar text) |
+| Keyword / string | full-text | spelling (exact, partial, fuzzy) |
+| Exact lookup | property | a known identifier |
+
+<SelfCheck q="How does a full-text index differ from a vector index, and when would you reach for each?" los="KGR-6.3">
+A **vector index** finds *semantically* similar content (close embeddings) — good for "find chunks about this topic". A **full-text index** does *string* matching — exact, partial, and fuzzy keyword search with relevance scoring — good for "find the manager named like Royal Bank", where spelling, not meaning, is the query. They're complementary; a third option, a property index, handles exact lookup by a known identifier.
+</SelfCheck>
+
+## Investment relationships and the complete schema
+
+Each CSV row becomes an [**OWNS_STOCK_IN**](../glossary#term-owns-stock-in) edge
+from manager to company, carrying `shares`, `value`, and the reporting quarter —
+561 of them, one per holding:
+
+```cypher
+MATCH (mgr:Manager {managerCik: $p.managerCik}), (com:Company {cusip6: $p.cusip6})
+MERGE (mgr)-[owns:OWNS_STOCK_IN {reportCalendarOrQuarter: $p.quarter}]->(com)
+ON CREATE SET owns.value = $p.value, owns.shares = $p.shares
+```
+
+<PipelineBox title="The graph after Module 6">
+**Nodes:** `Chunk`, `Form`, `Company`, `Manager`.
+**Relationships:** `Chunk-[:NEXT]->Chunk`, `Chunk-[:PART_OF]->Form`, `Form-[:SECTION]->Chunk`, `Company-[:FILED]->Form`, `Manager-[:OWNS_STOCK_IN]->Company`.
+**Indexes:** vector on `Chunk.textEmbedding`, full-text on `Manager.managerName`.
+</PipelineBox>
+
+<Aside category="pattern">
+The 561 investment edges all point at one company — a glimpse of the **power-law
+degree distribution** real knowledge graphs have: a few nodes (popular stocks,
+hub entities) accumulate most of the edges while the long tail stays sparse. It's
+why "find the most-connected node" and "traverse from a hub" are such common —
+and such different-cost — graph queries.
+</Aside>
+
+## Multi-hop traversal and graph-to-text
+
+Now a single query crosses both datasets — from a text chunk all the way to the
+investors in its company:
+
+<CompletionProblem id="four-hop-traversal" title="Complete the four-hop traversal" level="completion">
+Count NetApp's investors by traversing from a chunk through its form and company
+out to the managers.
+
+**Your turn — fill the directions** (the arrows reverse at FILED and OWNS_STOCK_IN):
+- `MATCH (c:Chunk)-[:PART_OF]->(f:Form) ___[:FILED]___ (com:Company) ___[:OWNS_STOCK_IN]___ (mgr:Manager)`
+- `RETURN com.companyName, count(mgr) AS numberOfInvestors`
+
+<Fragment slot="solution">
+```cypher
+MATCH (c:Chunk)-[:PART_OF]->(f:Form)
+      <-[:FILED]-(com:Company)
+      <-[:OWNS_STOCK_IN]-(mgr:Manager)
+RETURN com.companyName, count(mgr) AS numberOfInvestors
+```
+- `Company-[:FILED]->Form` points *toward* the form, so from the form you traverse it **backward**: `Form<-[:FILED]-Company`.
+- Likewise `Manager-[:OWNS_STOCK_IN]->Company` is traversed backward from the company: `Company<-[:OWNS_STOCK_IN]-Manager`.
+- Result: NetApp has **561** investors.
+</Fragment>
+</CompletionProblem>
+
+To feed traversal results to an LLM, convert each result row into a sentence —
+[**graph-to-text**](../glossary#term-graph-to-text-context) context generation:
+
+```python
+sentence = f"{r['managerName']} owns {r['shares']} shares of {r['companyName']}"
+context_sentences.append(sentence)
+```
+
+<SelfCheck q="Trace the four hops from a text chunk to an investment manager, naming each relationship and its direction." los="KGR-6.4">
+From a chunk: follow **PART_OF** forward to its `Form`; follow **FILED** *backward* (`Form <-[:FILED]- Company`) to the `Company`; follow **OWNS_STOCK_IN** *backward* (`Company <-[:OWNS_STOCK_IN]- Manager`) to each `Manager`. So `(:Chunk)-[:PART_OF]->(:Form)<-[:FILED]-(:Company)<-[:OWNS_STOCK_IN]-(:Manager)` — chunk → form → company → manager, which counted NetApp's 561 investors.
+</SelfCheck>
+
+## When does investment context actually help?
+
+Two retrieval chains — plain vs investment-enhanced — answer differently
+depending on the *question*:
+
+| Question | Plain chain | Investment chain |
+| --- | --- | --- |
+| "Tell me about NetApp" | general business description | ~the same (investor data not used — not asked) |
+| "Who are NetApp's investors?" | vague ("diversified customer base") | specific investor names and share counts |
+
+<KeyConcept title="Question–context alignment: targeted beats broad" los="KGR-6.6">
+Graph-augmented context helps *only when the question matches the added data*.
+Asking about investors with investment context produces specific, accurate
+answers; asking a general question with that same context adds noise the LLM
+ignores — paying traversal cost (latency, tokens) for no gain. The design rule:
+expand context to match the **expected question distribution**, not to add
+everything you can reach. <EvidenceTag kind="verified" />
+</KeyConcept>
+
+<Aside category="pattern">
+Where practitioners disagree — *should retrieval enrich every answer with graph
+context, or only sometimes?* The "enrich-always" view: more grounding can't hurt
+and simplifies the pipeline. The "targeted" view (the evidence here): unmatched
+context is dead weight — the LLM discards it, and you've paid latency and tokens
+for nothing, sometimes even diluting the signal. The reconciling move is the same
+score/intent gating as Module 5: detect what the question *needs* (an investor
+question, a comparison) and expand only then — so enrichment is conditional, not
+unconditional.
+</Aside>
+
+<WorkedExample title="Quantifying the payoff" los="KGR-6.6">
+**Problem.** An FAQ system sits at 72% satisfaction (target 85%). Of its 28%
+failures, 40% are product-mismatch and 35% are missing-comparison. If a graph
+schema cuts each of those two modes by 60%, does it hit target?
+
+**Reasoning.** Mode 1 is $28\% \times 40\% = 11.2\%$ of all answers; Mode 2 is
+$28\% \times 35\% = 9.8\%$. A 60% cut removes $0.6 \times 11.2\% = 6.7\%$ and
+$0.6 \times 9.8\% = 5.9\%$. New failure rate: $28\% - 6.7\% - 5.9\% = 15.4\%$.
+
+**Answer.** Satisfaction rises to ≈ **84.6%**, essentially hitting the 85%
+target. Note the ceiling: only the 75% of failures from these two modes is
+addressable — the remaining 25% needs different fixes.
+</WorkedExample>
+
+## Summary
+
+Form 13 data widens the graph from documents to the entities behind them.
+**CUSIP 6** is the linking key that joins independently built Company and Form
+nodes — the cross-dataset pattern, with entity resolution as its fallback when no
+universal id exists. **Full-text indexes** add keyword search beside vector
+(semantic) and property (exact) search — three paradigms in one engine.
+**OWNS_STOCK_IN** and **FILED** edges make the graph multi-hop: one query runs
+chunk → form → company → manager, and **graph-to-text** turns the result into LLM
+context. But the payoff is conditional — graph context lifts answers only when
+the **question aligns** with the data you added.
+
+- **Chapter 7** — the capstone: an LLM *generates its own Cypher* from a natural-language question, closing the loop from question to query to graph to answer.

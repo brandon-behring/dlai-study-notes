@@ -1,0 +1,13 @@
+---
+term: Schema-Optional
+aliases: [schema flexibility]
+domain: kg-fundamentals
+see: [knowledge-graph, label]
+tags: [graph-data-model, design]
+---
+
+A knowledge graph's property of allowing **new node labels and relationship types without DDL
+migrations** — flexible where a relational schema is fixed and requires `ALTER TABLE`. The
+caveat: *optional, not free*. Without naming standards and uniqueness constraints the graph
+becomes a tangled mess, so production knowledge graphs still need governance even without an
+enforced schema.

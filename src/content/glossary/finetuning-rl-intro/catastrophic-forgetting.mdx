@@ -1,0 +1,12 @@
+---
+term: Catastrophic Forgetting
+aliases: [catastrophic interference]
+domain: evaluation
+see: [lora, error-analysis]
+tags: [evaluation, sft]
+---
+
+When training on new tasks erases previously-learned capabilities — the model "forgets"
+things it used to do well. The SFT-side loss-of-generality failure (the RL-side cousin
+is mode collapse). Mitigations: mix in ~1% pretraining/general data, use **LoRA** (it
+caps how much the base weights move), and keep epochs low.

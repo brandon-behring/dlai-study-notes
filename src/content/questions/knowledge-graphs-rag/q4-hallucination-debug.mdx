@@ -1,0 +1,23 @@
+---
+id: kgr-4-hallucination-debug
+type: free
+chapter: 4
+domain: kg-construction
+bloom_level: analyze
+objective_id: KGR-4.6
+difficulty: '3'
+tags: [hallucination, debugging]
+answer: >
+  Diagnosis: entity mis-attribution plus invented facts. The graph holds only NetApp's filing, so
+  a query about Apple retrieves NetApp's nearest chunks (highest cosine among what exists), and
+  the LLM applies that context to Apple and fabricates a revenue figure. Root cause: no
+  entity-alignment check and no refusal instruction in the prompt. Fix: a prompt that says "use
+  ONLY this context", names the source companies, and instructs "if the context is not about the
+  company in the question, say you don't have that data" — plus retrieval-score gating so
+  out-of-scope questions return no context at all. Note the limit: prompt engineering reduces but
+  does not eliminate hallucination, so pair it with a score threshold.
+---
+
+A RAG system over only NetApp's 10-K answers "What is Apple's revenue?" with a confident,
+specific figure attributed to Apple. Identify what went wrong, the root cause, and how to prevent
+it.

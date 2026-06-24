@@ -1,0 +1,31 @@
+---
+id: eaa-4-experiments-pipeline
+type: mcq
+chapter: 4
+domain: trajectory-evals
+bloom_level: understand
+objective_id: EAA-4.3
+difficulty: '1'
+tags: [experiments, framework]
+options:
+  - id: a
+    text: Dataset → task → run experiment → evaluators
+    correct: true
+  - id: b
+    text: Task → dataset → evaluators → experiment
+  - id: c
+    text: Evaluators → dataset → task → experiment
+  - id: d
+    text: Experiment → evaluators → dataset → task
+---
+import Rationale from '@brandon_m_behring/book-scaffold-astro/components/Rationale.astro';
+
+What is the correct order of the Phoenix Experiments pipeline?
+
+<Rationale title="Why">
+You first build the **dataset** of test cases, define a **task** that runs the agent on one
+row, **run the experiment** to execute that task over the whole dataset, then apply
+**evaluators** to score the results — the agent analogue of cases → test function → run →
+assertions. The other orders invert that dependency: you can't write evaluators or run an
+experiment before the dataset and task exist, and evaluators score results, so they come last.
+</Rationale>

@@ -1,0 +1,31 @@
+---
+id: eaa-2-trace-vs-span
+type: mcq
+chapter: 2
+domain: observability
+bloom_level: understand
+objective_id: EAA-2.1
+difficulty: '1'
+tags: [observability, tracing]
+options:
+  - id: a
+    text: A trace is the whole run; a span is one nested step, and spans form a tree
+    correct: true
+  - id: b
+    text: A span is the whole run; a trace is one step within the span
+  - id: c
+    text: Trace and span are interchangeable names for a single LLM call
+  - id: d
+    text: A trace records timing while a span records only the final output
+---
+import Rationale from '@brandon_m_behring/book-scaffold-astro/components/Rationale.astro';
+
+In an OpenTelemetry-instrumented agent, what is the relationship between a trace and a span?
+
+<Rationale title="Why">
+A trace is the end-to-end record of one run; a span is a single nested step, and spans form a
+tree under the trace sharing one trace ID. Swapping the two inverts the containment. They are
+not interchangeable names for one model call — a single call is one LLM *span*, not a whole
+trace. And both record timing; a span captures inputs, attributes, and status, not merely a
+final output.
+</Rationale>

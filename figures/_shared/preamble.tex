@@ -19,8 +19,18 @@
 % Future-Brandon: this preamble starts minimal. Add corpus-consistent
 % \tikzset definitions, custom node styles, and Warm Tol-5 hue palette
 % references here once the first few figures define their needs.
+%
+% THEMING CONVENTION (so figures flip cleanly in dark mode):
+%   - Labels/text/arrows: leave BLACK. build-figures remaps pure black →
+%     var(--diagram-ink), so they flip to cream in dark and stay legible.
+%   - Node identity: use COLORED BORDERS (draw=tolblue/tolgreen/...), NOT pale
+%     tint fills. A light tint fill (e.g. tolblue!10) does NOT remap, so cream
+%     text lands on a light box in dark mode → unreadable. Prefer transparent
+%     fills + colored borders. (Saturated fills are fine; pale tints are the trap.)
 
 \usepackage{tikz}
+\usepackage{pgfplots}          % line/scatter/bar plots (data-saturation curves etc.)
+\pgfplotsset{compat=1.18}
 \usepackage{amsmath}
 \usepackage{amssymb}
 \usetikzlibrary{arrows.meta, positioning, shapes, fit, calc, decorations.pathreplacing, backgrounds}
@@ -34,6 +44,16 @@
 \definecolor{tolred}{HTML}{EE6677}
 \definecolor{tolpurple}{HTML}{AA3377}
 \definecolor{tolgrey}{HTML}{BBBBBB}
+
+% Categorical DIAGRAM SERIES palette (Q3 "warm-Tol diagram palette") — for DATA
+% colors in plots (pgfplots \addplot lines/marks). build-figures does NOT remap
+% these (only pure black/white neutrals flip), so they are tuned mid-tones that
+% read on BOTH the light (warm-paper) and dark surfaces. Mirrors
+% --diagram-series-1..3 in consumer-overrides.css (one palette → figures + demos).
+% Pair with distinct marks (square*/triangle*/o) for colorblind-safe redundancy.
+\definecolor{DiagSeries1}{HTML}{4E86C2}  % blue  (warm-blue, brightened)
+\definecolor{DiagSeries2}{HTML}{A65DA0}  % plum  (warm-plum, brightened)
+\definecolor{DiagSeries3}{HTML}{B5862E}  % amber (warm-gold, deepened)
 
 % Standard node + edge styles
 \tikzset{

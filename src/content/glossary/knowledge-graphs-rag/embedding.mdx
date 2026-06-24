@@ -1,0 +1,13 @@
+---
+term: Embedding
+aliases: [text embedding, embedding vector]
+domain: text-for-rag
+see: [embedding-dimensionality, cosine-similarity, semantic-search]
+tags: [embeddings, rag]
+---
+
+A **dense vector representation of text** in high-dimensional space, where semantically similar
+texts have high cosine similarity. OpenAI's default model outputs **1536-dimensional** vectors.
+The embedding model is the *ceiling* of retrieval quality: if it encodes two related concepts
+as distant vectors, no index tuning recovers the match — which is why domain-specific corpora
+sometimes need fine-tuned or specialised models.

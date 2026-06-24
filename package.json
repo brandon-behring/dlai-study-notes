@@ -1,6 +1,6 @@
 {
   "name": "dlai-study-notes",
-  "description": "DLAI Study Notes — multi-book corpus of personal study notes synthesized from deeplearning.ai courses. Consumer of @brandon_m_behring/book-scaffold-astro v3.x with consumer-level multi-book extension.",
+  "description": "DLAI Study Notes — multi-book corpus of personal study notes synthesized from deeplearning.ai courses. Consumer of @brandon_m_behring/book-scaffold-astro v4.25 (course-notes profile) with consumer-level multi-book extension.",
   "type": "module",
   "version": "0.1.0",
   "private": true,
@@ -20,18 +20,24 @@
     "build:labels": "book-scaffold build-labels",
     "build:figures": "node tooling/build-figures/cli.mjs",
     "build:notebooks": "book-scaffold render-notebooks",
-    "validate": "book-scaffold validate --preset tools",
+    "validate": "book-scaffold validate --preset course-notes && npm run lint:components && npm run lint:mcq",
+    "lint:components": "node tooling/lint-component-tokens/cli.mjs",
+    "lint:mcq": "node tooling/lint-mcq/cli.mjs",
     "dev": "astro dev",
     "build": "astro build && pagefind --site dist",
     "preview": "astro preview",
     "convert:tex": "node tooling/tex-to-mdx/cli.mjs",
     "inject:cards": "node tooling/inject-cards/cli.mjs",
-    "extract:cards": "node tooling/mdx-card-extractor/cli.mjs"
+    "extract:cards": "node tooling/mdx-card-extractor/cli.mjs",
+    "pretest:responsive": "npm run build",
+    "test:responsive": "playwright test",
+    "test:responsive:report": "playwright show-report",
+    "test:responsive:headed": "playwright test --headed"
   },
   "dependencies": {
     "@astrojs/mdx": "^5.0.3",
     "@astrojs/preact": "^5.1.1",
-    "@brandon_m_behring/book-scaffold-astro": "^4.8.0",
+    "@brandon_m_behring/book-scaffold-astro": "^4.26.0",
     "astro": "^6.1.7",
     "katex": "^0.16.11",
     "preact": "^10.29.1",
@@ -39,7 +45,10 @@
     "remark-math": "^6.0.0"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.11.3",
+    "@playwright/test": "^1.61.0",
     "@types/node": "^22.10.0",
+    "lighthouse": "^13.4.0",
     "typescript": "^5.7.0"
   }
 }

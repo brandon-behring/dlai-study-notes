@@ -1,0 +1,22 @@
+---
+id: kgr-6-question-alignment
+type: free
+chapter: 6
+domain: kg-expansion
+bloom_level: analyze
+objective_id: KGR-6.6
+difficulty: '2'
+tags: [rag, question-context-alignment]
+answer: >
+  Because graph context helps only when the question needs it. "Who are NetApp's investors?" is
+  answered by the OWNS_STOCK_IN data, so the investment chain returns specific names and share
+  counts while the plain chain is vague. "Tell me about NetApp" is a general business question the
+  investor data does not address, so the LLM ignores the extra context and both chains answer
+  about the same — except the investment chain paid extra latency and tokens to fetch context that
+  went unused. The lesson: expand context to match the expected question distribution; unmatched
+  expansion is noise, not value. Common wrong answer: "more context is always better" — irrelevant
+  context is dead weight the model discards.
+---
+
+The investment-enhanced chain dramatically improved the answer to "Who are NetApp's investors?"
+but not to "Tell me about NetApp." Explain why, and state the design lesson.

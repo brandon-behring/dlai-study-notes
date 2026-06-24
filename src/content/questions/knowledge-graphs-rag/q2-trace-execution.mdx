@@ -1,0 +1,23 @@
+---
+id: kgr-2-trace-execution
+type: free
+chapter: 2
+domain: cypher-querying
+bloom_level: analyze
+objective_id: KGR-2.7
+difficulty: '2'
+tags: [cypher, performance]
+answer: >
+  For `MATCH (p:Person)-[:ACTED_IN]->(m:Movie) RETURN p.name, m.title LIMIT 5`: Parse — the string
+  becomes an AST capturing the pattern (a `Person` linked by `ACTED_IN` to a `Movie`) and the
+  projection. Plan — the optimiser uses the `Person`/`Movie` labels (and any index) to choose a
+  starting point and an expansion strategy. Execute — the engine finds `Person` nodes, traverses
+  their outgoing `ACTED_IN` relationships to `Movie` nodes, binding `p` and `m`, and stops early
+  once 5 matches satisfy `LIMIT`. Project — it returns only `p.name` and `m.title` for those 5
+  rows. The flow is pattern-spec → match → projection, with the plan deciding *how* the match is
+  done. Common wrong answer: "it scans every Person then filters at the end" — the planner uses
+  labels/indexes and the `LIMIT` to avoid scanning the whole graph.
+---
+
+Trace the execution of `MATCH (p:Person)-[:ACTED_IN]->(m:Movie) RETURN p.name, m.title LIMIT 5`
+through the four stages. Say what the engine does at each.

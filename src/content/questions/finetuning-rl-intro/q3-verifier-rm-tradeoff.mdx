@@ -1,0 +1,24 @@
+---
+id: fri-3-verifier-rm-tradeoff
+type: free
+chapter: 3
+domain: evaluation
+bloom_level: analyze
+objective_id: FRI-3.6
+difficulty: '2'
+tags: [evaluation, rl]
+answer: >
+  Task A (SQL) → verifier: execute the generated query and compare result rows to ground truth.
+  High reliability (deterministic), cheap to run, low Goodhart risk because it checks the real
+  outcome, not a proxy. Task B (email helpfulness) → learned reward model or LLM-as-judge:
+  "helpful" has no ground truth to check, so you need a learned proxy — but it drifts, costs
+  more to train and host, and carries higher Goodhart risk, so cross-check it against ~100 human
+  ratings and watch the alignment tax. Principle: verifiers where ground truth exists; a
+  calibrated judge where it does not. Common wrong answer: "use a learned reward model for both —
+  it is more flexible" — that throws away SQL's checkable ground truth and invites reward hacking
+  where a clean, cheap verifier already exists.
+---
+
+You must grade two RL tasks: (A) SQL generation checked against a real database, and (B) email
+helpfulness. For each, choose a verifier or a learned reward model and justify your choice
+along reliability, cost, and Goodhart risk.

@@ -1,0 +1,13 @@
+---
+term: Goodhart's Law
+aliases: [proxy gaming]
+domain: evaluation
+see: [reward-hacking, alignment-tax, verifier]
+tags: [evaluation, rl]
+---
+
+"When a measure becomes a target, it ceases to be a good measure." In RL post-training
+the reward model is a *proxy* for human preference; optimizing the proxy too hard makes
+the policy exploit the gaps between it and the true objective — the mechanism behind
+reward hacking. The standard defenses: grade with verifiers where ground truth exists,
+and watch the alignment tax (reward score diverging from human quality).

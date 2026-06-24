@@ -1,0 +1,21 @@
+---
+id: fri-2b-four-models
+type: free
+chapter: 2
+domain: sft-vs-rl
+bloom_level: understand
+objective_id: FRI-2.5
+difficulty: '2'
+tags: [rl, rlhf, ppo, grpo]
+answer: >
+  The four: (1) policy — the LLM being trained; (2) reference — a frozen copy, for
+  the KL penalty; (3) reward model — scores generated outputs; (4) value model
+  (critic) — estimates expected reward for advantage/GAE. GRPO removes the
+  **value/critic** model, replacing it with a group-mean baseline, so it runs with
+  three. The most-forgotten one is the **reference** model — omitting it in the
+  answer signals you've never wired RLHF. Note: with verifiers instead of a learned
+  reward model, GRPO can drop further (no reward model either).
+---
+
+PPO-based RLHF keeps four models in GPU memory simultaneously. Name all four and
+their roles, then state which one GRPO eliminates and what it uses instead.

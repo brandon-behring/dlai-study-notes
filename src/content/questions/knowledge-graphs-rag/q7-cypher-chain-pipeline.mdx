@@ -1,0 +1,21 @@
+---
+id: kgr-7-cypher-chain-pipeline
+type: free
+chapter: 7
+domain: graph-rag-chat
+bloom_level: apply
+objective_id: KGR-7.4
+difficulty: '2'
+tags: [graph-cypher-qa-chain, pipeline]
+answer: >
+  Four steps. (1) Question — the user asks in natural language. (2) Generate — the LLM writes Cypher
+  from the injected schema and few-shot examples. (3) Execute — Neo4j runs the generated query. (4)
+  Answer — the LLM synthesises the returned rows into a natural-language reply. The chain
+  (GraphCypherQAChain) needs the schema and a good few-shot prompt for reliable generation, and
+  should validate the query before executing in production. Common wrong answer: putting execution
+  before generation, or assuming it is vector retrieval — this pipeline generates and runs Cypher,
+  it does not embed and search.
+---
+
+Describe the four steps of the GraphCypherQAChain pipeline, in order, and one thing it needs to
+generate reliable Cypher.
