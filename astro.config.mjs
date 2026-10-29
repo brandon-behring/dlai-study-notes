@@ -38,6 +38,10 @@ export default await defineBookConfig({
     glossary: false,
     flashcards: false,
     answers: false,
+    // course-notes enables a single-book /print/ edition; on this multi-book corpus
+    // it concatenated every book's chapters under the scaffold-default title
+    // "Book (print edition)". Off until per-book print exists (see DOGFOOD.md).
+    print: false,
   },
   // v4.26.0 (#80): book-aware navigation. This multi-book corpus serves chapters
   // at /<book>/<slug>/ and per-book apparatus at /<book>/<route>/. Each chapter's
