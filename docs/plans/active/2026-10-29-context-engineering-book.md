@@ -1,10 +1,19 @@
 # Context Engineering as book #4 — plan + status
 
-> **Status (2026-10-29, Day 1).** Phase 0 step 1 done (main synced; merged branches
-> #2/#3/#4 deleted locally + on GitHub). PR A (`chore/docs-notice-gate`) in progress.
-> Next: PR B (`chore/scaffold-v5`), then the Gold guide draft in guides-dlai.
-> Codex audits PR A, PR B and the Gold guide on Day 2; nothing merges before that
-> and the owner's go. Update this block at each phase boundary.
+> **Status (2026-10-29, Day 1, midday).**
+> - Done: `main` synced; branches of PRs #2/#3/#4 deleted locally and on GitHub.
+> - **PR #5** (`chore/docs-notice-gate`): per-chapter DLAI credit, `lint:notice` gate,
+>   docs/README/NOTICE truth pass, `/print/` off. CI green.
+> - **PR #6** (`chore/remove-poc-tooling`): proof-of-concept tooling removed; scaffold
+>   stays 4.26.0.
+> - **Deviation — scaffold v5 blocked:** every release ≥ 4.30.0 fails `validate` on valid
+>   TeX braces in course-notes books (math gated on preset) → book-scaffold-astro#230.
+>   Astro 7 support (clears the critical astro advisory) → book-scaffold-astro#231.
+>   The v5 upgrade waits for #230; options are with the owner.
+> - Waiting on the owner: DLAI login in the Playwright browser (this Linux profile is
+>   anonymous; extraction must be authenticated), Cloudflare Web Analytics toggle.
+> - Next: Gold guide transcript extraction → canon → scaffold → 9-writer Workflow.
+> - Day 2: codex audits #5, #6 and the Gold guide; nothing merges before that + owner go.
 
 ## Context
 
