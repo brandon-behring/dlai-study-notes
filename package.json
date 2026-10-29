@@ -8,10 +8,7 @@
     "node": ">=22.12.0"
   },
   "workspaces": [
-    "tooling/tex-to-mdx",
-    "tooling/mdx-card-extractor",
-    "tooling/build-figures",
-    "tooling/inject-cards"
+    "tooling/build-figures"
   ],
   "scripts": {
     "predev": "npm run build:bib --if-present && npm run build:labels --if-present && npm run build:figures",
@@ -26,9 +23,6 @@
     "dev": "astro dev",
     "build": "astro build && pagefind --site dist",
     "preview": "astro preview",
-    "convert:tex": "node tooling/tex-to-mdx/cli.mjs",
-    "inject:cards": "node tooling/inject-cards/cli.mjs",
-    "extract:cards": "node tooling/mdx-card-extractor/cli.mjs",
     "pretest:responsive": "npm run build",
     "test:responsive": "playwright test",
     "test:responsive:report": "playwright show-report",
