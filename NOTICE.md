@@ -2,17 +2,22 @@
 
 This repository contains study notes synthesized from courses on
 deeplearning.ai. Course content © DeepLearning.AI and the respective
-instructors named below. Synthesis, margin notes, original problems, and
-Anki cards © Brandon Behring (CC-BY-NC-4.0 on prose, MIT on code).
+instructors named below. Synthesis, margin notes, original practice
+questions, glossary, and flashcards © Brandon Behring (CC-BY-NC-4.0 on
+prose, MIT on code).
 
 ## Per-book attribution
 
 | Book slug | Course title | Instructor(s) | Partner | Source URL |
 |---|---|---|---|---|
-| _(populated as books are added; see `src/content/books/<slug>.mdx` for canonical metadata per book)_ | | | | |
+| `evaluating-ai-agents` | Evaluating AI Agents | John Gilhuly & Aman Khan | Arize AI | https://www.deeplearning.ai/short-courses/evaluating-ai-agents/ |
+| `finetuning-rl-intro` | Fine-tuning & RL for LLMs: Intro to Post-training | Sharon Zhou | AMD | https://www.deeplearning.ai/short-courses/fine-tuning-rl-for-llms-intro-to-post-training/ |
+| `knowledge-graphs-rag` | Knowledge Graphs for RAG | Andreas Kollegger | Neo4j | https://www.deeplearning.ai/short-courses/knowledge-graphs-rag/ |
 
-This table is generated from each book's frontmatter and kept in sync via
-the corpus build process.
+Each row mirrors that book's frontmatter (`src/content/books/<slug>.mdx`).
+`npm run lint:notice` — part of `npm run validate`, which runs before every
+build — fails when a published book has no row here, or when a row disagrees
+with the book's title, instructor, partner, or source URL.
 
 ## DLAI Community Code of Conduct compliance
 
@@ -22,12 +27,15 @@ policy:
 
 - **Non-commercial sharing only** — CC-BY-NC-4.0 prose, MIT code; no
   paywall, no ads, no commercial reuse.
-- **DeepLearning.AI cited as source** on each chapter's frontmatter
-  `sources` array and the corpus README.
-- **Instructor named** on each book's TOC page and within chapter
-  frontmatter.
+- **DeepLearning.AI cited as source** — every chapter page carries a course
+  credit (course title linked to its DeepLearning.AI page, instructors,
+  partner), rendered from the book's frontmatter; each book's page and this
+  table cite the course too.
+- **Instructor named** on each book's page and in every chapter's course
+  credit.
 - **No quizzes, no graded-assignment statements, no lab solutions, no
-  verbatim transcripts** — these are paraphrased synthesis notes only.
+  verbatim transcripts** — these are paraphrased synthesis notes only, and
+  every practice question is original.
 
 ## Takedown / corrections
 
@@ -37,11 +45,11 @@ response window.
 
 ## Course-existence verification
 
-Each book's `course_existence_verified` frontmatter field is updated on
-the annual sweep cadence — a script hits each book's `source_url` to
-verify the course is still listed and the lesson structure hasn't
-substantively changed. Yellow `⚠ stale` badge appears on the corpus
-landing page for any book where the verification date is >365 days old.
+Each book's `course_existence_verified` frontmatter date records when its
+course page was last checked by hand (at least annually) to confirm the
+course is still listed and its lesson structure has not substantively
+changed. The corpus landing page and the book's page show a yellow
+`⚠ stale` badge when that date is more than 365 days old.
 
 ## Other DLAI-derived public repos
 
