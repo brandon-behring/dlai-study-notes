@@ -100,6 +100,16 @@ for (const pg of PAGES) {
       }
     }
 
+    // (2b) course credit — every chapter cites its DLAI course page and names the
+    //      instructors (DLAI IP policy; rendered from the book's frontmatter).
+    if (pg.kind === 'chapter') {
+      const credit = page.locator('p.course-credit');
+      await expect.soft(credit, `course credit missing @ ${pg.url}`).toContainText('DeepLearning.AI course');
+      await expect
+        .soft(credit.locator('a[href^="https://www.deeplearning.ai/"]'), `course credit must link the DLAI course page @ ${pg.url}`)
+        .toHaveCount(1);
+    }
+
     // (3) dead `/chapters/` links + (memoized) liveness of survivors
     const hrefs = await collectNavHrefs(page);
     for (const h of hrefs) expect.soft(h, `dead /chapters/ nav link @ ${pg.url}: ${h}`).not.toMatch(DEAD_LINK_RE);
