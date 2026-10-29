@@ -1,19 +1,24 @@
 # Context Engineering as book #4 — plan + status
 
-> **Status (2026-10-29, Day 1, midday).**
-> - Done: `main` synced; branches of PRs #2/#3/#4 deleted locally and on GitHub.
-> - **PR #5** (`chore/docs-notice-gate`): per-chapter DLAI credit, `lint:notice` gate,
->   docs/README/NOTICE truth pass, `/print/` off. CI green.
-> - **PR #6** (`chore/remove-poc-tooling`): proof-of-concept tooling removed; scaffold
->   stays 4.26.0.
-> - **Deviation — scaffold v5 blocked:** every release ≥ 4.30.0 fails `validate` on valid
->   TeX braces in course-notes books (math gated on preset) → book-scaffold-astro#230.
->   Astro 7 support (clears the critical astro advisory) → book-scaffold-astro#231.
->   The v5 upgrade waits for #230; options are with the owner.
-> - Waiting on the owner: DLAI login in the Playwright browser (this Linux profile is
->   anonymous; extraction must be authenticated), Cloudflare Web Analytics toggle.
-> - Next: Gold guide transcript extraction → canon → scaffold → 9-writer Workflow.
-> - Day 2: codex audits #5, #6 and the Gold guide; nothing merges before that + owner go.
+> **Status (2026-10-29, end of Day 1).**
+> - **dlai-study-notes:** PR #5 (per-chapter DLAI credit, `lint:notice` gate, docs truth pass,
+>   `/print/` off; CI green) and PR #6 (proof-of-concept tooling removed; scaffold stays 4.26.0)
+>   are open. Neither merges before the Day-2 codex audit and the owner's go.
+> - **Scaffold v5 blocked:** every release ≥ 4.30.0 fails `validate` on valid TeX braces in
+>   course-notes books (math gated on preset) → book-scaffold-astro#230 (fix scheduled for Day 2,
+>   before the site port; publishing waits for the owner's go). Astro 7 / security advisories →
+>   book-scaffold-astro#231.
+> - **guides-dlai** branch `feat/dlai-context-engineering` (local, unpushed, 5 commits to `4ce1a99`):
+>   37 transcripts (authenticated extraction), canon + verified inventories, `writer_selfcheck.py`
+>   (+14 tests), 8 chapters + glossary (77) + appendices A/B/D + interview map written by a
+>   9-agent Workflow, integrated and spot-read (Ch8). `make digital` exit 0, 0 undefined, 177 pages;
+>   226 cards; Gold G1–G4, G6 PASS. Registered in `guides.yml` as guide #57.
+> - **Day 2 agenda:** (1) codex audits — Gold chapters vs transcripts (one `/ask-codex` per chapter),
+>   `/adversarial-review` of PR #5 and PR #6; re-verify every finding, then fix. (2) Scaffold #230
+>   fix + tests (publish on go). (3) Epilogue (G7) + `gold_audit_<date>.md` (G5) + appendix E;
+>   ledger blocks; `audit_gold.py --report`. (4) Push + guides-dlai PR (merge-commit convention).
+> - **Owner actions pending:** Cloudflare Web Analytics toggle; decide on Discussions (CONTRIBUTING
+>   invites them, the repo has them off).
 
 ## Context
 
