@@ -2,7 +2,8 @@
 /**
  * lint-notice — fail the build when NOTICE.md's per-book attribution table
  * drifts from the books' frontmatter (src/content/books/*.mdx):
- *   1. every published (non-draft) book has a row;
+ *   1. every book has a visible row in the "Per-book attribution" section,
+ *      draft books included (their non-draft chapters still publish);
  *   2. each row's title / instructor / partner / source URL match the frontmatter;
  *   3. no row names a book that does not exist.
  * DLAI's IP policy asks that the course and its instructors be credited; this
@@ -36,5 +37,4 @@ try {
 }
 
 if (violations.length) fail(violations.map((v) => `[${v.kind}] ${v.book}: ${v.detail}`));
-const published = books.filter((b) => !b.draft).length;
-console.log(`lint:notice: ✓ ${published} published book(s) attributed in ${NOTICE}.`);
+console.log(`lint:notice: ✓ ${books.length} book(s) attributed in ${NOTICE}.`);

@@ -16,7 +16,7 @@ prose, MIT on code).
 
 Each row mirrors that book's frontmatter (`src/content/books/<slug>.mdx`).
 `npm run lint:notice` — part of `npm run validate`, which runs before every
-build — fails when a published book has no row here, or when a row disagrees
+build — fails when a book has no row in this table, or when a row disagrees
 with the book's title, instructor, partner, or source URL.
 
 ## DLAI Community Code of Conduct compliance
