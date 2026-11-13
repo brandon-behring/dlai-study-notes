@@ -100,6 +100,19 @@ for (const pg of PAGES) {
       }
     }
 
+    // (2b) course credit — each chapter audited here (PAGES lists a sample, not every
+    //      chapter) carries the credit paragraph with exactly one link to a
+    //      DeepLearning.AI page (DLAI IP policy). Nothing checks that a rendered credit
+    //      names this book's instructors or links its own course: lint:notice compares
+    //      the books' frontmatter with NOTICE.md and never reads a built page.
+    if (pg.kind === 'chapter') {
+      const credit = page.locator('p.course-credit');
+      await expect.soft(credit, `course credit missing @ ${pg.url}`).toContainText('DeepLearning.AI course');
+      await expect
+        .soft(credit.locator('a[href^="https://www.deeplearning.ai/"]'), `course credit must link the DLAI course page @ ${pg.url}`)
+        .toHaveCount(1);
+    }
+
     // (3) dead `/chapters/` links + (memoized) liveness of survivors
     const hrefs = await collectNavHrefs(page);
     for (const h of hrefs) expect.soft(h, `dead /chapters/ nav link @ ${pg.url}: ${h}`).not.toMatch(DEAD_LINK_RE);
