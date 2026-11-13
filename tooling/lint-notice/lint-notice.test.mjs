@@ -12,7 +12,7 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   SECTION, splitFrontmatter, frontmatterScalar, parseBook, splitRow, normalizeCell,
-  visibleText, parseNoticeTable, checkNotice,
+  ambiguousMarkup, atxHeading, parseNoticeTable, checkNotice,
 } from './lib.mjs';
 
 const CLI = join(dirname(fileURLToPath(import.meta.url)), 'cli.mjs');
@@ -73,21 +73,51 @@ test('parseBook reads attribution fields and rejects a book missing one', () => 
   assert.throws(() => parseBook(noInstructor, 'kg.mdx'), /kg\.mdx: frontmatter must set a non-empty 'instructor'/);
 });
 
-test('splitRow honours escaped pipes; normalizeCell unwraps links by column and dash placeholders', () => {
+test('splitRow honours escaped pipes; normalizeCell keeps cells as written except a source_url autolink and dashes', () => {
   assert.deepEqual(splitRow('| `kg` | A \\| B | x |'), ['`kg`', 'A | B', 'x']);
   assert.equal(normalizeCell('<https://x/>', 'source_url'), 'https://x/');
-  assert.equal(normalizeCell('[course](https://x/)', 'source_url'), 'https://x/');
-  assert.equal(normalizeCell('[Neo4j](https://neo4j.com/)', 'partner'), 'Neo4j');
-  assert.equal(normalizeCell('[Knowledge Graphs for RAG](https://x/)', 'title'), 'Knowledge Graphs for RAG');
+  assert.equal(normalizeCell('<https://x/>', 'partner'), '<https://x/>');
+  assert.equal(normalizeCell('[course](https://x/)', 'source_url'), '[course](https://x/)');
+  assert.equal(normalizeCell('[Neo4j](https://neo4j.com/)', 'partner'), '[Neo4j](https://neo4j.com/)');
   assert.equal(normalizeCell('—', 'partner'), '');
   assert.equal(normalizeCell('Neo4j', 'partner'), 'Neo4j');
 });
 
-test('visibleText drops HTML comments, including ones that span lines', () => {
-  assert.deepEqual(visibleText('a <!-- b --> c', false), { text: 'a  c', inComment: false });
-  assert.deepEqual(visibleText('row <!-- open', false), { text: 'row ', inComment: true });
-  assert.deepEqual(visibleText('still hidden', true), { text: '', inComment: true });
-  assert.deepEqual(visibleText('end --> shown', true), { text: ' shown', inComment: false });
+test('ambiguousMarkup flags fences, setext underlines and raw HTML, but not code spans or autolinks', () => {
+  const plain = [
+    'Plain text with a | pipe',
+    KG_ROW,
+    '|---|:---:|---|',
+    'Email <brandon@example.com> or see <https://x/>',
+    'Each row mirrors `src/content/books/<slug>.mdx`.',
+    'Type `<!--` to start a comment', // a code span is literal: it hides nothing
+    '* * *',
+    'a < b and 3 > 2',
+  ];
+  for (const line of plain) assert.equal(ambiguousMarkup(line), null, line);
+  const flagged = [
+    ['```', /code fence/],
+    ['   ~~~md', /code fence/],
+    ['```not-a-close', /code fence/], // could close a fence early in a line reader
+    ['```span``` at line start', /code fence/], // not a fence on GitHub: refused, not guessed
+    ['---', /setext heading underline/],
+    ['  ===  ', /setext heading underline/],
+    ['<!-- hidden', /raw HTML \('<!--'\)/],
+    ['| `kg` | KG | A | Neo4j <!-- | old --> | https://x/ |', /raw HTML \('<!--'\)/], // GitHub splits cells first
+    ['<details>', /raw HTML \('<details>'\)/],
+    ['Partner: <Neo4j>', /raw HTML \('<Neo4j>'\)/],
+    ['text <span hidden>x</span>', /raw HTML \('<span'\)/],
+  ];
+  for (const [line, re] of flagged) assert.match(ambiguousMarkup(line) ?? 'null', re, line);
+});
+
+test('atxHeading reads levels, indents and closing hashes as GitHub does', () => {
+  assert.deepEqual(atxHeading(`## ${SECTION}`), { level: 2, text: SECTION });
+  assert.deepEqual(atxHeading(`   ## ${SECTION} ##`), { level: 2, text: SECTION });
+  assert.deepEqual(atxHeading('##'), { level: 2, text: '' });
+  assert.equal(atxHeading(`##${SECTION}`), null);
+  assert.equal(atxHeading(`    ## ${SECTION}`), null); // four spaces: code
+  assert.equal(atxHeading('####### seven'), null);
 });
 
 test('parseNoticeTable keeps slug rows only and fails loudly on malformed or duplicate rows', () => {
@@ -99,20 +129,47 @@ test('parseNoticeTable keeps slug rows only and fails loudly on malformed or dup
   assert.throws(() => parseNoticeTable(notice(KG_ROW, KG_ROW)), /duplicate row for 'knowledge-graphs-rag'/);
 });
 
-test('parseNoticeTable reads only visible rows in the attribution section, and needs that section', () => {
-  const hidden = [
-    notice('<!--', KG_ROW, '-->'),
-    notice(`<!-- ${KG_ROW} -->`),
-    notice('```', KG_ROW, '```'),
-    notice('~~~md', KG_ROW, '~~~'),
+test('parseNoticeTable refuses markup that can hide a row or end the section, anywhere in the file', () => {
+  const refused = [
+    [notice('<!--', KG_ROW, '-->'), 7],
+    [notice(`<!-- ${KG_ROW} -->`), 7],
+    [notice('```', KG_ROW, '```'), 7],
+    [notice('~~~md', KG_ROW, '~~~'), 7],
+    // An unclosed HTML block above the heading folds the whole section away.
+    [`<details>\n\n${notice(KG_ROW)}</details>\n`, 1],
+    // A setext heading ends the section on GitHub, so the row under it is not attribution.
+    [`${notice(KG_ROW)}\nOther section\n-------------\n\n${NOTICE_HEAD}\n| \`gone\` | G | X | — | https://g/ |\n`, 10],
   ];
-  for (const text of hidden) assert.equal(parseNoticeTable(text).size, 0, text);
+  for (const [text, line] of refused) {
+    assert.throws(() => parseNoticeTable(text), new RegExp(`^Error: NOTICE\\.md:${line}: contains (a code fence|raw HTML|a setext)`), text);
+  }
+});
+
+test('parseNoticeTable reads the tables of the attribution section only, its subsections included', () => {
+  const other = '| `other` | O | B | — | https://o/ |';
+  const sub = [`   ## ${SECTION} ##`, '', NOTICE_HEAD, KG_ROW, '', '### Draft books', '', NOTICE_HEAD, other, ''].join('\n');
+  assert.deepEqual([...parseNoticeTable(sub).keys()], ['knowledge-graphs-rag', 'other']);
 
   // A backticked table in another section is not attribution: neither read nor a parse error.
   const elsewhere = `${notice(KG_ROW)}\n## Other repos\n\n| \`mbadry1/notes\` | summaries |\n`;
   assert.deepEqual([...parseNoticeTable(elsewhere).keys()], ['knowledge-graphs-rag']);
 
+  // After a blank line, a four-space indent makes a code block, not a row.
+  assert.equal(parseNoticeTable(notice('', `    ${KG_ROW}`)).size, 0);
+
   assert.throws(() => parseNoticeTable(`# Notice\n\n${NOTICE_HEAD}\n${KG_ROW}\n`), /no '## Per-book attribution' heading/);
+  assert.throws(() => parseNoticeTable(`##${SECTION}\n\n${NOTICE_HEAD}\n${KG_ROW}\n`), /no '## Per-book attribution' heading/);
+});
+
+test('parseNoticeTable needs each table to open with a five-cell header and a matching delimiter row', () => {
+  // Under a four-cell header GitHub drops each row's fifth cell, the source URL.
+  const four = '| Book slug | Course title | Instructor(s) | Partner |\n|---|---|---|---|';
+  assert.throws(() => parseNoticeTable(`## ${SECTION}\n\n${four}\n${KG_ROW}\n`), /NOTICE\.md:3: a table .* header row of 5 cells/);
+  // Without a delimiter row GitHub shows the rows as a paragraph, not a table.
+  assert.throws(() => parseNoticeTable(`## ${SECTION}\n\n${KG_ROW}\n`), /NOTICE\.md:3: a table/);
+  // A delimiter row with fewer cells than the header makes no table either.
+  const header = NOTICE_HEAD.split('\n')[0];
+  assert.throws(() => parseNoticeTable(`## ${SECTION}\n\n${header}\n|---|---|\n${KG_ROW}\n`), /NOTICE\.md:3: a table/);
 });
 
 test('checkNotice reports missing, mismatched and orphan rows; draft books need a row too', () => {
@@ -123,22 +180,28 @@ test('checkNotice reports missing, mismatched and orphan rows; draft books need 
   assert.deepEqual(missing.map((v) => v.kind), ['missing-row']);
 
   // A draft book's non-draft chapters still publish with the course credit.
-  const draft = parseBook(KG_BOOK.replace('draft: false', 'draft: true'), 'kg.mdx');
+  const draftSrc = KG_BOOK.replace('draft: false', 'draft: true');
+  assert.match(draftSrc, /^draft: true$/m);
+  const draft = parseBook(draftSrc, 'kg.mdx');
   assert.deepEqual(checkNotice([draft], new Map()).map((v) => v.kind), ['missing-row']);
-
-  // A row hidden in a comment does not attribute the book.
-  const commented = checkNotice([book], parseNoticeTable(notice(`<!-- ${KG_ROW} -->`)));
-  assert.deepEqual(commented.map((v) => v.kind), ['missing-row']);
 
   const mismatch = checkNotice([book], parseNoticeTable(notice(KG_ROW.replace('Neo4j', 'Neo5j'))));
   assert.deepEqual(mismatch.map((v) => v.kind), ['field-mismatch']);
   assert.match(mismatch[0].detail, /partner is "Neo5j" but kg\.mdx has "Neo4j"/);
 
-  // A linked partner is compared by the name readers see, not by its link target.
-  const linked = KG_ROW.replace('| Neo4j |', '| [Neo4j](https://neo4j.com/) |');
-  assert.deepEqual(checkNotice([book], parseNoticeTable(notice(linked))), []);
-  const disguised = KG_ROW.replace('| Neo4j |', '| [Wrong company](Neo4j) |');
-  assert.deepEqual(checkNotice([book], parseNoticeTable(notice(disguised))).map((v) => v.kind), ['field-mismatch']);
+  // Cells compare as written. A link fails even when its text matches, since its
+  // target goes unchecked, and a link whose target matches fails too.
+  for (const cell of ['[Neo4j](https://neo4j.com/)', '[Wrong company](Neo4j)']) {
+    const row = KG_ROW.replace('| Neo4j |', `| ${cell} |`);
+    assert.notEqual(row, KG_ROW);
+    assert.deepEqual(checkNotice([book], parseNoticeTable(notice(row))).map((v) => v.kind), ['field-mismatch'], cell);
+  }
+  // A partner in angle brackets is an HTML tag, which GitHub renders as nothing.
+  assert.throws(() => parseNoticeTable(notice(KG_ROW.replace('| Neo4j |', '| <Neo4j> |'))), /raw HTML \('<Neo4j>'\)/);
+  // A source URL may be an autolink: it shows the URL itself.
+  const autolinked = KG_ROW.replace(/\| (https:[^ ]+) \|$/, '| <$1> |');
+  assert.notEqual(autolinked, KG_ROW);
+  assert.deepEqual(checkNotice([book], parseNoticeTable(notice(autolinked))), []);
 
   const orphan = checkNotice([book], parseNoticeTable(notice(KG_ROW, '| `gone` | G | X | — | https://g/ |')));
   assert.deepEqual(orphan.map((v) => [v.kind, v.book]), [['orphan-row', 'gone']]);

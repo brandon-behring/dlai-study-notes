@@ -95,100 +95,135 @@ export function splitRow(line) {
 }
 
 /**
- * Normalize a NOTICE cell for comparison. A `[text](url)` link compares as its
- * url in the source_url column and as its visible text in every other column,
- * so a linked partner or title is checked by what readers see. `<url>` is
- * unwrapped, and an em/en dash or hyphen placeholder counts as empty (no partner).
+ * Normalize a NOTICE cell for comparison. A cell compares as written, so a cell
+ * that renders as something other than its text (a link, emphasis, an entity)
+ * fails the comparison instead of passing on a part readers do not see. Two
+ * exceptions: a `<scheme:…>` autolink in the source_url column compares as its
+ * url, which is also the text it shows; and an em/en dash or hyphen placeholder
+ * counts as empty (no partner).
  * @param {string} cell
  * @param {string} field - the column's name in ROW_FIELDS
  * @returns {string}
  * @example
- *   normalizeCell('[Neo4j](https://neo4j.com/)', 'partner') // → 'Neo4j'
- *   normalizeCell('[course](https://x/)', 'source_url')     // → 'https://x/'
+ *   normalizeCell('<https://x/>', 'source_url')             // → 'https://x/'
+ *   normalizeCell('[Neo4j](https://neo4j.com/)', 'partner') // → '[Neo4j](https://neo4j.com/)', unchanged
  */
 export function normalizeCell(cell, field) {
-  const link = cell.match(/^\[([^\]]*)\]\(([^)]+)\)$/);
-  const value = link
-    ? (field === 'source_url' ? link[2] : link[1])
-    : cell.replace(/^<(.+)>$/, '$1');
+  const value = field === 'source_url'
+    ? cell.replace(/^<([A-Za-z][A-Za-z0-9+.-]{1,31}:[^<>\s]*)>$/, '$1')
+    : cell;
   return ['—', '–', '-'].includes(value) ? '' : value;
 }
 
+/** A CommonMark autolink at the start of the text: `<scheme:…>` or `<name@host>`. It shows its own text. */
+const AUTOLINK = /^<(?:[A-Za-z][A-Za-z0-9+.-]{1,31}:[^<>\s]*|[A-Za-z0-9.!#$%&'*+\/=?^_`{|}~-]+@[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)*)>/;
+
+/** An inline code span: a backtick run, any text, then a run of the same length. */
+const CODE_SPAN = /(?<!`)(`+)(?!`)[\s\S]*?(?<!`)\1(?!`)/g;
+
 /**
- * Remove HTML comments from one line of markdown. A comment may span lines:
- * pass the previous line's `inComment` and carry the returned one forward.
+ * Find markup in one line of NOTICE.md that a line-by-line reader cannot judge
+ * the way GitHub renders it. A code fence, raw HTML (a comment, or a tag such as
+ * `<details>`) or a setext underline can hide rows, or end the attribution
+ * section above rows the reader would still count. NOTICE.md needs none of
+ * them, so parseNoticeTable refuses them anywhere in the file rather than
+ * guess. Text inside inline code spans and autolinks is not raw HTML. A `---`
+ * line is refused even as a rule, since text directly above makes it a heading
+ * underline; a backtick line that is not a valid fence is refused too.
  * @param {string} line
- * @param {boolean} inComment - whether an earlier line left a comment open
- * @returns {{text: string, inComment: boolean}} the visible text, and whether a comment is still open
+ * @returns {string | null} a description of the markup, or null for a plain line
  * @example
- *   visibleText('a <!-- b --> c <!-- d', false) // → { text: 'a  c ', inComment: true }
+ *   ambiguousMarkup('Email <a@b.co> about `<slug>`') // → null
+ *   ambiguousMarkup('| `kg` | A <!-- | --> |')       // → "raw HTML ('<!--')"
  */
-export function visibleText(line, inComment) {
-  let text = '';
-  let rest = line;
-  let open = inComment;
-  while (rest) {
-    if (open) {
-      const end = rest.indexOf('-->');
-      if (end === -1) return { text, inComment: true };
-      open = false;
-      rest = rest.slice(end + 3);
-    } else {
-      const start = rest.indexOf('<!--');
-      if (start === -1) return { text: text + rest, inComment: false };
-      text += rest.slice(0, start);
-      open = true;
-      rest = rest.slice(start + 4);
-    }
+export function ambiguousMarkup(line) {
+  if (/^ {0,3}(`{3,}|~{3,})/.test(line)) return 'a code fence';
+  if (/^ {0,3}(=+|-+)[ \t]*$/.test(line)) return "a setext heading underline or a '---' rule";
+  const text = line.replace(CODE_SPAN, '');
+  for (const m of text.matchAll(/<[A-Za-z\/!?]/g)) {
+    const rest = text.slice(m.index);
+    if (!AUTOLINK.test(rest)) return `raw HTML ('${rest.match(/^<[^\s>]*>?/)[0]}')`;
   }
-  return { text, inComment: open };
+  return null;
 }
 
 /**
- * Parse the per-book attribution rows out of NOTICE.md. Only rows under the
- * `## Per-book attribution` heading count, and only rows a reader can see:
- * a row inside an HTML comment or a fenced code block is skipped, so hiding a
- * book's row makes the check fail instead of pass. A row is a table row whose
- * first cell is a backticked slug; header, separator and placeholder rows are
- * skipped.
+ * Read an ATX heading as GitHub does: up to three spaces of indent, one to six
+ * `#`, then a space, a tab or the end of the line; closing `#`s are dropped.
+ * @param {string} line
+ * @returns {{level: number, text: string} | null}
+ * @example
+ *   atxHeading('## Per-book attribution ##') // → { level: 2, text: 'Per-book attribution' }
+ *   atxHeading('#hashtag')                   // → null
+ */
+export function atxHeading(line) {
+  const m = line.match(/^ {0,3}(#{1,6})(?:[ \t]+(.*?))?[ \t]*$/);
+  if (!m) return null;
+  return { level: m[1].length, text: (m[2] ?? '').replace(/(?:^|[ \t]+)#+$/, '').trim() };
+}
+
+/** A line GitHub can read as a table row: a pipe after at most three spaces (four, or a tab, make code). */
+const TABLE_LINE = /^ {0,3}\|/;
+
+/** Whether `line` is a GFM delimiter row of `n` cells, such as `|---|:--:|`. */
+function isDelimiterRow(line, n) {
+  if (line === undefined || !TABLE_LINE.test(line)) return false;
+  const cells = splitRow(line);
+  return cells.length === n && cells.every((c) => /^:?-+:?$/.test(c));
+}
+
+/**
+ * Parse the per-book attribution rows out of NOTICE.md, reading only what GitHub
+ * shows as a row of that section's tables:
+ *   - the section runs from the `## Per-book attribution` heading to the next
+ *     level-1 or level-2 heading;
+ *   - each table in it opens with a header row of five cells and a delimiter
+ *     row of as many, since GitHub shows no table without the delimiter row and
+ *     drops the cells past the header's count;
+ *   - a row is a table line whose first cell is a backticked slug; header,
+ *     delimiter and placeholder rows are skipped.
+ * Markup that could hide a row or end the section unseen (see ambiguousMarkup)
+ * is an error anywhere in the file.
  * @param {string} notice - NOTICE.md contents
  * @returns {Map<string, {title: string, instructor: string, partner: string, source_url: string, line: number}>}
- * @throws {Error} when the section heading is missing, on a row with the wrong column count, or a duplicate slug
+ * @throws {Error} on such markup, a missing section heading, a table without its
+ *   header and delimiter rows, a row with the wrong cell count, or a duplicate slug
  * @example
- *   parseNoticeTable('## Per-book attribution\n| `kg` | KG | A | Neo4j | https://x/ |').get('kg').partner // → 'Neo4j'
+ *   parseNoticeTable('## Per-book attribution\n| s | t | i | p | u |\n|---|---|---|---|---|\n| `kg` | KG | A | Neo4j | https://x/ |').get('kg').partner // → 'Neo4j'
  */
 export function parseNoticeTable(notice) {
+  const lines = notice.split(/\r?\n/);
+  const width = ROW_FIELDS.length + 1;
   const rows = new Map();
-  let inComment = false;
-  let fence = null; // the opening fence while inside a fenced code block
   let inSection = false;
   let sawSection = false;
-  notice.split('\n').forEach((raw, i) => {
-    if (fence) {
-      if (raw.trim().startsWith(fence)) fence = null;
-      return;
+  let inTable = false; // the previous line belongs to a table whose header and delimiter were checked
+  lines.forEach((line, i) => {
+    const lineNo = i + 1;
+    const markup = ambiguousMarkup(line);
+    if (markup) {
+      throw new Error(`NOTICE.md:${lineNo}: contains ${markup}, which can hide a row or end the section where lint:notice cannot see it; use plain headings, text and table rows`);
     }
-    const seen = visibleText(raw, inComment);
-    inComment = seen.inComment;
-    const line = seen.text.trim();
-    const opening = line.match(/^(`{3,}|~{3,})/);
-    if (opening) {
-      fence = opening[1];
-      return;
-    }
-    const heading = line.match(/^(#{1,6})\s+(.*?)\s*#*$/);
+    const heading = atxHeading(line);
     if (heading) {
-      if (heading[1].length <= 2) inSection = heading[1].length === 2 && heading[2] === SECTION;
+      if (heading.level <= 2) inSection = heading.level === 2 && heading.text === SECTION;
       sawSection ||= inSection;
+      inTable = false;
       return;
     }
-    if (!inSection || !line.startsWith('|')) return;
+    if (!inSection || !TABLE_LINE.test(line)) {
+      inTable = false;
+      return;
+    }
     const cells = splitRow(line);
+    if (!inTable && (cells.length !== width || !isDelimiterRow(lines[i + 1], width))) {
+      throw new Error(`NOTICE.md:${lineNo}: a table in the '${SECTION}' section must open with a header row of ${width} cells and a delimiter row ('|---|…') of as many; GitHub shows no table without the delimiter row, and drops the cells past the header's count`);
+    }
+    inTable = true;
     const slug = cells[0].match(/^`([^`]+)`$/);
     if (!slug) return;
-    const lineNo = i + 1;
-    if (cells.length !== ROW_FIELDS.length + 1) {
-      throw new Error(`NOTICE.md:${lineNo}: row for '${slug[1]}' has ${cells.length} cells, expected ${ROW_FIELDS.length + 1} (slug + ${ROW_FIELDS.join(', ')})`);
+    if (cells.length !== width) {
+      throw new Error(`NOTICE.md:${lineNo}: row for '${slug[1]}' has ${cells.length} cells, expected ${width} (slug + ${ROW_FIELDS.join(', ')})`);
     }
     if (rows.has(slug[1])) throw new Error(`NOTICE.md:${lineNo}: duplicate row for '${slug[1]}' (first at line ${rows.get(slug[1]).line})`);
     const rec = { line: lineNo };
