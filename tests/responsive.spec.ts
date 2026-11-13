@@ -100,8 +100,10 @@ for (const pg of PAGES) {
       }
     }
 
-    // (2b) course credit — every chapter cites its DLAI course page and names the
-    //      instructors (DLAI IP policy; rendered from the book's frontmatter).
+    // (2b) course credit — every chapter carries the credit paragraph with exactly one
+    //      link to a DeepLearning.AI page (DLAI IP policy). This does not check the
+    //      instructor names or which course is linked: both render from the book's
+    //      frontmatter, which lint:notice compares with NOTICE.md.
     if (pg.kind === 'chapter') {
       const credit = page.locator('p.course-credit');
       await expect.soft(credit, `course credit missing @ ${pg.url}`).toContainText('DeepLearning.AI course');

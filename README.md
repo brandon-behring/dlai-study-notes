@@ -39,7 +39,7 @@ For typos, errors, broken citations, or suggestions: open an **Issue** (template
 ## Tech stack
 
 - [Astro 6](https://astro.build/) + MDX content collections
-- [`@brandon_m_behring/book-scaffold-astro`](https://github.com/brandon-behring/book-scaffold-astro) (course-notes style; pinned in `package.json`) — layout, typography, callouts, citations, study apparatus, responsive navigation
+- [`@brandon_m_behring/book-scaffold-astro`](https://github.com/brandon-behring/book-scaffold-astro) (course-notes style; `package.json` sets the version range, `package-lock.json` pins the exact version) — layout, typography, callouts, citations, study apparatus, responsive navigation
 - KaTeX for math; Pagefind for search
 - Cloudflare Workers static assets, deployed by GitHub Actions (`.github/workflows/deploy.yml`) on every push to `main`; `astro-build.yml` is the pull-request build check
 - Playwright responsive + axe accessibility audit (`tests/`)
