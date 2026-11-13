@@ -118,18 +118,62 @@ export function normalizeCell(cell, field) {
 /** A CommonMark autolink at the start of the text: `<scheme:…>` or `<name@host>`. It shows its own text. */
 const AUTOLINK = /^<(?:[A-Za-z][A-Za-z0-9+.-]{1,31}:[^<>\s]*|[A-Za-z0-9.!#$%&'*+\/=?^_`{|}~-]+@[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)*)>/;
 
-/** An inline code span: a backtick run, any text, then a run of the same length. */
-const CODE_SPAN = /(?<!`)(`+)(?!`)[\s\S]*?(?<!`)\1(?!`)/g;
+/** Blockquote and list markers at the start of a line (`> `, `- `, `1. `), with the spaces before them. */
+const CONTAINER = /^(?:[ \t]*(?:>|[-+*](?=[ \t]|$)|\d{1,9}[.)](?=[ \t]|$)))+/;
+
+/** Where the backtick run of length `len` that closes a code span ends, searching from `from`; -1 if none. */
+function closingRun(line, from, len) {
+  for (let k = from; k < line.length;) {
+    if (line[k] !== '`') { k++; continue; }
+    let m = k;
+    while (line[m] === '`') m++;
+    if (m - k === len) return m;
+    k = m;
+  }
+  return -1;
+}
+
+/**
+ * Drop what CommonMark reads as literal text before it looks for HTML: inline
+ * code spans and backslash-escaped punctuation. A backtick run with no closing
+ * run of the same length is kept, as literal backticks.
+ * @param {string} line
+ * @returns {string}
+ * @example
+ *   inlineText('a `<b>` \\<c> d') // → 'a  c> d'
+ */
+export function inlineText(line) {
+  let out = '';
+  let i = 0;
+  while (i < line.length) {
+    if (line[i] === '\\' && /[!-\/:-@\[-`{-~]/.test(line[i + 1] ?? '')) {
+      i += 2;
+      continue;
+    }
+    if (line[i] === '`') {
+      let j = i;
+      while (line[j] === '`') j++;
+      const close = closingRun(line, j, j - i);
+      if (close === -1) out += line.slice(i, j);
+      i = close === -1 ? j : close;
+      continue;
+    }
+    out += line[i++];
+  }
+  return out;
+}
 
 /**
  * Find markup in one line of NOTICE.md that a line-by-line reader cannot judge
- * the way GitHub renders it. A code fence, raw HTML (a comment, or a tag such as
- * `<details>`) or a setext underline can hide rows, or end the attribution
- * section above rows the reader would still count. NOTICE.md needs none of
- * them, so parseNoticeTable refuses them anywhere in the file rather than
- * guess. Text inside inline code spans and autolinks is not raw HTML. A `---`
- * line is refused even as a rule, since text directly above makes it a heading
- * underline; a backtick line that is not a valid fence is refused too.
+ * the way GitHub renders it, because it can hide rows or end the attribution
+ * section above rows the reader would still count: a code fence, a setext
+ * underline, a link or footnote definition (each also inside a list or quote),
+ * a heading inside a list or quote, and raw HTML (a comment, or a tag such as
+ * `<details>`). NOTICE.md needs none of them, so parseNoticeTable refuses them
+ * anywhere in the file rather than guess. Code spans, escaped characters and
+ * autolinks are not raw HTML. A `---` line is refused even as a rule, since
+ * text directly above makes it a heading underline; a backtick line that is
+ * not a valid fence is refused too.
  * @param {string} line
  * @returns {string | null} a description of the markup, or null for a plain line
  * @example
@@ -137,9 +181,13 @@ const CODE_SPAN = /(?<!`)(`+)(?!`)[\s\S]*?(?<!`)\1(?!`)/g;
  *   ambiguousMarkup('| `kg` | A <!-- | --> |')       // → "raw HTML ('<!--')"
  */
 export function ambiguousMarkup(line) {
-  if (/^ {0,3}(`{3,}|~{3,})/.test(line)) return 'a code fence';
-  if (/^ {0,3}(=+|-+)[ \t]*$/.test(line)) return "a setext heading underline or a '---' rule";
-  const text = line.replace(CODE_SPAN, '');
+  const nested = CONTAINER.test(line);
+  const body = line.replace(CONTAINER, '').replace(/^[ \t]+/, '');
+  if (/^(`{3,}|~{3,})/.test(body)) return 'a code fence';
+  if (/^(=+|-+)[ \t]*$/.test(body)) return "a setext heading underline or a '---' rule";
+  if (/^\[[^\]]*\]:/.test(body)) return 'a link reference or footnote definition';
+  if (nested && /^#{1,6}(?:[ \t]|$)/.test(body)) return 'a heading inside a list or quote';
+  const text = inlineText(line);
   for (const m of text.matchAll(/<[A-Za-z\/!?]/g)) {
     const rest = text.slice(m.index);
     if (!AUTOLINK.test(rest)) return `raw HTML ('${rest.match(/^<[^\s>]*>?/)[0]}')`;
@@ -180,6 +228,8 @@ function isDelimiterRow(line, n) {
  *   - each table in it opens with a header row of five cells and a delimiter
  *     row of as many, since GitHub shows no table without the delimiter row and
  *     drops the cells past the header's count;
+ *   - every line there that holds a '|' outside code is a row of such a table
+ *     and starts with '|', so no pipe-less table can sit in front of it;
  *   - a row is a table line whose first cell is a backticked slug; header,
  *     delimiter and placeholder rows are skipped.
  * Markup that could hide a row or end the section unseen (see ambiguousMarkup)
@@ -187,7 +237,8 @@ function isDelimiterRow(line, n) {
  * @param {string} notice - NOTICE.md contents
  * @returns {Map<string, {title: string, instructor: string, partner: string, source_url: string, line: number}>}
  * @throws {Error} on such markup, a missing section heading, a table without its
- *   header and delimiter rows, a row with the wrong cell count, or a duplicate slug
+ *   header and delimiter rows, a pipe line that is not such a table's row, a row
+ *   with the wrong cell count, or a duplicate slug
  * @example
  *   parseNoticeTable('## Per-book attribution\n| s | t | i | p | u |\n|---|---|---|---|---|\n| `kg` | KG | A | Neo4j | https://x/ |').get('kg').partner // → 'Neo4j'
  */
@@ -211,13 +262,20 @@ export function parseNoticeTable(notice) {
       inTable = false;
       return;
     }
-    if (!inSection || !TABLE_LINE.test(line)) {
+    if (!inSection) {
+      inTable = false;
+      return;
+    }
+    if (!TABLE_LINE.test(line)) {
+      if (inlineText(line).includes('|')) {
+        throw new Error(`NOTICE.md:${lineNo}: a line with a '|' in the '${SECTION}' section must be a table row that starts with '|', indented at most three spaces; lint:notice reads no other table form`);
+      }
       inTable = false;
       return;
     }
     const cells = splitRow(line);
     if (!inTable && (cells.length !== width || !isDelimiterRow(lines[i + 1], width))) {
-      throw new Error(`NOTICE.md:${lineNo}: a table in the '${SECTION}' section must open with a header row of ${width} cells and a delimiter row ('|---|…') of as many; GitHub shows no table without the delimiter row, and drops the cells past the header's count`);
+      throw new Error(`NOTICE.md:${lineNo}: a table in the '${SECTION}' section must open with a header row of ${width} cells and a delimiter row ('|---|…') of as many, each starting with '|'; GitHub shows no table without the delimiter row, and drops the cells past the header's count`);
     }
     inTable = true;
     const slug = cells[0].match(/^`([^`]+)`$/);

@@ -7,7 +7,8 @@
  *   2. each row's title / instructor / partner / source URL match the frontmatter;
  *   3. no row names a book that does not exist;
  *   4. NOTICE.md holds no markup that could hide a row from this line-by-line
- *      reader or from GitHub's rendering (code fences, raw HTML, setext headings).
+ *      reader or from GitHub's rendering (code fences, raw HTML, definitions,
+ *      setext or nested headings, table lines without a leading '|').
  * DLAI's IP policy asks that the course and its instructors be credited; this
  * makes an unattributed book unshippable instead of a review-time catch.
  * Chained into `npm run validate` → prebuild → fails the build on violation.

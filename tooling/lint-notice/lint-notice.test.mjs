@@ -12,7 +12,7 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   SECTION, splitFrontmatter, frontmatterScalar, parseBook, splitRow, normalizeCell,
-  ambiguousMarkup, atxHeading, parseNoticeTable, checkNotice,
+  inlineText, ambiguousMarkup, atxHeading, parseNoticeTable, checkNotice,
 } from './lib.mjs';
 
 const CLI = join(dirname(fileURLToPath(import.meta.url)), 'cli.mjs');
@@ -83,7 +83,14 @@ test('splitRow honours escaped pipes; normalizeCell keeps cells as written excep
   assert.equal(normalizeCell('Neo4j', 'partner'), 'Neo4j');
 });
 
-test('ambiguousMarkup flags fences, setext underlines and raw HTML, but not code spans or autolinks', () => {
+test('inlineText drops code spans and escaped punctuation, keeping unclosed backtick runs', () => {
+  assert.equal(inlineText('a `<b>` \\<c> d'), 'a  c> d');
+  assert.equal(inlineText('``a`b`` then'), ' then');
+  assert.equal(inlineText('`open only'), '`open only');
+  assert.equal(inlineText('\\`<i>\\`'), '<i>'); // escaped backticks open no code span
+});
+
+test('ambiguousMarkup flags fences, setext underlines, definitions, nested headings and raw HTML', () => {
   const plain = [
     'Plain text with a | pipe',
     KG_ROW,
@@ -91,6 +98,10 @@ test('ambiguousMarkup flags fences, setext underlines and raw HTML, but not code
     'Email <brandon@example.com> or see <https://x/>',
     'Each row mirrors `src/content/books/<slug>.mdx`.',
     'Type `<!--` to start a comment', // a code span is literal: it hides nothing
+    '\\<details> is escaped, so it is text',
+    '- **Non-commercial sharing only** — no paywall',
+    '- [`a/b`](https://github.com/a/b) (75 MB, 7 years live)',
+    '2026. A year that starts a list item',
     '* * *',
     'a < b and 3 > 2',
   ];
@@ -100,11 +111,21 @@ test('ambiguousMarkup flags fences, setext underlines and raw HTML, but not code
     ['   ~~~md', /code fence/],
     ['```not-a-close', /code fence/], // could close a fence early in a line reader
     ['```span``` at line start', /code fence/], // not a fence on GitHub: refused, not guessed
+    ['- ~~~', /code fence/], // a fence in a list item swallows the lines indented under it
+    ['> ```', /code fence/],
+    ['1. ```js', /code fence/],
     ['---', /setext heading underline/],
     ['  ===  ', /setext heading underline/],
+    ['> ---', /setext heading underline/],
+    ['[x]: https://x/ "a title can run onto the next lines"', /definition/],
+    ['[^1]: a footnote, rendered at the foot of the page', /definition/],
+    ['- ## Other', /heading inside a list or quote/],
+    ['> ## Other', /heading inside a list or quote/],
     ['<!-- hidden', /raw HTML \('<!--'\)/],
     ['| `kg` | KG | A | Neo4j <!-- | old --> | https://x/ |', /raw HTML \('<!--'\)/], // GitHub splits cells first
     ['<details>', /raw HTML \('<details>'\)/],
+    ['\\`<details>\\`', /raw HTML \('<details>'\)/], // escaped backticks: a live tag
+    ['`C:\\` then <b>', /raw HTML \('<b>'\)/],
     ['Partner: <Neo4j>', /raw HTML \('<Neo4j>'\)/],
     ['text <span hidden>x</span>', /raw HTML \('<span'\)/],
   ];
@@ -154,8 +175,8 @@ test('parseNoticeTable reads the tables of the attribution section only, its sub
   const elsewhere = `${notice(KG_ROW)}\n## Other repos\n\n| \`mbadry1/notes\` | summaries |\n`;
   assert.deepEqual([...parseNoticeTable(elsewhere).keys()], ['knowledge-graphs-rag']);
 
-  // After a blank line, a four-space indent makes a code block, not a row.
-  assert.equal(parseNoticeTable(notice('', `    ${KG_ROW}`)).size, 0);
+  // A four-space indent makes code, not a row: refused, since a pipe line here must be a row.
+  assert.throws(() => parseNoticeTable(notice('', `    ${KG_ROW}`)), /NOTICE\.md:8: a line with a '\|'/);
 
   assert.throws(() => parseNoticeTable(`# Notice\n\n${NOTICE_HEAD}\n${KG_ROW}\n`), /no '## Per-book attribution' heading/);
   assert.throws(() => parseNoticeTable(`##${SECTION}\n\n${NOTICE_HEAD}\n${KG_ROW}\n`), /no '## Per-book attribution' heading/);
@@ -170,6 +191,11 @@ test('parseNoticeTable needs each table to open with a five-cell header and a ma
   // A delimiter row with fewer cells than the header makes no table either.
   const header = NOTICE_HEAD.split('\n')[0];
   assert.throws(() => parseNoticeTable(`## ${SECTION}\n\n${header}\n|---|---|\n${KG_ROW}\n`), /NOTICE\.md:3: a table/);
+  // A pipe-less four-cell table in front would swallow the real one, dropping every source URL.
+  const pipeless = 'Book slug | Course title | Instructor(s) | Partner\n---|---|---|---';
+  assert.throws(() => parseNoticeTable(`## ${SECTION}\n\n${pipeless}\n${NOTICE_HEAD}\n${KG_ROW}\n`), /NOTICE\.md:3: a line with a '\|'/);
+  // Only the leading-pipe form is read: a pipe-less delimiter row is refused, with what to write.
+  assert.throws(() => parseNoticeTable(`## ${SECTION}\n\n${header}\n---|---|---|---|---\n${KG_ROW}\n`), /NOTICE\.md:3: .*each starting with '\|'/);
 });
 
 test('checkNotice reports missing, mismatched and orphan rows; draft books need a row too', () => {
