@@ -180,6 +180,20 @@ Additive to course-notes — ship as a scaffold minor:
 - **Suggested fix:** add the same skip-when-absent guard to the scaffold's
   `build-figures` so any consumer deploying on Workers Builds is safe.
 
+### The single-book `/print/` edition mixes every book (found 2026-10-29)
+- **Problem:** course-notes turns `routes.print` on by default. On this multi-book
+  consumer, the injected `/print/` page concatenated all 18 chapters of all three
+  books under the scaffold-default title "Book (print edition)". It loaded no
+  Paged.js, no page linked to it, and it stayed out of the sitemap — yet the landing
+  page and README advertised "offline PDF via Paged.js".
+- **Workaround here:** `routes.print: false`; the PDF claim was removed from the
+  README and landing page.
+- **Suggested fix:** v5 corpus mode ships a per-book print apparatus
+  (`package/pages/corpus-apparatus/print.astro`), but corpus mode moves chapters to
+  `/chapters/<book>/<slug>/`. Either let corpus mode keep root-level
+  `/<book>/<slug>/` chapter routes (so this corpus can adopt it with no URL change),
+  or make per-book print usable without corpus mode.
+
 ## Worked fine (no action)
 - `courseNotesChapterSchema.extend({ book })` — clean consumer extension.
 - Pure helpers + islands all exported from the main entry.
